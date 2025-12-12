@@ -1,0 +1,2 @@
+# taktik
+Strategic game
