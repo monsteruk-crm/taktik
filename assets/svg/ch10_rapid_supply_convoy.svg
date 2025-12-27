@@ -1,0 +1,13 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<polygon points="0,260 300,150 300,420 0,420" fill="#d32f2f"/>
+<polygon points="60,90 180,90 180,60 240,110 180,160 180,130 60,130" fill="black"/>
+<text x="20" y="40" font-size="26" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">RAPID SUPPLY CONVOY</text>
+<text x="20" y="40" font-size="26" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">RAPID SUPPLY CONVOY</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="200" font-size="16" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">+1 movement</text>
+<text x="20" y="200" font-size="16" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">+1 movement</text>
+<text x="20" y="225" font-size="16" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">Cancels 1 malus</text>
+<text x="20" y="225" font-size="16" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">Cancels 1 malus</text>
+</svg>

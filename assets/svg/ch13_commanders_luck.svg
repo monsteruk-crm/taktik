@@ -1,0 +1,12 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<circle cx="150" cy="150" r="60" fill="black"/>
+<polygon points="150,100 165,140 210,140 175,165 190,210 150,180 110,210 125,165 90,140 135,140" fill="#d32f2f"/>
+<path d="M150 260 A60 60 0 1 1 149 259" stroke="black" stroke-width="10" fill="none"/>
+<text x="20" y="40" font-size="16" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">COMMANDER'S LUCK</text>
+<text x="20" y="40" font-size="16" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">COMMANDER'S LUCK</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">TACTIC</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">TACTIC</text>
+<text x="20" y="340" font-size="14" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">Allows one die reroll</text>
+<text x="20" y="340" font-size="14" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">Allows one die reroll</text>
+</svg>

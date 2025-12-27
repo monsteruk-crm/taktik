@@ -1,0 +1,11 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<rect x="40" y="120" width="60" height="200" fill="black"/>
+<rect x="200" y="120" width="60" height="200" fill="#d32f2f"/>
+<text x="20" y="40" font-size="22" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">NATURAL COVER</text>
+<text x="20" y="40" font-size="22" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">NATURAL COVER</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">TACTIC</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">TACTIC</text>
+<text x="20" y="350" font-size="16" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">One unit +1 defense</text>
+<text x="20" y="350" font-size="16" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">One unit +1 defense</text>
+</svg>

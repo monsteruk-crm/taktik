@@ -1,0 +1,14 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<rect x="0" y="150" width="300" height="40" fill="#d32f2f"/>
+<rect x="0" y="210" width="300" height="40" fill="#d32f2f"/>
+<polygon points="150,60 165,110 220,110 175,140 190,190 150,160 110,190 125,140 80,110 135,110" fill="black"/>
+<text x="20" y="40" font-size="22" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">INTERNAL DISCIPLINE</text>
+<text x="20" y="40" font-size="22" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">INTERNAL DISCIPLINE</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="300" font-size="14" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">Keep 1 bonus card in hand</text>
+<text x="20" y="300" font-size="14" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">Keep 1 bonus card in hand</text>
+<text x="20" y="325" font-size="16" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">Cancels 1 malus</text>
+<text x="20" y="325" font-size="16" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">Cancels 1 malus</text>
+</svg>

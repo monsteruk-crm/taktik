@@ -1,0 +1,13 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<polygon points="0,0 300,160 300,60 0,0" fill="#d32f2f"/>
+<line x1="60" y1="180" x2="60" y2="280" stroke="black" stroke-width="12"/>
+<line x1="150" y1="180" x2="150" y2="280" stroke="black" stroke-width="12"/>
+<line x1="240" y1="180" x2="240" y2="280" stroke="black" stroke-width="12"/>
+<text x="20" y="40" font-size="20" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">SUPPRESSIVE FIRE</text>
+<text x="20" y="40" font-size="20" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">SUPPRESSIVE FIRE</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">TACTIC</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">TACTIC</text>
+<text x="20" y="340" font-size="14" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">Enemy movement halved</text>
+<text x="20" y="340" font-size="14" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">Enemy movement halved</text>
+</svg>

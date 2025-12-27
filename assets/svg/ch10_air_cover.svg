@@ -1,0 +1,12 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<polygon points="0,420 300,420 150,180" fill="#d32f2f"/>
+<polygon points="150,80 170,140 150,130 130,140" fill="black"/>
+<rect x="145" y="130" width="10" height="40" fill="black"/>
+<text x="20" y="40" font-size="26" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">AIR COVER</text>
+<text x="20" y="40" font-size="26" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">AIR COVER</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="260" font-size="14" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">One blocked unit may move normally</text>
+<text x="20" y="260" font-size="14" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">One blocked unit may move normally</text>
+</svg>

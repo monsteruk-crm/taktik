@@ -1,0 +1,13 @@
+<svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="420" fill="#fff"/>
+<polygon points="0,420 300,160 300,420" fill="#d32f2f"/>
+<path d="M80 220 Q150 150 220 220 L220 260 Q150 200 80 260 Z" fill="black"/>
+<text x="20" y="40" font-size="20" font-weight="900" fill="white" stroke="white" stroke-width="4" style="font-family:'Overpass',sans-serif;">INTERNATIONAL AID</text>
+<text x="20" y="40" font-size="20" font-weight="900" fill="black" style="font-family:'Overpass',sans-serif;">INTERNATIONAL AID</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="white" stroke="white" stroke-width="3" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="70" font-size="16" font-weight="800" fill="black" style="font-family:'Overpass',sans-serif;">BONUS</text>
+<text x="20" y="300" font-size="16" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">Provides external</text>
+<text x="20" y="300" font-size="16" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">Provides external</text>
+<text x="20" y="325" font-size="16" font-weight="600" fill="white" stroke="white" stroke-width="2" style="font-family:'Overpass',sans-serif;">support reserve</text>
+<text x="20" y="325" font-size="16" font-weight="600" fill="black" style="font-family:'Overpass',sans-serif;">support reserve</text>
+</svg>
