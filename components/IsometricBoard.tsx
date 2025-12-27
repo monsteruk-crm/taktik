@@ -73,18 +73,22 @@ export default function IsometricBoard({
     );
   });
 
+  const unitOffsetX = 0;
+  const unitOffsetY = 10;
+
   const units = state.units.map((unit) => {
     const { sx, sy } = gridToScreen(unit.position);
-    const left = originX + sx;
-    const top = originY + sy;
+    const left = originX + sx + unitOffsetX;
+    const top = originY + sy + unitOffsetY;
     const isSelected = unit.id === selectedUnitId;
     const isInMoveRange = moveRangeKeys.has(posKey(unit.position));
+    const unitVariant = unit.owner === "PLAYER_A" ? "a" : "b";
     const unitSrc =
       unit.type === "INFANTRY"
-        ? "/assets/units/infantry.png"
+        ? `/assets/units/light_${unitVariant}.png`
         : unit.type === "VEHICLE"
-          ? "/assets/units/mech.png"
-          : "/assets/units/special.png";
+          ? `/assets/units/mechanized_${unitVariant}.png`
+          : `/assets/units/special_${unitVariant}.png`;
 
     return (
       <Box

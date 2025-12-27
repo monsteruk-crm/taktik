@@ -170,3 +170,43 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ### Files touched
 - Docs: `docs/isometric.md`
+
+---
+
+## 2025-12-27 — Player-specific unit sprites
+
+### BEFORE
+- Units used a single sprite per unit type (`infantry.png`, `mech.png`, `special.png`) regardless of owner.
+
+### NOW
+- Unit sprites are now selected per player: `PLAYER_A` uses the `*_a.png` variants and `PLAYER_B` uses the `*_b.png` variants for light, mechanized, and special units.
+
+### NEXT
+- Confirm sprite sizing/positioning in the isometric view and tune any per-faction offsets if needed.
+
+### Known limitations / TODOs
+- Unit art is still a single size; there is no scaling or per-unit visual differentiation beyond owner color.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `components/IsometricBoard.tsx`
+
+---
+
+## 2025-12-27 — Adjust unit centering on tiles
+
+### BEFORE
+- Unit sprites were anchored exactly at the grid center, which made the new art appear slightly high relative to the tiles.
+
+### NOW
+- Added a small vertical offset so unit sprites sit more naturally centered over the isometric tiles.
+
+### NEXT
+- Recheck positioning once any additional unit sizes or animations are introduced.
+
+### Known limitations / TODOs
+- Offsets are global (shared by all unit types) and may need per-unit tuning later.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `components/IsometricBoard.tsx`
