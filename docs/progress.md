@@ -213,6 +213,61 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-01 — Clarify Game UX instructions
+
+### BEFORE
+- `docs/implementation/game_ux.md` mixed heavy bolding, inconsistent headings, and stray spacing that broke Markdown tooling and made the layout requirements harder to parse.
+
+### NOW
+- Rewrote the file into standard Markdown with clear headings, lists, and inline code blocks that describe the command bar, board viewport, overlays, mobile rules, required state flags, component responsibilities, forbidden patterns, and validation checklist.
+
+### NEXT
+- Tie the clarified UX rules back into the UI implementation by ensuring each component derives state from the required engine flags and mobile layouts respect the bottom-sheet model.
+
+### Known limitations / TODOs
+- The entry only documents formatting cleanup; no implementation verification is performed yet.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/implementation/game_ux.md`
+
+---
+
+## 2026-01-01 — Resolve TypeScript compile blockers
+
+### BEFORE
+- `npm run tsc` failed with null-safety errors in `components/BoardViewport.tsx`, `lib/engine/reducer.ts`, and `lib/ui/CardPanel.tsx`, preventing any builds from completing.
+
+### NOW
+- Added a wheel listener closure that retains a non-null viewport reference, re-checked for `lastRoll` before using it, and guarded tactic targeting confirmation so the UI only compares `count` when the spec really describes units; `tsc` now succeeds.
+
+### NEXT
+- Keep TypeScript happy as new features land and revisit the action-targeting UX if we introduce new targeting spec variations in the cards system.
+
+### Known limitations / TODOs
+- None beyond the new guard logic itself; no behavior changes were required.
+
+### Files touched
+- UI: `components/BoardViewport.tsx`, `lib/ui/CardPanel.tsx`
+- Engine: `lib/engine/reducer.ts`
+- Docs: `docs/progress.md`
+
+## 2026-01-01 — Clarify Game UX instructions
+
+### BEFORE
+- `docs/implementation/game_ux.md` mixed heavy bolding, inconsistent headings, and stray spacing that broke Markdown tooling and made the layout requirements harder to parse.
+
+### NOW
+- Rewrote the file into standard Markdown with clear headings, lists, and inline code blocks that describe the command bar, board viewport, overlays, mobile rules, required state flags, component responsibilities, forbidden patterns, and validation checklist.
+
+### NEXT
+- Tie the clarified UX rules back into the UI implementation by ensuring each component derives state from the required engine flags and mobile layouts respect the bottom-sheet model.
+
+### Known limitations / TODOs
+- The entry only documents formatting cleanup; no implementation verification is performed yet.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/implementation/game_ux.md`
+
 ## 2026-01-01 — Board hover roll-over feedback
 
 ### BEFORE

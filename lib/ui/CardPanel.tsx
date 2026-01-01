@@ -294,7 +294,8 @@ export default function CardPanel({
                     onClick={onConfirmTacticTargets}
                     disabled={
                       !tacticTargetingSpec ||
-                      selectedTargetUnitIds.length !== tacticTargetingSpec.count
+                      (tacticTargetingSpec.type === "unit" &&
+                        selectedTargetUnitIds.length !== tacticTargetingSpec.count)
                     }
                   >
                     Confirm

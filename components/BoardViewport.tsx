@@ -1,8 +1,13 @@
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import type { SxProps, Theme } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 
 type BoardViewportProps = {
+  /** Height of the viewport container. Defaults to "70vh" (legacy MVP layout). */
+  height?: string | number;
+  /** Optional style override for the outer viewport container. */
+  sx?: SxProps<Theme>;
   onClick?: (args: {
     clientX: number;
     clientY: number;
@@ -21,7 +26,12 @@ type BoardViewportProps = {
 
 const CLICK_DRAG_THRESHOLD = 6;
 
-export default function BoardViewport({ onClick, children }: BoardViewportProps) {
+export default function BoardViewport({
+  onClick,
+  children,
+  height = "70vh",
+  sx,
+}: BoardViewportProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const panRef = useRef(pan);
@@ -102,9 +112,10 @@ export default function BoardViewport({ onClick, children }: BoardViewportProps)
     if (!node) {
       return;
     }
+    const nodeEl = node;
     function handleWheel(event: WheelEvent) {
       event.preventDefault();
-      const rect = node.getBoundingClientRect();
+      const rect = nodeEl.getBoundingClientRect();
       const clientX = event.clientX - rect.left;
       const clientY = event.clientY - rect.top;
       const currentZoom = zoomRef.current;
@@ -121,9 +132,9 @@ export default function BoardViewport({ onClick, children }: BoardViewportProps)
       setPan(nextPan);
       setZoom(nextZoom);
     }
-    node.addEventListener("wheel", handleWheel, { passive: false });
+    nodeEl.addEventListener("wheel", handleWheel, { passive: false });
     return () => {
-      node.removeEventListener("wheel", handleWheel);
+      nodeEl.removeEventListener("wheel", handleWheel);
     };
   }, []);
 
@@ -140,12 +151,13 @@ export default function BoardViewport({ onClick, children }: BoardViewportProps)
       ref={viewportRef}
       sx={{
         width: "100%",
-        height: "70vh",
+        height,
         border: "1px solid #000",
         overflow: "hidden",
         touchAction: "none",
         position: "relative",
         cursor: isPanningRef.current ? "grabbing" : "grab",
+        ...sx,
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

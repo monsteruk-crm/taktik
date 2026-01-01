@@ -816,8 +816,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       );
     }
 
-    let rollValue = resolveState.lastRoll.value;
-    let outcome = resolveState.lastRoll.outcome;
+    const lastRoll = resolveState.lastRoll;
+    if (!lastRoll) {
+      return {
+        ...resolveState,
+        log: [...resolveState.log, "No roll available after reaction resolution"],
+      };
+    }
+    let rollValue = lastRoll.value;
+    let outcome = lastRoll.outcome;
     if (reactionCard?.id === "commanders_luck") {
       const { result, nextSeed } = rollDie(resolveState.rngSeed);
       const pendingAttack = resolveState.pendingAttack;
