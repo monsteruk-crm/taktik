@@ -475,3 +475,143 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - UI: `lib/ui/CardPanel.tsx`
 - Assets: `public/assets/cards/placeholder.png`
 - Tools: `scripts/gen_placeholders.mjs`
+
+---
+
+## 2026-01-01 — Implement tactic cards with reaction windows
+
+### BEFORE
+- Tactic cards existed as a type and separate data file, but there was no engine flow to open reaction windows or play tactics.
+- Dice resolution applied damage immediately on `ROLL_DICE`, leaving no room for after-roll reactions.
+- The UI could not arm or play tactics from the tactical deck.
+
+### NOW
+- Added reaction-window handling for tactics (before move, before roll, after roll/before damage) with engine validation and deterministic logging.
+- Split attack resolution into `ROLL_DICE` and `RESOLVE_ATTACK` so after-roll reactions (e.g., `Commander's Luck`) can occur.
+- Surfaced tactic cards in the UI with an “arm + target + resolve” flow and wired them into movement and attack actions.
+
+### NEXT
+- Add per-player tactical deck selection (distinct hands) and a mulligan/selection flow.
+- Implement stored bonus card play and align malus cancellation with “cancel 1 malus” rules.
+- Expand tactic coverage (e.g., `afterMove`) once additional cards are defined.
+
+### Known limitations / TODOs
+- `selectedTacticalDeck` is shared across players; there is no per-player tactical hand yet.
+- After-move windows are supported only within the move action and have no dedicated UI.
+- Tactic effects currently expire by end of turn only.
+
+### Files touched
+- Engine: `lib/engine/gameState.ts`, `lib/engine/reducer.ts`, `lib/engine/cards.ts`
+- UI: `app/page.tsx`, `lib/ui/CardPanel.tsx`
+- Docs: `docs/progress.md`, `docs/engine.md`, `docs/cards-system.md`, `docs/tactics-cards.md`
+
+---
+
+## 2026-01-01 — Update manual E2E checklist for tactics
+
+### BEFORE
+- Manual E2E checklist did not cover tactic reaction windows or the new two-step dice resolution.
+- Several UI checks referenced the old grid layout and missing controls.
+
+### NOW
+- Rewrote `docs/manual-e2e-test.md` to match the isometric UI and the current tactics flow.
+- Added explicit steps for arming tactics in `beforeMove`, `beforeAttackRoll`, and `afterAttackRoll/beforeDamage` windows.
+
+### NEXT
+- Add per-player tactical deck selection steps once that flow exists.
+- Extend the E2E checklist when stored bonus play is implemented.
+
+### Known limitations / TODOs
+- The checklist assumes the current single shared tactical deck and the “Resolve Attack” button flow.
+
+### Files touched
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Fix pending card targeting state
+
+### BEFORE
+- Starting target selection for cards like `Advanced Recon` briefly enabled Confirm/Cancel but the UI immediately reset, making every targeting attempt fail.
+- The targeting context effect cleared state whenever the context object changed, so the “Select Targets” action nullified itself.
+
+### NOW
+- The targeting cleanup effect now only runs when the pending card changes, so initiating target selection keeps `Confirm/Cancel` enabled while unit selections are made.
+- Selecting targets now reliably keeps the targeting context active until the player confirms or cancels.
+
+### NEXT
+- Keep monitoring targeting interactions when we add new card types or tactic selection flows.
+- Consider extracting a reusable targeting hook if more UI elements need this pattern.
+
+### Known limitations / TODOs
+- This fix only affects pending cards (bonus/malus); tactics targeting remains in its own flow.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Add quick tactics smoke test
+
+### BEFORE
+- The manual E2E checklist had only the full tactics section and no quick verification path.
+
+### NOW
+- Added a short “Quick Tactics Smoke Test” section at the top to rapidly verify reaction windows and the Commander's Luck reroll.
+
+### NEXT
+- Add per-player tactical deck selection steps when that feature is implemented.
+
+### Known limitations / TODOs
+- The quick test assumes tactics are available in the shared tactical deck.
+
+### Files touched
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Store card art assets in public folders
+
+### BEFORE
+- `lib/engine/cards.ts` and `lib/engine/cards/tactics.ts` referenced `/assets/cards/hi` and `/lo` images that did not exist in `public/` yet.
+- Card art lived only inside `temp` and `temp/resized`, so the UI fell back to the placeholder image.
+
+### NOW
+- Hi-res and low-res PNGs for all referenced cards were moved to `public/assets/cards/hi` and `/lo`, matching every file path used in the engine definitions.
+- Verified there are no missing references: every `/assets/cards/hi/…` and `/assets/cards/lo/…` used by the code now exists on disk.
+
+### NEXT
+- Remove the leftover `ChatGPT Image…` files from `temp` once no longer needed, and consider committing the card art to the repository if licensing allows.
+
+### Known limitations / TODOs
+- Temporary source PNGs remain in `temp`/`temp/resized` (they can be deleted after verification).
+
+### Files touched
+- Assets: `public/assets/cards/hi/*`, `public/assets/cards/lo/*`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Align isometric unit sizing and anchoring
+
+### BEFORE
+- Unit sprites were rendered at a fixed 64×64 size with a hard-coded 10px downward offset.
+- Player A/B art had different padding, so sprites appeared slightly misaligned relative to tile centers and to each other.
+- Tile-relative sizing was not tied to the isometric grid, making it hard to match the provided `temp/map.png` reference.
+
+### NOW
+- Introduced tile-derived sprite sizing (`TILE_W * 0.52`) with per-unit-type scale factors so infantry, vehicles, and special units stay proportionate.
+- Anchored sprites to the tile plane with a `TILE_H * 0.3` vertical offset, matching the visual grounding seen in `temp/map.png`.
+- Centralized the unit positioning constants inside `IsometricBoard` for easier future tuning.
+
+### NEXT
+- Evaluate the raw unit PNGs and crop/clean alpha channels to remove residual padding so the per-type scales can be simplified.
+- Re-run the alignment check after swapping in final art to confirm offsets still line up with the isometric grid.
+
+### Known limitations / TODOs
+- Current alignment assumes the existing art; heavily padded assets may still need image-level cleanup for perfect centering.
+
+### Files touched
+- UI: `components/IsometricBoard.tsx`
+- Docs: `docs/progress.md`

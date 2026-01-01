@@ -19,6 +19,14 @@ export default function IsometricBoard({
   const { originX, originY } = getBoardOrigin(width, height);
   const { boardPixelWidth, boardPixelHeight } = getBoardPixelSize(width, height);
   const moveRangeKeys = new Set(moveRange.map(posKey));
+  const UNIT_BASE_SIZE = TILE_W * 0.52;
+  const UNIT_SCALE_BY_TYPE = {
+    INFANTRY: 0.95,
+    VEHICLE: 1.05,
+    SPECIAL: 1,
+  } as const;
+  const UNIT_OFFSET_X = 0;
+  const UNIT_OFFSET_Y = TILE_H * 0.3;
 
   const tiles = [];
   for (let y = 0; y < height; y += 1) {
@@ -84,13 +92,10 @@ export default function IsometricBoard({
   });
 
 
-  const unitOffsetX = 0;
-  const unitOffsetY = 10;
-
   const units = state.units.map((unit) => {
     const { sx, sy } = gridToScreen(unit.position);
-    const left = originX + sx + unitOffsetX;
-    const top = originY + sy + unitOffsetY;
+    const left = originX + sx + UNIT_OFFSET_X;
+    const top = originY + sy + UNIT_OFFSET_Y;
     const isSelected = unit.id === selectedUnitId;
     const isInMoveRange = moveRangeKeys.has(posKey(unit.position));
     const unitVariant = unit.owner === "PLAYER_A" ? "a" : "b";
@@ -100,6 +105,7 @@ export default function IsometricBoard({
         : unit.type === "VEHICLE"
           ? `/assets/units/mechanized_${unitVariant}.png`
           : `/assets/units/special_${unitVariant}.png`;
+    const spriteSize = UNIT_BASE_SIZE * UNIT_SCALE_BY_TYPE[unit.type];
 
     return (
       <Box
@@ -112,8 +118,8 @@ export default function IsometricBoard({
           position: "absolute",
           left,
           top,
-          width: 64,
-          height: 64,
+          width: spriteSize,
+          height: spriteSize,
           transform: "translate(-50%, -100%)",
           zIndex: unit.position.x + unit.position.y + 1000,
           outline: isSelected ? "3px solid #0f766e" : "none",

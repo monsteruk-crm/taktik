@@ -6,6 +6,7 @@ export type {
   GamePhase,
   GameState,
   Player,
+  ReactionWindow,
   TargetingSpec,
   Unit,
   UnitType,

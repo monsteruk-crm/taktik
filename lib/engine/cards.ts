@@ -1,4 +1,11 @@
 import type { CardDefinition } from "./gameState";
+import {
+  commandersLuck,
+  denseFog,
+  precisionShot,
+  suppressiveFire,
+  tacticalBlock,
+} from "./cards/tactics";
 
 export const rapidSupplyConvoy: CardDefinition = {
   id: "rapid_supply_convoy",
@@ -277,11 +284,12 @@ export const commonDeckCards: CardDefinition[] = [
 ];
 
 export const tacticalDeckCards: CardDefinition[] = [
-  rapidSupplyConvoy,
-  advancedRecon,
-  artillerySupport,
-  troopMotivation,
-  electronicCountermeasures,
+  precisionShot,
+  tacticalBlock,
+  commandersLuck,
+  suppressiveFire,
+  denseFog,
 ];
 
-export const cardById = new Map(commonDeckCards.map((card) => [card.id, card]));
+const allCards = [...commonDeckCards, ...tacticalDeckCards];
+export const cardById = new Map(allCards.map((card) => [card.id, card]));

@@ -25,6 +25,13 @@ export type Unit = {
 export type CardKind = "bonus" | "malus" | "tactic";
 export type CardTiming = "immediate" | "stored" | "reaction";
 
+export type ReactionWindow =
+    | "beforeMove"
+    | "afterMove"
+    | "beforeAttackRoll"
+    | "afterAttackRoll"
+    | "beforeDamage";
+
 export type TargetingSpec =
     | {
     type: "unit";
@@ -98,14 +105,6 @@ export type CardDefinition = {
     // REQUIRED for tactic cards
     reactionWindow?: ReactionWindow;
 };
-
-
-type ReactionWindow =
-    | "beforeMove"
-    | "afterMove"
-    | "beforeAttackRoll"
-    | "afterAttackRoll"
-    | "beforeDamage";
 
 
 export type GameState = {

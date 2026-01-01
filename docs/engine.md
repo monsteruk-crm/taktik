@@ -27,6 +27,7 @@ The manual does not define RNG mechanics, but the project contract requires repr
   - `rollDie(seed) -> { result: 1..6, nextSeed }`
 - Deck shuffling uses a deterministic Fisher–Yates shuffle that advances the same LCG constants (`shuffleWithSeed` in `lib/engine/reducer.ts`).
 - Reducer is deterministic given `(state, action)`; no `Date.now()`, no side effects, no UI coupling.
+- `Commander's Luck` rerolls reuse `rngSeed` and log the reroll result deterministically.
 
 ### Invariant
 - Every randomness consumer must take the current `rngSeed` and write back the returned `nextSeed` into state.
@@ -47,12 +48,14 @@ Defined in `lib/engine/gameState.ts`:
 - `movesThisTurn`: capped by the engine at 5 (see `maxMovesPerTurn`).
 - Decks/cards:
   - `commonDeck`: the draw pile for the turn card.
+  - `tacticalDeck`: shuffled list of available tactic cards (data-only, not drawn).
+  - `selectedTacticalDeck`: the active player’s current tactic hand (cards are removed on play).
   - `pendingCard`: a drawn card waiting for target selection and/or play.
   - `storedBonuses`: face-down bonus cards, capped at 6 (engine-enforced).
   - `activeEffects`: instantiated effects currently modifying rules.
 - Combat:
-  - `pendingAttack`: selected attacker/target, resolved via `ROLL_DICE`.
-  - `lastRoll`: stores the last resolved die result and outcome.
+  - `pendingAttack`: selected attacker/target, resolved via `ROLL_DICE` + `RESOLVE_ATTACK`.
+  - `lastRoll`: stores the most recent die result and outcome until `RESOLVE_ATTACK`.
 - End state:
   - `phase === "VICTORY"` freezes the reducer.
   - `winner`: set on annihilation only (current implementation).
@@ -81,7 +84,8 @@ However, phase enforcement is partial:
 - Enforced:
   - `MOVE_UNIT` only allowed in `MOVEMENT`.
   - `ATTACK_SELECT` only allowed in `ATTACK`.
-  - `ROLL_DICE` only allowed in `DICE_RESOLUTION` (and requires `pendingAttack`).
+  - `ROLL_DICE` only allowed in `DICE_RESOLUTION` (and requires `pendingAttack` + no `lastRoll`).
+  - `RESOLVE_ATTACK` only allowed in `DICE_RESOLUTION` (and requires `pendingAttack` + `lastRoll`).
 - Not enforced (currently allowed in any non-`VICTORY` phase):
   - `DRAW_CARD`, `PLAY_CARD`, `STORE_BONUS`, `TURN_START`, `END_TURN`, `NEXT_PHASE`.
 
@@ -93,7 +97,7 @@ From `GameAction` in `lib/engine/reducer.ts`:
 - Phase control: `NEXT_PHASE`, `TURN_START`, `END_TURN`
 - Cards: `DRAW_CARD`, `STORE_BONUS`, `PLAY_CARD`
 - Movement: `MOVE_UNIT`
-- Combat: `ATTACK_SELECT`, `ROLL_DICE`
+- Combat: `ATTACK_SELECT`, `ROLL_DICE`, `RESOLVE_ATTACK`
 
 ## Resolution Rules (implemented)
 
@@ -115,12 +119,19 @@ Manual mismatch:
   - requires `ATTACK` phase,
   - target must be enemy-owned,
   - range is `manhattanDistance(attacker, target) <= attacker.attack` and non-zero.
-- Dice resolution:
-  - base roll is d6 from `rngSeed`,
-  - effects can modify the roll (`modifyAttackRoll`),
-  - roll is clamped to 1..6,
-  - HIT threshold is `>= 4`.
-- On HIT, the target unit is removed from `units`.
+- Dice resolution (two-step):
+  - `ROLL_DICE`:
+    - requires `DICE_RESOLUTION` and a `pendingAttack`,
+    - base roll is d6 from `rngSeed`,
+    - effects can modify the roll (`modifyAttackRoll`),
+    - roll is clamped to 1..6,
+    - HIT threshold is `>= 4`,
+    - stores `lastRoll` but does **not** apply damage.
+  - `RESOLVE_ATTACK`:
+    - requires a `pendingAttack` and `lastRoll`,
+    - applies damage (removes target on HIT),
+    - clears `pendingAttack` and `lastRoll`,
+    - checks victory.
 
 Manual mismatch:
 - Manual implies a richer hit requirement model (distance affecting hit threshold); current implementation is a fixed threshold.
@@ -136,6 +147,7 @@ Manual mismatch:
 - Cards are defined in `lib/engine/cards.ts` with:
   - `kind`: `"bonus" | "malus" | "tactic"`
   - `timing`: `"immediate" | "stored" | "reaction"`
+  - `reactionWindow`: required for tactics (`beforeMove`, `beforeAttackRoll`, `afterAttackRoll`, `beforeDamage`)
   - `targeting`: `"none"` or `{ type: "unit", owner: "self|enemy", count: 1|2 }`
   - `creates`: list of effect definitions (duration + hooks)
 - Draw behavior (`DRAW_CARD`):
@@ -146,7 +158,16 @@ Manual mismatch:
   - Stores a *pending* bonus into `storedBonuses`, max 6.
   - Stored bonuses are not playable yet (no action uses them).
 - Cancellation (`timing: "reaction"`):
-  - When a reaction card is played, it removes **all** opponent-owned malus effects currently in `activeEffects`.
+  - When a **bonus** reaction card is played, it removes **all** opponent-owned malus effects currently in `activeEffects`.
+
+### Tactic reactions (current)
+- Tactic cards live in `lib/engine/cards/tactics.ts` and are held in `selectedTacticalDeck`.
+- Reaction windows are **computed**, not stored in state:
+  - `beforeMove`: when `MOVE_UNIT` is executed in `MOVEMENT`.
+  - `beforeAttackRoll`: when `ROLL_DICE` is executed with a `pendingAttack` and no `lastRoll`.
+  - `afterAttackRoll` / `beforeDamage`: when `RESOLVE_ATTACK` is executed with a `pendingAttack` and `lastRoll`.
+- Only one tactic can be played per action (no nested reactions).
+- `Commander's Luck` is the single allowed card-id exception: it triggers a deterministic reroll during `RESOLVE_ATTACK`.
 
 Planned alignment (TODO):
 - Make reaction/bonus cancellation match the manual (cancel a single malus, and support canceling the malus drawn this turn).

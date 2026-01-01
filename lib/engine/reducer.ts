@@ -6,6 +6,7 @@ import type {
   EngineContext,
   GamePhase,
   GameState,
+  ReactionWindow,
   Unit,
 } from "./gameState";
 import { cardById, commonDeckCards, tacticalDeckCards } from "./cards";
@@ -24,6 +25,8 @@ function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed
   return { shuffled, nextSeed };
 }
 
+type ReactionPlay = { cardId: string; window: ReactionWindow; targets?: { unitIds?: string[] } };
+
 export type GameAction =
   | { type: "NEXT_PHASE" }
   | { type: "TURN_START" }
@@ -32,8 +35,9 @@ export type GameAction =
   | { type: "STORE_BONUS" }
   | { type: "PLAY_CARD"; cardId: string; targets?: { unitIds?: string[] } }
   | { type: "ATTACK_SELECT"; attackerId: string; targetId: string }
-  | { type: "ROLL_DICE" }
-  | { type: "MOVE_UNIT"; unitId: string; to: { x: number; y: number } };
+  | { type: "ROLL_DICE"; reaction?: ReactionPlay }
+  | { type: "RESOLVE_ATTACK"; reaction?: ReactionPlay }
+  | { type: "MOVE_UNIT"; unitId: string; to: { x: number; y: number }; reaction?: ReactionPlay };
 
 const phaseOrder: GamePhase[] = [
   "TURN_START",
@@ -133,6 +137,79 @@ function validateTargets(
   return null;
 }
 
+function getTacticCard(state: GameState, cardId: string) {
+  return state.selectedTacticalDeck.find((card) => card.id === cardId) ?? null;
+}
+
+function validateTacticDefinition(card: CardDefinition) {
+  if (card.kind !== "tactic") {
+    return "Card is not a tactic";
+  }
+  if (card.timing !== "reaction") {
+    return "Tactic timing must be reaction";
+  }
+  if (!card.reactionWindow) {
+    return "Tactic reaction window missing";
+  }
+  return null;
+}
+
+function validateReactionWindow(state: GameState, window: ReactionWindow) {
+  if (window === "beforeMove" || window === "afterMove") {
+    if (state.phase !== "MOVEMENT") {
+      return "Reaction window only available during movement";
+    }
+    return null;
+  }
+  if (window === "beforeAttackRoll") {
+    if (state.phase !== "DICE_RESOLUTION") {
+      return "Reaction window only available during dice resolution";
+    }
+    if (!state.pendingAttack) {
+      return "No pending attack for reaction";
+    }
+    if (state.lastRoll) {
+      return "Attack roll already completed";
+    }
+    return null;
+  }
+  if (window === "afterAttackRoll" || window === "beforeDamage") {
+    if (state.phase !== "DICE_RESOLUTION") {
+      return "Reaction window only available during dice resolution";
+    }
+    if (!state.pendingAttack) {
+      return "No pending attack for reaction";
+    }
+    if (!state.lastRoll) {
+      return "Attack roll not completed yet";
+    }
+    return null;
+  }
+  return "Unknown reaction window";
+}
+
+function applyTacticEffect(
+  state: GameState,
+  card: CardDefinition,
+  ownerId: GameState["activePlayer"],
+  targets?: { unitIds?: string[] }
+) {
+  let nextState = state;
+  const effects: Effect[] = [];
+
+  for (const def of card.creates) {
+    const effect = instantiateEffect(nextState, def, card.id, ownerId, targets?.unitIds);
+    nextState = { ...nextState, nextEffectId: nextState.nextEffectId + 1 };
+    effects.push(effect);
+  }
+
+  return {
+    ...nextState,
+    activeEffects: [...nextState.activeEffects, ...effects],
+    selectedTacticalDeck: nextState.selectedTacticalDeck.filter((item) => item.id !== card.id),
+    log: [...nextState.log, `Tactic played: ${card.name} (${card.reactionWindow ?? "unknown"})`],
+  };
+}
 function canUnitMove(state: GameState, unitId: string) {
   return state.activeEffects.every((effect) => {
     const ctx = buildContext(state, effect);
@@ -216,7 +293,7 @@ function playCard(
   let activeEffects = [...nextState.activeEffects, ...effects];
   let log = [...nextState.log, `Effect applied: ${card.name}`];
 
-  if (card.timing === "reaction") {
+  if (card.timing === "reaction" && card.kind === "bonus") {
     const opponentId = ownerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
     const removed = activeEffects.filter((effect) => {
       if (effect.ownerId !== opponentId) {
@@ -401,6 +478,69 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, "Cannot move units outside the MOVEMENT phase"],
       };
     }
+    const reaction = action.reaction;
+    if (reaction && reaction.window !== "beforeMove" && reaction.window !== "afterMove") {
+      return { ...state, log: [...state.log, "Invalid reaction window for movement"] };
+    }
+    let preMoveState = state;
+    let reactionCard: CardDefinition | null = null;
+    if (reaction) {
+      reactionCard = getTacticCard(state, reaction.cardId);
+      if (!reactionCard) {
+        return { ...state, log: [...state.log, "Tactic card not available"] };
+      }
+      const definitionError = validateTacticDefinition(reactionCard);
+      if (definitionError) {
+        return {
+          ...state,
+          log: [...state.log, `Cannot play tactic: ${definitionError}`],
+        };
+      }
+      if (reactionCard.reactionWindow !== reaction.window) {
+        return { ...state, log: [...state.log, "Reaction window mismatch"] };
+      }
+      const windowError = validateReactionWindow(state, reaction.window);
+      if (windowError) {
+        return { ...state, log: [...state.log, `Cannot play tactic: ${windowError}`] };
+      }
+      const validationEffect: Effect = {
+        id: "validation",
+        sourceCardId: reactionCard.id,
+        ownerId: state.activePlayer,
+        hooks: {},
+        targetUnitIds: reaction.targets?.unitIds,
+      };
+      const targetError = validateTargets(
+        buildContext(state, validationEffect),
+        reactionCard,
+        reaction.targets
+      );
+      if (targetError) {
+        return {
+          ...state,
+          log: [...state.log, `Cannot play tactic: ${targetError}`],
+        };
+      }
+      if (reaction.window === "beforeMove" && reactionCard.targeting.type === "unit") {
+        const invalidTarget = (reaction.targets?.unitIds ?? []).find((unitId) =>
+          state.units.find((unit) => unit.id === unitId && unit.hasMoved)
+        );
+        if (invalidTarget) {
+          return {
+            ...state,
+            log: [...state.log, "Cannot play tactic: target already moved"],
+          };
+        }
+      }
+      if (reaction.window === "beforeMove") {
+        preMoveState = applyTacticEffect(
+          state,
+          reactionCard,
+          state.activePlayer,
+          reaction.targets
+        );
+      }
+    }
     const unit = state.units.find((candidate) => candidate.id === action.unitId);
     if (!unit) {
       return { ...state, log: [...state.log, `Unit ${action.unitId} not found`] };
@@ -428,13 +568,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, `Illegal move for ${unit.id} to (${action.to.x},${action.to.y})`],
       };
     }
-    if (!canUnitMove(state, unit.id)) {
+    if (!canUnitMove(preMoveState, unit.id)) {
       return {
         ...state,
         log: [...state.log, `Unit ${unit.id} cannot move due to active effects`],
       };
     }
-    const effectiveMovement = getEffectiveMovement(state, unit.id, unit.movement);
+    const effectiveMovement = getEffectiveMovement(preMoveState, unit.id, unit.movement);
     const dx = Math.abs(unit.position.x - action.to.x);
     const dy = Math.abs(unit.position.y - action.to.y);
     const distance = Math.max(dx, dy);
@@ -451,18 +591,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    const units = state.units.map((candidate) =>
+    let nextState = preMoveState;
+    const units = nextState.units.map((candidate) =>
       candidate.id === unit.id
         ? { ...candidate, position: action.to, hasMoved: true }
         : candidate
     );
 
-    return {
-      ...state,
+    nextState = {
+      ...nextState,
       units,
-      movesThisTurn: state.movesThisTurn + 1,
-      log: [...state.log, `Unit ${unit.id} moved to (${action.to.x},${action.to.y})`],
+      movesThisTurn: nextState.movesThisTurn + 1,
+      log: [...nextState.log, `Unit ${unit.id} moved to (${action.to.x},${action.to.y})`],
     };
+    if (reaction && reaction.window === "afterMove" && reactionCard) {
+      nextState = applyTacticEffect(
+        nextState,
+        reactionCard,
+        nextState.activePlayer,
+        reaction.targets
+      );
+    }
+    return nextState;
   }
 
   if (action.type === "ATTACK_SELECT") {
@@ -522,17 +672,186 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     if (!state.pendingAttack) {
       return { ...state, log: [...state.log, "No pending attack to resolve"] };
     }
+    if (state.lastRoll) {
+      return { ...state, log: [...state.log, "Attack roll already completed"] };
+    }
 
-    const { result, nextSeed } = rollDie(state.rngSeed);
-    const { attackerId, targetId } = state.pendingAttack;
-    const modifiedRoll = getModifiedAttackRoll(state, result, { attackerId, targetId });
+    const reaction = action.reaction;
+    if (reaction && reaction.window !== "beforeAttackRoll") {
+      return { ...state, log: [...state.log, "Invalid reaction window for roll"] };
+    }
+    let rollState = state;
+    if (reaction) {
+      const reactionCard = getTacticCard(state, reaction.cardId);
+      if (!reactionCard) {
+        return { ...state, log: [...state.log, "Tactic card not available"] };
+      }
+      const definitionError = validateTacticDefinition(reactionCard);
+      if (definitionError) {
+        return {
+          ...state,
+          log: [...state.log, `Cannot play tactic: ${definitionError}`],
+        };
+      }
+      if (reactionCard.reactionWindow !== reaction.window) {
+        return { ...state, log: [...state.log, "Reaction window mismatch"] };
+      }
+      const windowError = validateReactionWindow(state, reaction.window);
+      if (windowError) {
+        return { ...state, log: [...state.log, `Cannot play tactic: ${windowError}`] };
+      }
+      const validationEffect: Effect = {
+        id: "validation",
+        sourceCardId: reactionCard.id,
+        ownerId: state.activePlayer,
+        hooks: {},
+        targetUnitIds: reaction.targets?.unitIds,
+      };
+      const targetError = validateTargets(
+        buildContext(state, validationEffect),
+        reactionCard,
+        reaction.targets
+      );
+      if (targetError) {
+        return {
+          ...state,
+          log: [...state.log, `Cannot play tactic: ${targetError}`],
+        };
+      }
+      rollState = applyTacticEffect(
+        state,
+        reactionCard,
+        state.activePlayer,
+        reaction.targets
+      );
+    }
+
+    const pendingAttack = rollState.pendingAttack;
+    if (!pendingAttack) {
+      return { ...rollState, log: [...rollState.log, "No pending attack to resolve"] };
+    }
+    const { result, nextSeed } = rollDie(rollState.rngSeed);
+    const { attackerId, targetId } = pendingAttack;
+    const modifiedRoll = getModifiedAttackRoll(rollState, result, { attackerId, targetId });
     const clampedRoll = Math.min(6, Math.max(1, modifiedRoll));
     const outcome = clampedRoll >= 4 ? "HIT" : "MISS";
 
+    return {
+      ...rollState,
+      rngSeed: nextSeed,
+      lastRoll: { value: clampedRoll, outcome },
+      log: [
+        ...rollState.log,
+        `Rolled ${result} -> ${clampedRoll} (${outcome}) (${attackerId} vs ${targetId})`,
+      ],
+    };
+  }
+
+  if (action.type === "RESOLVE_ATTACK") {
+    if (state.phase !== "DICE_RESOLUTION") {
+      return {
+        ...state,
+        log: [...state.log, "Cannot resolve attacks outside the DICE_RESOLUTION phase"],
+      };
+    }
+    if (!state.pendingAttack) {
+      return { ...state, log: [...state.log, "No pending attack to resolve"] };
+    }
+    if (!state.lastRoll) {
+      return { ...state, log: [...state.log, "Roll dice before resolving damage"] };
+    }
+
+    const reaction = action.reaction;
+    if (
+      reaction &&
+      reaction.window !== "afterAttackRoll" &&
+      reaction.window !== "beforeDamage"
+    ) {
+      return { ...state, log: [...state.log, "Invalid reaction window for resolution"] };
+    }
+    let resolveState = state;
+    let reactionCard: CardDefinition | null = null;
+    if (reaction) {
+      reactionCard = getTacticCard(state, reaction.cardId);
+      if (!reactionCard) {
+        return { ...state, log: [...state.log, "Tactic card not available"] };
+      }
+      const definitionError = validateTacticDefinition(reactionCard);
+      if (definitionError) {
+        return {
+          ...state,
+          log: [...state.log, `Cannot play tactic: ${definitionError}`],
+        };
+      }
+      if (reactionCard.reactionWindow !== reaction.window) {
+        return { ...state, log: [...state.log, "Reaction window mismatch"] };
+      }
+      const windowError = validateReactionWindow(state, reaction.window);
+      if (windowError) {
+        return { ...state, log: [...state.log, `Cannot play tactic: ${windowError}`] };
+      }
+      const validationEffect: Effect = {
+        id: "validation",
+        sourceCardId: reactionCard.id,
+        ownerId: state.activePlayer,
+        hooks: {},
+        targetUnitIds: reaction.targets?.unitIds,
+      };
+      const targetError = validateTargets(
+        buildContext(state, validationEffect),
+        reactionCard,
+        reaction.targets
+      );
+      if (targetError) {
+        return {
+          ...state,
+          log: [...state.log, `Cannot play tactic: ${targetError}`],
+        };
+      }
+      resolveState = applyTacticEffect(
+        state,
+        reactionCard,
+        state.activePlayer,
+        reaction.targets
+      );
+    }
+
+    let rollValue = resolveState.lastRoll.value;
+    let outcome = resolveState.lastRoll.outcome;
+    if (reactionCard?.id === "commanders_luck") {
+      const { result, nextSeed } = rollDie(resolveState.rngSeed);
+      const pendingAttack = resolveState.pendingAttack;
+      if (!pendingAttack) {
+        return { ...resolveState, log: [...resolveState.log, "No pending attack to resolve"] };
+      }
+      const { attackerId, targetId } = pendingAttack;
+      const modifiedRoll = getModifiedAttackRoll(resolveState, result, {
+        attackerId,
+        targetId,
+      });
+      const clampedRoll = Math.min(6, Math.max(1, modifiedRoll));
+      rollValue = clampedRoll;
+      outcome = clampedRoll >= 4 ? "HIT" : "MISS";
+      resolveState = {
+        ...resolveState,
+        rngSeed: nextSeed,
+        lastRoll: { value: clampedRoll, outcome },
+        log: [
+          ...resolveState.log,
+          `Commander's Luck reroll: ${result} -> ${clampedRoll} (${outcome})`,
+        ],
+      };
+    }
+
+    const pendingAttack = resolveState.pendingAttack;
+    if (!pendingAttack) {
+      return { ...resolveState, log: [...resolveState.log, "No pending attack to resolve"] };
+    }
+    const { attackerId, targetId } = pendingAttack;
     const nextUnits =
       outcome === "HIT"
-        ? state.units.filter((unit) => unit.id !== targetId)
-        : state.units;
+        ? resolveState.units.filter((unit) => unit.id !== targetId)
+        : resolveState.units;
     const remainingOwners = new Set(nextUnits.map((unit) => unit.owner));
     const hasVictory = remainingOwners.size === 1;
     const winner = hasVictory
@@ -540,16 +859,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       : null;
 
     return {
-      ...state,
-      phase: hasVictory ? "VICTORY" : state.phase,
-      rngSeed: nextSeed,
-      lastRoll: { value: clampedRoll, outcome },
+      ...resolveState,
+      phase: hasVictory ? "VICTORY" : resolveState.phase,
       pendingAttack: null,
+      lastRoll: null,
       units: nextUnits,
       winner,
       log: [
-        ...state.log,
-        `Rolled ${result} -> ${clampedRoll} (${outcome}) (${attackerId} vs ${targetId})`,
+        ...resolveState.log,
+        `Attack resolved: ${attackerId} -> ${targetId} (${rollValue} ${outcome})`,
         ...(hasVictory && winner ? [`Victory: ${winner} wins by annihilation`] : []),
       ],
     };

@@ -1,0 +1,12 @@
+no realism,
+no painterly style,
+no soft shadows,
+no rounded corners,
+no pixel art,
+no fantasy,
+no sci-fi glow,
+no friendly or playful tone,
+no decorative textures,
+no cinematic lighting,
+no depth of field,
+no 3D render look

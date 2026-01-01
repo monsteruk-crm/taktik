@@ -5,6 +5,7 @@ Implements a small, deterministic card-and-effects system:
 - Cards are drawn from a common deck.
 - Drawn cards can create temporary “effects” that modify movement/attacks or block actions.
 - Bonus cards can be stored face-down (up to 6) for later use (storage is implemented; playing stored cards is not yet implemented).
+- Tactic cards can be armed and played during reaction windows (movement/attack resolution).
 
 ## Why it exists (manual reference)
 From `docs/Taktik_Manual_EN.md`:
@@ -21,14 +22,16 @@ Manual:
 - The manual describes a separate “initial tactical deck” (bonus only).
 
 Current implementation:
-- `CardKind` supports `"bonus" | "malus" | "tactic"`, but only bonus and malus cards exist in `lib/engine/cards.ts`.
-- State includes `tacticalDeck` and `selectedTacticalDeck`, but there is no selection flow yet.
+- `CardKind` supports `"bonus" | "malus" | "tactic"`.
+- Tactic cards are defined in `lib/engine/cards/tactics.ts` and are available in `selectedTacticalDeck`.
+- State includes `tacticalDeck` and `selectedTacticalDeck` as the deterministic tactical hand (no draw flow yet).
 
 ### Timing
 Current implementation uses `CardTiming`:
 - `immediate`: intended to resolve right away (used by malus definitions).
 - `stored`: intended to be storable (used by most bonus definitions).
 - `reaction`: intended to cancel malus effects (used by `electronicCountermeasures`).
+  - Tactic cards also use `reaction`, but are gated by reaction windows instead of malus cancellation.
 
 Manual mismatch:
 - The manual’s “cancel malus” behavior is not modeled as “reaction” today; it’s a future alignment item.
@@ -49,6 +52,7 @@ Defined in `lib/engine/gameState.ts` and implemented in `lib/engine/cards.ts`:
   - `images` (`hi`/`lo` artwork paths)
   - `kind` (`bonus|malus|tactic`)
   - `timing` (`immediate|stored|reaction`)
+  - `reactionWindow` (required for tactics)
   - `targeting`:
     - `{ type: "none" }`, or
     - `{ type: "unit", owner: "self|enemy", count: 1|2 }`
@@ -87,6 +91,16 @@ Reducer action: `STORE_BONUS`
 - Enforces the max storage cap (6).
 - Moves `pendingCard` into `storedBonuses` and clears `pendingCard`.
 
+## Tactic reactions (current)
+- Tactic cards live in `lib/engine/cards/tactics.ts` and are held in `selectedTacticalDeck`.
+- They are **not** drawn; they are armed in the UI and consumed on play.
+- Reaction windows are computed from state:
+  - `beforeMove` during `MOVEMENT` when a move is executed.
+  - `beforeAttackRoll` during `DICE_RESOLUTION` before `ROLL_DICE`.
+  - `afterAttackRoll` / `beforeDamage` during `DICE_RESOLUTION` before `RESOLVE_ATTACK`.
+- Only one tactic can be played per action (no nested reactions).
+- `Commander's Luck` is the only card-id exception and triggers a deterministic reroll on `RESOLVE_ATTACK`.
+
 ## Effects model
 An `Effect` is a runtime instance containing:
 - `ownerId`: which player owns the effect instance.
@@ -110,7 +124,7 @@ Manual:
 
 Current implementation:
 - Only `timing: "reaction"` triggers cancellation logic.
-- When a reaction card is played, it removes **all** opponent-owned malus effects currently in `activeEffects`.
+- When a **bonus** reaction card is played, it removes **all** opponent-owned malus effects currently in `activeEffects`.
 - Because current malus effects are `untilEndOfTurn`, they typically expire on `END_TURN`, which limits practical use of reaction cancellation in the current MVP.
 
 Planned alignment (TODO):
@@ -124,6 +138,11 @@ From `lib/engine/cards.ts`:
 - `Enemy Disinformation` (`enemy_disinformation`): malus; targets 1 enemy unit; blocks movement for that targeted unit for the turn.
 - `UN Ceasefire` (`un_ceasefire`): malus; no target; blocks all attacks for the turn (`canAttack: () => false`).
 
+From `lib/engine/cards/tactics.ts`:
+- `Precision Shot` (`precision_shot`): tactic; `beforeAttackRoll`; targets 1 friendly unit; +2 to that unit’s attack roll.
+- `Suppressive Fire` (`suppressive_fire`): tactic; `beforeMove`; targets 1 enemy unit; reduces its movement by 1.
+- `Commander's Luck` (`commanders_luck`): tactic; `afterAttackRoll`; rerolls the attack roll.
+
 ## Constraints / edge cases
 - Cannot draw another card while `pendingCard` exists.
 - Target validation rejects:
@@ -131,6 +150,7 @@ From `lib/engine/cards.ts`:
   - wrong count,
   - wrong owner (self vs enemy).
 - Stored bonuses are capped at 6; there is currently no replacement rule when full (manual mentions “replace”; current engine rejects storing beyond 6).
+- Tactic cards are rejected if their reaction window is not open or if another tactic is already armed.
 
 ## Next extension points (how to add cards safely)
 - Add a `CardDefinition` in `lib/engine/cards.ts` that only uses existing hooks first (`modifyMovement`, `modifyAttackRoll`, `canMoveUnit`, `canAttack`).
@@ -147,3 +167,6 @@ In `npm run dev`:
 3) If the pending card requires targets, click “Select Targets”, then click valid units on the board, then “Confirm”.
 4) Advance to `MOVEMENT` and try moving units; observe movement changes or blocked moves.
 5) Advance to `ATTACK` → select attacker then target → advance to `DICE_RESOLUTION` → “Roll Dice”; observe roll modifiers and unit removal on HIT.
+6) In `MOVEMENT`, arm a `beforeMove` tactic (e.g., `Suppressive Fire`) and move a unit; confirm the effect applies.
+7) In `DICE_RESOLUTION`, arm a `beforeAttackRoll` tactic (e.g., `Precision Shot`) before rolling; then roll and resolve.
+8) After rolling, arm `Commander's Luck` and click “Resolve Attack” to confirm the reroll log.

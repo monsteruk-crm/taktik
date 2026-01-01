@@ -7,6 +7,7 @@
 - Progress log: `docs/progress.md`
 - Engine (rules system): `docs/engine.md`
 - Cards system: `docs/cards-system.md`
+- Tactic cards: `docs/tactics-cards.md`
 - Architecture overview: `docs/architecture.md`
 - Isometric board instructions: `docs/isometric.md`
 
