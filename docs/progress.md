@@ -615,3 +615,113 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/IsometricBoard.tsx`
 - Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Add registry marker overlay for unit alignment
+
+### BEFORE
+- No visual guide existed to verify unit anchoring against the tile’s viewer-facing corner.
+- Aligning sprites relied on eyeballing offsets, which was error-prone.
+
+### NOW
+- Added a `registry.png` marker (bottom-center anchor) sized to sit on the tile’s near corner for alignment checks.
+- Render the registry marker on the board’s center tile so unit offsets can be validated in-app against `temp/map.png`.
+
+### NEXT
+- Hide or toggle the marker via a debug flag once alignment is finalized.
+- Provide per-unit debug markers if future art introduces varying baselines.
+
+### Known limitations / TODOs
+- Marker is always visible for now; add a UI toggle when no longer needed.
+
+### Files touched
+- UI: `components/IsometricBoard.tsx`
+- Assets: `public/assets/tiles/registry.png`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Upsize registry marker for precise alignment
+
+### BEFORE
+- The registry marker was a small 32×48 PNG, making fine alignment hard when comparing against unit sprites.
+
+### NOW
+- Recreated the registry marker as a 1024×1024 PNG with a full-height arrow from the bottom center to the tile’s upper corner, then render it scaled to tile size so subpixel alignment remains crisp.
+- Kept the marker on the center tile to validate unit anchors directly in the live board.
+
+### NEXT
+- Add a debug toggle to hide/show the marker once alignment is confirmed.
+
+### Known limitations / TODOs
+- Always visible until a toggle is added.
+
+### Files touched
+- Assets: `public/assets/tiles/registry.png`
+- UI: `components/IsometricBoard.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Tactics UI moved to modal/drawer
+
+### BEFORE
+- The side panel rendered the full tactics list with verbose metadata at all times, making the UI cluttered.
+- Reaction tactics were not visually gated by open reaction windows.
+
+### NOW
+- Replaced the tactics list with a compact HUD: TACTICS button with playable badge, open-window label, and armed tactic status.
+- Added a responsive tactics modal (Dialog on desktop, Drawer on mobile) that groups cards by reaction window and disables non-playable tactics.
+- Targeting flow remains in the side panel with clear “Selecting targets” status and Confirm/Cancel controls.
+
+### NEXT
+- Add a debug toggle to hide the tactics modal when no window is open.
+- Revisit copy and spacing once final card art is in place.
+
+### Known limitations / TODOs
+- The modal is always available when a reaction window is open; there is no tutorial or onboarding for new players.
+
+### Files touched
+- UI: `lib/ui/CardPanel.tsx`, `lib/ui/TacticsModal.tsx`, `lib/ui/CardArt.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Update manual E2E steps for tactics modal
+
+### BEFORE
+- The E2E checklist referenced the old always-visible tactics list and did not cover the new modal/drawer flow.
+- ESC handling for tactic targeting was not documented.
+
+### NOW
+- Updated the manual checklist to use the TACTICS HUD + modal/drawer flow, including disabled state when no windows are open.
+- Added explicit steps for badge counts, grouped windows, and ESC behavior.
+
+### NEXT
+- Expand tests once stored bonus play is implemented.
+
+### Known limitations / TODOs
+- The checklist assumes the shared tactical deck model.
+
+### Files touched
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Add combined cards+tactics regression pass
+
+### BEFORE
+- The manual E2E doc had separate sections for cards and tactics but no single quick pass that exercised both in one flow.
+
+### NOW
+- Added a short combined walkthrough that covers draw/play, movement tactics, attack tactics, and log verification in one sequence.
+
+### NEXT
+- Add a similar combined pass once stored bonus play is implemented.
+
+### Known limitations / TODOs
+- The pass assumes the current shared tactical deck and simple annihilation win condition.
+
+### Files touched
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`

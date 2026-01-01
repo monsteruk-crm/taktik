@@ -1,9 +1,13 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Badge from "@mui/material/Badge";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { useEffect, useMemo, useState } from "react";
 import type { CardDefinition, ReactionWindow, TargetingSpec } from "@/lib/engine/gameState";
+import CardArt from "@/lib/ui/CardArt";
+import TacticsModal from "@/lib/ui/TacticsModal";
 
 type CardPanelProps = {
   commonDeckCount: number;
@@ -34,34 +38,6 @@ type CardPanelProps = {
   onClearQueuedTactic: () => void;
 };
 
-const fallbackCardImage = "/assets/cards/placeholder.png";
-
-function CardArt({ card, label }: { card: CardDefinition; label: string }) {
-  const src = card.images?.lo ?? fallbackCardImage;
-  return (
-    <Box
-      component="img"
-      alt={label}
-      src={src}
-      sx={{
-        width: "100%",
-        maxWidth: 180,
-        border: "1px solid #000",
-        borderRadius: 1,
-        display: "block",
-      }}
-      onError={(event: React.SyntheticEvent<HTMLImageElement>) => {
-        const img = event.currentTarget;
-        if (img.dataset.fallbackApplied === "true") {
-          return;
-        }
-        img.dataset.fallbackApplied = "true";
-        img.src = fallbackCardImage;
-      }}
-    />
-  );
-}
-
 export default function CardPanel({
   commonDeckCount,
   pendingCard,
@@ -90,6 +66,7 @@ export default function CardPanel({
   onCancelTargeting,
   onClearQueuedTactic,
 }: CardPanelProps) {
+  const [isTacticsModalOpen, setIsTacticsModalOpen] = useState(false);
   const pendingTargetingLabel =
     pendingTargetingSpec?.type === "unit"
       ? `Target: ${pendingTargetingSpec.count} ${pendingTargetingSpec.owner === "self" ? "friendly" : "enemy"} unit(s)`
@@ -98,6 +75,54 @@ export default function CardPanel({
     openReactionWindows.length > 0 ? openReactionWindows.join(", ") : "None";
   const disablePendingTargeting = isTacticTargeting;
   const disableTacticControls = isPendingTargeting;
+  const playableTacticsCount = useMemo(() => {
+    return tactics.filter((card) => {
+      const window = card.reactionWindow;
+      if (!window) {
+        return false;
+      }
+      if (!openReactionWindows.includes(window)) {
+        return false;
+      }
+      if (disableTacticControls) {
+        return false;
+      }
+      if (queuedTactic && queuedTactic.cardId !== card.id) {
+        return false;
+      }
+      if (isTacticTargeting && tacticTargetingCard?.id !== card.id) {
+        return false;
+      }
+      return true;
+    }).length;
+  }, [
+    tactics,
+    openReactionWindows,
+    disableTacticControls,
+    queuedTactic,
+    isTacticTargeting,
+    tacticTargetingCard,
+  ]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (isPendingTargeting || isTacticTargeting) {
+        onCancelTargeting();
+        return;
+      }
+      if (isTacticsModalOpen) {
+        setIsTacticsModalOpen(false);
+      }
+    }
+    if (isPendingTargeting || isTacticTargeting || isTacticsModalOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+    return undefined;
+  }, [isPendingTargeting, isTacticTargeting, isTacticsModalOpen, onCancelTargeting]);
 
   return (
     <Paper sx={{ width: "100%", maxWidth: "100%", border: "1px solid #000", p: 2 }}>
@@ -220,113 +245,81 @@ export default function CardPanel({
         <Paper variant="outlined" sx={{ p: 2, borderColor: "#000" }}>
           <Stack spacing={1}>
             <Typography variant="caption" fontWeight={600}>
-              Tactics ({tactics.length})
+              Tactics
             </Typography>
             <Typography variant="caption">Open windows: {openWindowsLabel}</Typography>
+            <Box>
+              <Badge
+                color="error"
+                badgeContent={playableTacticsCount}
+                invisible={playableTacticsCount === 0}
+              >
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setIsTacticsModalOpen(true)}
+                  disabled={openReactionWindows.length === 0}
+                >
+                  TACTICS
+                </Button>
+              </Badge>
+            </Box>
             {queuedTacticCard ? (
               <Stack spacing={0.5}>
                 <Typography variant="caption">
-                  Armed tactic: {queuedTacticCard.name} ({queuedTactic?.window})
+                  ARMED: {queuedTacticCard.name} ({queuedTactic?.window})
                 </Typography>
                 <Button variant="outlined" size="small" onClick={onClearQueuedTactic}>
-                  Clear Armed Tactic
+                  Clear
                 </Button>
               </Stack>
             ) : null}
-            <Stack spacing={1}>
-              {tactics.length === 0 ? (
-                <Typography variant="caption">None</Typography>
-              ) : (
-                tactics.map((card) => {
-                  const window = card.reactionWindow ?? "unknown";
-                  const isWindowOpen =
-                    !!card.reactionWindow && openReactionWindows.includes(card.reactionWindow);
-                  const isQueued = queuedTactic?.cardId === card.id;
-                  const isTargetingThis =
-                    isTacticTargeting && tacticTargetingCard?.id === card.id;
-                  const canArm =
-                    isWindowOpen &&
-                    !disableTacticControls &&
-                    (!queuedTactic || isQueued);
-                  return (
-                    <Stack key={card.id} spacing={0.25}>
-                      <CardArt card={card} label={`Art for ${card.name}`} />
-                      <Typography variant="caption">
-                        {card.id}: {card.name}
-                      </Typography>
-                      <Typography variant="caption">Window: {window}</Typography>
-                      <Typography variant="caption">Summary: {card.summary}</Typography>
-                      <Typography variant="caption">Usage: {card.usage}</Typography>
-                      {isTargetingThis && tacticTargetingSpec?.type === "unit" ? (
-                        <Stack spacing={0.25}>
-                          <Typography variant="caption">
-                            Selected:{" "}
-                            {selectedTargetUnitIds.length === 0
-                              ? "None"
-                              : selectedTargetUnitIds.join(", ")}
-                          </Typography>
-                          <Typography variant="caption">
-                            Click units on the map to select targets.
-                          </Typography>
-                        </Stack>
-                      ) : null}
-                      <Stack direction="row" spacing={1} flexWrap="wrap">
-                        {card.targeting.type === "unit" ? (
-                          <>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              onClick={() =>
-                                card.reactionWindow &&
-                                onStartTacticTargeting(card.id, card.reactionWindow)
-                              }
-                              disabled={!canArm || isTargetingThis}
-                            >
-                              Select Targets
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              onClick={onConfirmTacticTargets}
-                              disabled={
-                                !isTargetingThis ||
-                                !canArm ||
-                                !tacticTargetingSpec ||
-                                selectedTargetUnitIds.length !== tacticTargetingSpec.count
-                              }
-                            >
-                              Confirm
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              onClick={onCancelTargeting}
-                              disabled={!isTargetingThis}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() =>
-                              card.reactionWindow && onQueueTactic(card.id, card.reactionWindow)
-                            }
-                            disabled={!canArm || isQueued}
-                          >
-                            {isQueued ? "Armed" : "Arm Tactic"}
-                          </Button>
-                        )}
-                      </Stack>
-                    </Stack>
-                  );
-                })
-              )}
-            </Stack>
+            {isTacticTargeting && tacticTargetingCard ? (
+              <Stack spacing={0.5}>
+                <Typography variant="caption">
+                  Selecting targets for {tacticTargetingCard.name}
+                </Typography>
+                {tacticTargetingSpec?.type === "unit" ? (
+                  <Typography variant="caption">
+                    Selected:{" "}
+                    {selectedTargetUnitIds.length === 0
+                      ? "None"
+                      : selectedTargetUnitIds.join(", ")}
+                  </Typography>
+                ) : null}
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={onConfirmTacticTargets}
+                    disabled={
+                      !tacticTargetingSpec ||
+                      selectedTargetUnitIds.length !== tacticTargetingSpec.count
+                    }
+                  >
+                    Confirm
+                  </Button>
+                  <Button variant="outlined" size="small" onClick={onCancelTargeting}>
+                    Cancel
+                  </Button>
+                </Stack>
+              </Stack>
+            ) : null}
           </Stack>
         </Paper>
       </Stack>
+      <TacticsModal
+        open={isTacticsModalOpen}
+        tactics={tactics}
+        openReactionWindows={openReactionWindows}
+        queuedTactic={queuedTactic}
+        isPendingTargeting={isPendingTargeting}
+        isTacticTargeting={isTacticTargeting}
+        tacticTargetingCard={tacticTargetingCard}
+        onClose={() => setIsTacticsModalOpen(false)}
+        onStartTacticTargeting={onStartTacticTargeting}
+        onQueueTactic={onQueueTactic}
+      />
     </Paper>
   );
 }

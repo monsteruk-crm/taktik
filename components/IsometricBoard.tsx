@@ -27,6 +27,7 @@ export default function IsometricBoard({
   } as const;
   const UNIT_OFFSET_X = 0;
   const UNIT_OFFSET_Y = TILE_H * 0.3;
+  const REGISTRY_MARK_DISPLAY = { w: TILE_W, h: TILE_W };
 
   const tiles = [];
   for (let y = 0; y < height; y += 1) {
@@ -91,6 +92,14 @@ export default function IsometricBoard({
     );
   });
 
+  const registryTile = {
+    x: Math.floor(width / 2),
+    y: Math.floor(height / 2),
+  };
+  const { sx: regSx, sy: regSy } = gridToScreen(registryTile);
+  const registryLeft = originX + regSx - REGISTRY_MARK_DISPLAY.w / 2;
+  const registryTop = originY + regSy + TILE_H / 2 - REGISTRY_MARK_DISPLAY.h;
+
 
   const units = state.units.map((unit) => {
     const { sx, sy } = gridToScreen(unit.position);
@@ -143,6 +152,23 @@ export default function IsometricBoard({
     >
       {tiles}
       {highlights}
+      <Box
+        component="img"
+        alt="Registry marker"
+        src="/assets/tiles/registry.png"
+        draggable={false}
+        sx={{
+          position: "absolute",
+          left: registryLeft,
+          top: registryTop,
+          width: REGISTRY_MARK_DISPLAY.w,
+          height: REGISTRY_MARK_DISPLAY.h,
+          zIndex: registryTile.x + registryTile.y + 900,
+          userSelect: "none",
+          pointerEvents: "none",
+          WebkitUserDrag: "none",
+        }}
+      />
       {units}
     </Box>
   );

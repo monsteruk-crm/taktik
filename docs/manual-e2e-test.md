@@ -9,11 +9,29 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 
 ## Quick Tactics Smoke Test
 
-1. Advance to `MOVEMENT` and confirm the Tactics panel shows `Open windows: beforeMove`.
-2. Arm `Suppressive Fire` (or any `beforeMove` tactic) and move a unit; confirm the tactic is consumed.
-3. Select an attacker/target, advance to `DICE_RESOLUTION`, and confirm `Open windows: beforeAttackRoll`.
-4. Arm `Precision Shot`, click `Roll Dice`, then confirm `Open windows: afterAttackRoll, beforeDamage`.
-5. Arm `Commander's Luck`, click `Resolve Attack`, and confirm a reroll log entry.
+1. Advance to `MOVEMENT` and confirm the TACTICS HUD shows `Open windows: beforeMove` and the TACTICS button is enabled.
+2. Click TACTICS to open the modal/drawer; find `Suppressive Fire` (or any `beforeMove` tactic).
+3. Click `Select Targets`, modal closes, select an enemy unit on the board, then `Confirm`; verify the HUD shows `ARMED: ... (beforeMove)`.
+4. Move a unit; confirm the tactic is consumed and the ARMED label clears.
+5. Select an attacker/target, advance to `DICE_RESOLUTION`, and confirm the HUD shows `Open windows: beforeAttackRoll`.
+6. Open TACTICS, arm `Precision Shot`, click `Roll Dice`, then confirm the HUD shows `Open windows: afterAttackRoll, beforeDamage`.
+7. Open TACTICS, arm `Commander's Luck`, click `Resolve Attack`, and confirm a reroll log entry.
+
+## Combined Cards + Tactics Walkthrough (Short Regression Pass)
+
+1. From `TURN_START`, click `Next Phase` to reach `CARD_DRAW`.
+2. Click `Draw Card`:
+   - If targeting is required, click `Select Targets`, select valid units, then `Confirm`.
+   - If not, click `Play Card`.
+3. Click `Next Phase` to reach `MOVEMENT`.
+4. Open TACTICS and arm a `beforeMove` tactic:
+   - If targeting is required, select targets and `Confirm`.
+   - Verify the HUD shows `ARMED: ... (beforeMove)`.
+5. Move any unit; confirm the armed tactic clears and a log entry appears.
+6. Click `Next Phase` to reach `ATTACK`, select an attacker and target, then click `Next Phase` to reach `DICE_RESOLUTION`.
+7. Open TACTICS and arm a `beforeAttackRoll` tactic, then click `Roll Dice`.
+8. Open TACTICS and arm `Commander's Luck` (or any `afterAttackRoll/beforeDamage` tactic), then click `Resolve Attack`.
+9. Verify the log contains entries for the card play, movement, attack roll, and tactic resolution.
 
 ## UI / Layout Smoke Checks
 
@@ -22,7 +40,7 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
    - `Current Player: PLAYER_A`
    - `Phase: TURN_START`
    - `Mode`, `Selected`, `Pending Attack`, `Last Roll`
-   - Right-side panels: `Cards`, `Stored Bonuses`, `Tactics`, and `Log`
+   - Right-side panels: `Cards`, `Stored Bonuses`, `Tactics` HUD, and `Log`
 2. Verify the isometric board renders with ground tiles and units.
 3. Verify the board can be panned (drag) and zoomed (wheel).
 4. Verify the log area auto-scrolls to show newest entries.
@@ -89,19 +107,25 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 
 ## Tactics — Reaction Windows (New)
 
-1. In `MOVEMENT`, verify the Tactics panel shows `Open windows: beforeMove`.
-2. Pick `Suppressive Fire` (or any `beforeMove` tactic):
+1. With no reaction window open (e.g., `TURN_START`), verify the TACTICS button is disabled.
+2. In `MOVEMENT`, verify the HUD shows `Open windows: beforeMove` and the badge count is > 0.
+3. Open the TACTICS modal/drawer and confirm tactics are grouped by reaction window.
+4. Verify non-playable tactics are visibly disabled (low emphasis) when their window is closed.
+5. Pick `Suppressive Fire` (or any `beforeMove` tactic):
    - Click `Select Targets`, choose an enemy unit, then `Confirm`.
-   - Verify the tactic shows as `Armed`.
-   - Move a unit and verify the tactic is consumed (removed from the tactics list).
-3. In `ATTACK`, select an attacker/target, then advance to `DICE_RESOLUTION`:
+   - Verify the HUD shows `ARMED: <name> (beforeMove)`.
+   - Move a unit and verify the tactic is consumed and the HUD clears.
+6. In `ATTACK`, select an attacker/target, then advance to `DICE_RESOLUTION`:
    - Verify `Open windows: beforeAttackRoll`.
-   - Arm `Precision Shot` and then click `Roll Dice`.
+   - Open TACTICS, arm `Precision Shot`, and then click `Roll Dice`.
    - Verify the roll log reflects the modifier.
-4. After rolling, verify `Open windows: afterAttackRoll, beforeDamage`:
-   - Arm `Commander's Luck`.
+7. After rolling, verify `Open windows: afterAttackRoll, beforeDamage`:
+   - Open TACTICS, arm `Commander's Luck`.
    - Click `Resolve Attack`.
    - Verify the log includes `Commander's Luck reroll: ...`.
+8. ESC behavior:
+   - While selecting tactic targets, press `Esc` and confirm targeting cancels.
+   - With no targeting active, press `Esc` and confirm the modal closes.
 
 ## End Turn
 
