@@ -22,6 +22,34 @@ type CardPanelProps = {
   onCancelTargeting: () => void;
 };
 
+const fallbackCardImage = "/assets/cards/placeholder.png";
+
+function CardArt({ card, label }: { card: CardDefinition; label: string }) {
+  const src = card.images?.lo ?? fallbackCardImage;
+  return (
+    <Box
+      component="img"
+      alt={label}
+      src={src}
+      sx={{
+        width: "100%",
+        maxWidth: 180,
+        border: "1px solid #000",
+        borderRadius: 1,
+        display: "block",
+      }}
+      onError={(event: React.SyntheticEvent<HTMLImageElement>) => {
+        const img = event.currentTarget;
+        if (img.dataset.fallbackApplied === "true") {
+          return;
+        }
+        img.dataset.fallbackApplied = "true";
+        img.src = fallbackCardImage;
+      }}
+    />
+  );
+}
+
 export default function CardPanel({
   commonDeckCount,
   pendingCard,
@@ -62,9 +90,12 @@ export default function CardPanel({
             </Typography>
             {pendingCard ? (
               <Stack spacing={0.5}>
+                <CardArt card={pendingCard} label={`Art for ${pendingCard.name}`} />
                 <Typography variant="caption">
                   {pendingCard.kind}: {pendingCard.name}
                 </Typography>
+                <Typography variant="caption">Summary: {pendingCard.summary}</Typography>
+                <Typography variant="caption">Usage: {pendingCard.usage}</Typography>
                 <Typography variant="caption">{targetingLabel}</Typography>
                 {targetingSpec?.type === "unit" ? (
                   <Stack spacing={0.25}>
@@ -137,9 +168,14 @@ export default function CardPanel({
                 <Typography variant="caption">None</Typography>
               ) : (
                 storedBonuses.map((card) => (
-                  <Typography key={card.id} variant="caption">
-                    {card.id}: {card.name}
-                  </Typography>
+                  <Stack key={card.id} spacing={0.25}>
+                    <CardArt card={card} label={`Art for ${card.name}`} />
+                    <Typography variant="caption">
+                      {card.id}: {card.name}
+                    </Typography>
+                    <Typography variant="caption">Summary: {card.summary}</Typography>
+                    <Typography variant="caption">Usage: {card.usage}</Typography>
+                  </Stack>
                 ))
               )}
             </Stack>

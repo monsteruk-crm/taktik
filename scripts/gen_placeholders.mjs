@@ -6,6 +6,8 @@ const ROOT = process.cwd();
 const TILE_W = 128;
 const TILE_H = 64;
 const UNIT_SIZE = 64;
+const CARD_W = 240;
+const CARD_H = 336;
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -109,11 +111,44 @@ function createUnitIcon({ fill, stroke, shape }) {
   return png;
 }
 
+function createCardPlaceholder() {
+  const png = new PNG({ width: CARD_W, height: CARD_H });
+  const bg = [245, 245, 245, 255];
+  const border = [20, 20, 20, 255];
+  const accent = [120, 130, 140, 255];
+  for (let y = 0; y < CARD_H; y += 1) {
+    for (let x = 0; x < CARD_W; x += 1) {
+      const idx = (y * CARD_W + x) * 4;
+      const isBorder = x < 3 || x >= CARD_W - 3 || y < 3 || y >= CARD_H - 3;
+      const color = isBorder ? border : bg;
+      png.data[idx] = color[0];
+      png.data[idx + 1] = color[1];
+      png.data[idx + 2] = color[2];
+      png.data[idx + 3] = color[3];
+    }
+  }
+  for (let y = 0; y < CARD_H; y += 1) {
+    for (let x = 0; x < CARD_W; x += 1) {
+      const idx = (y * CARD_W + x) * 4;
+      const stripe = (x + y) % 24 < 3;
+      if (stripe) {
+        png.data[idx] = accent[0];
+        png.data[idx + 1] = accent[1];
+        png.data[idx + 2] = accent[2];
+        png.data[idx + 3] = 60;
+      }
+    }
+  }
+  return png;
+}
+
 const tileDir = path.join(ROOT, "public", "assets", "tiles");
 const unitDir = path.join(ROOT, "public", "assets", "units");
+const cardDir = path.join(ROOT, "public", "assets", "cards");
 
 ensureDir(tileDir);
 ensureDir(unitDir);
+ensureDir(cardDir);
 
 const ground = createDiamondTile({
   fill: [120, 170, 120, 255],
@@ -144,5 +179,8 @@ const special = createUnitIcon({
   shape: "triangle",
 });
 writePng(path.join(unitDir, "special.png"), special);
+
+const cardPlaceholder = createCardPlaceholder();
+writePng(path.join(cardDir, "placeholder.png"), cardPlaceholder);
 
 console.log("Generated placeholder isometric assets.");

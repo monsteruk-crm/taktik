@@ -210,3 +210,268 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - Docs: `docs/progress.md`
 - UI: `components/IsometricBoard.tsx`
+
+---
+
+## 2026-01-01 — Board hover roll-over feedback
+
+### BEFORE
+- The isometric board had no hover feedback; tiles only changed when a move highlight or unit selection was present.
+
+### NOW
+- Added a rollover highlight that tints the tile under the cursor without touching game state.
+- Hover detection is viewport-aware (pan/zoom) and clears when the pointer leaves the board.
+
+### NEXT
+- Consider adding attack-range hover previews or contextual tooltips for units/tiles.
+
+### Known limitations / TODOs
+- Hover feedback is intentionally disabled while panning to avoid visual noise.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/BoardViewport.tsx`, `components/IsometricBoard.tsx`, `app/page.tsx`
+
+---
+
+## 2026-01-01 — Fix board hover tracking
+
+### BEFORE
+- Hover feedback relied only on pointer-move callbacks and did not always fire in practice, so tiles stayed unchanged.
+
+### NOW
+- Added mouse-move/leave fallback handling in the viewport to ensure hover updates fire reliably.
+
+### NEXT
+- Verify hover behavior on touch devices and decide whether to add a dedicated touch hover substitute.
+
+### Known limitations / TODOs
+- Hover remains disabled while actively panning.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/BoardViewport.tsx`
+
+---
+
+## 2026-01-01 — Use CSS hover tint for tiles
+
+### BEFORE
+- The JS-driven hover state did not trigger reliably, so tiles never visibly changed on rollover.
+
+### NOW
+- Each tile image applies a CSS hover filter, so the tile under the cursor visibly tints without additional state.
+
+### NEXT
+- Confirm the tint strength against final art and decide whether to add a dedicated hover sprite instead of a filter.
+
+### Known limitations / TODOs
+- Hover feedback relies on CSS filters; if art direction changes, a separate hover overlay may be preferable.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/IsometricBoard.tsx`, `components/BoardViewport.tsx`, `app/page.tsx`
+
+---
+
+## 2026-01-01 — Restore drag-friendly hover overlay
+
+### BEFORE
+- CSS hover on each tile captured pointer interactions, making viewport panning unreliable.
+
+### NOW
+- Reverted tiles to non-interactive pointer handling and restored a JS-driven hover overlay so drag/pan works reliably.
+
+### NEXT
+- Consider adding a dedicated hover sprite instead of tinting the base tile if art direction requires it.
+
+### Known limitations / TODOs
+- Hover updates every mouse move; consider throttling if performance becomes an issue.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/IsometricBoard.tsx`, `components/BoardViewport.tsx`, `app/page.tsx`
+
+---
+
+## 2026-01-01 — Prevent tile drag during viewport pan
+
+### BEFORE
+- Tile hover was back, but dragging the board often grabbed the underlying image and stopped panning after a few pixels.
+
+### NOW
+- Tile/overlay/unit images are explicitly non-draggable and hover updates are driven by pointer move on the viewport.
+
+### NEXT
+- Consider throttling hover updates if pan performance becomes an issue on large boards.
+
+### Known limitations / TODOs
+- Hover still runs during panning; if it feels noisy, we can disable hover while dragging.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/BoardViewport.tsx`, `components/IsometricBoard.tsx`, `app/page.tsx`
+
+---
+
+## 2026-01-01 — Restore hover with mousemove (keep drag smooth)
+
+### BEFORE
+- Hover tint did not trigger in Chrome on Ubuntu after switching back to the overlay approach.
+
+### NOW
+- Hover updates are driven by `mousemove` for mouse pointers and by `pointermove` for touch/pen, while keeping tiles non-draggable.
+
+### NEXT
+- If hover still feels inconsistent, consider adding a dedicated hover sprite and throttling updates.
+
+### Known limitations / TODOs
+- Hover is disabled during active pan drags to keep the viewport responsive.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/BoardViewport.tsx`
+
+---
+
+## 2026-01-01 — Restore CSS hover with drag suppression
+
+### BEFORE
+- Hover and pan regressions persisted due to JS hover state and pointer handling conflicts.
+
+### NOW
+- Tile hover is back to a CSS filter and images are explicitly non-draggable to keep panning smooth.
+
+### NEXT
+- If hover tint still conflicts with drag in some browsers, add a dedicated hover sprite layer.
+
+### Known limitations / TODOs
+- Hover is per-tile CSS and may need a custom sprite for final art.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/board-hover.md`
+- UI: `components/IsometricBoard.tsx`, `components/BoardViewport.tsx`, `app/page.tsx`
+
+---
+
+## 2026-01-01 — Fix passive wheel warning in viewport
+
+### BEFORE
+- Zoom wheel used React's onWheel handler and logged a passive listener warning when calling preventDefault.
+
+### NOW
+- Wheel zoom is attached via a non-passive native listener on the viewport, removing the warning.
+
+### NEXT
+- Consider adding zoom limits UI and reset controls once the camera UX is finalized.
+
+### Known limitations / TODOs
+- Zoom still uses a fixed step; no smooth zoom curve yet.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `components/BoardViewport.tsx`
+
+---
+
+## 2026-01-01 — Cursor-anchored zoom to prevent wheel jumps
+
+### BEFORE
+- Mouse wheel zoom shifted the board abruptly because scaling was applied around the origin.
+
+### NOW
+- Wheel zoom is anchored to the cursor position and uses a smoother exponential scale step to avoid sudden jumps.
+
+### NEXT
+- Add zoom reset controls and optional zoom speed settings in the UI.
+
+### Known limitations / TODOs
+- Zoom limits are still hard-coded (0.5–2.0).
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `components/BoardViewport.tsx`
+
+---
+
+## 2026-01-01 — Fix pan/zoom ref sync scope
+
+### BEFORE
+- A ref sync effect was accidentally placed outside the component, causing a runtime ReferenceError (`pan is not defined`).
+
+### NOW
+- Ref sync effects live inside `BoardViewport`, keeping pan/zoom refs in scope.
+
+### NEXT
+- Confirm zoom/pan behavior and consider adding tests for camera controls.
+
+### Known limitations / TODOs
+- No automated tests for camera interaction yet.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `components/BoardViewport.tsx`
+
+---
+
+## 2026-01-01 — Show card summary/usage in the UI
+
+### BEFORE
+- The card panel only showed card name, kind, and targeting info.
+
+### NOW
+- Pending cards and stored bonuses display their `summary` and `usage` text in the card panel.
+
+### NEXT
+- Consider adding artwork thumbnails using the new `images` fields for quick visual scanning.
+
+### Known limitations / TODOs
+- Card panel still uses text-only layout; no images or formatting beyond captions.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/cards-system.md`
+- UI: `lib/ui/CardPanel.tsx`
+
+---
+
+## 2026-01-01 — Reformat tactic cards implementation doc
+
+### BEFORE
+- `docs/implementation/Tactics_Cards_Implementation.md` used multiline bold, inconsistent numbering, and inline instructions that made it hard to consume or cite in follow-up work.
+- The engine requirements, timing rules, and code snippet were buried in ad-hoc formatting instead of discrete sections.
+
+### NOW
+- Rewrote the entire doc into structured sections (overview, reaction windows, engine flow, lifetime, manual examples, hard rules, summary) with standard markdown headings, prose, and a clean `ReactionWindow` type definition block.
+- Clarified the mandatory reaction rules and determinism expectations so future implementers can quickly confirm compliance while coding.
+
+### NEXT
+- Use this clarified doc to drive the concrete implementation of tactic plays (phase gating and reaction window handling) in the engine.
+- Add example tactic data definitions that match the manual entries listed here and document their targeting/constraints.
+
+### Known limitations / TODOs
+- Tactic cards still need actual implementations in the engine and UI despite the docs now being explicit about their required behavior.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/implementation/Tactics_Cards_Implementation.md`
+
+---
+
+## 2026-01-01 — Show card art with placeholder fallback
+
+### BEFORE
+- Card panel showed only text; new image fields were not displayed.
+
+### NOW
+- Pending cards and stored bonuses render thumbnail art using `images.lo` with a fallback to `public/assets/cards/placeholder.png`.
+
+### NEXT
+- Consider switching pending cards to use `images.hi` and adding larger previews.
+
+### Known limitations / TODOs
+- Placeholder art is generic; replace once final card frames are available.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/cards-system.md`
+- UI: `lib/ui/CardPanel.tsx`
+- Assets: `public/assets/cards/placeholder.png`
+- Tools: `scripts/gen_placeholders.mjs`

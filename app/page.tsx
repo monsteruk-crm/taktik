@@ -156,6 +156,8 @@ export default function Home() {
     handleTileClick({ x, y });
   }
 
+
+
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#ffffff", color: "#000000", py: 4 }}>
       <Container maxWidth="xl" sx={{ px: { xs: 2, sm: 3, md: 4 } }}>

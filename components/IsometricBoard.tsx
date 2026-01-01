@@ -30,8 +30,12 @@ export default function IsometricBoard({
         <Box
           key={`tile-${x}-${y}`}
           component="img"
+          draggable={false}
           alt="Ground tile"
           src="/assets/tiles/ground.png"
+          onDragStart={(event) => {
+            event.preventDefault();
+          }}
           sx={{
             position: "absolute",
             left,
@@ -40,7 +44,11 @@ export default function IsometricBoard({
             height: TILE_H,
             zIndex: x + y,
             userSelect: "none",
-            pointerEvents: "none",
+            WebkitUserDrag: "none",
+            transition: "filter 120ms ease",
+            "&:hover": {
+              filter: "brightness(1.15) saturate(1.4) hue-rotate(-20deg)",
+            },
           }}
         />
       );
@@ -56,6 +64,7 @@ export default function IsometricBoard({
       <Box
         key={`highlight-${posKey(pos)}`}
         component="img"
+        draggable={false}
         alt="Move highlight"
         src="/assets/tiles/highlight_move.png"
         className="moveHighlight"
@@ -68,10 +77,12 @@ export default function IsometricBoard({
           zIndex,
           pointerEvents: "none",
           userSelect: "none",
+          WebkitUserDrag: "none",
         }}
       />
     );
   });
+
 
   const unitOffsetX = 0;
   const unitOffsetY = 10;
@@ -94,6 +105,7 @@ export default function IsometricBoard({
       <Box
         key={`unit-${unit.id}`}
         component="img"
+        draggable={false}
         alt={`${unit.type} unit`}
         src={unitSrc}
         sx={{
@@ -109,6 +121,7 @@ export default function IsometricBoard({
           opacity: isInMoveRange ? 0.85 : 1,
           userSelect: "none",
           pointerEvents: "none",
+          WebkitUserDrag: "none",
         }}
       />
     );

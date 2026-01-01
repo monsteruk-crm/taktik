@@ -45,6 +45,8 @@ Current implementation:
 Defined in `lib/engine/gameState.ts` and implemented in `lib/engine/cards.ts`:
 - `CardDefinition` fields:
   - `id`, `name`
+  - `summary`, `usage` (presentation-only text shown in the UI)
+  - `images` (`hi`/`lo` artwork paths)
   - `kind` (`bonus|malus|tactic`)
   - `timing` (`immediate|stored|reaction`)
   - `targeting`:
@@ -60,6 +62,9 @@ Reducer action: `DRAW_CARD` (`lib/engine/reducer.ts`)
 - If the deck is empty, refills by shuffling `commonDeckCards` with `rngSeed` (deterministic).
 - Sets `pendingCard` to the drawn card, except:
   - If the card is a malus with `targeting: none`, it is auto-played immediately.
+UI:
+- `lib/ui/CardPanel.tsx` renders `summary`, `usage`, and a thumbnail image for pending cards and stored bonuses.
+- Missing artwork falls back to `public/assets/cards/placeholder.png`.
 
 ### 2) Select targets (if required)
 Current UI path (`app/page.tsx`):
@@ -142,4 +147,3 @@ In `npm run dev`:
 3) If the pending card requires targets, click “Select Targets”, then click valid units on the board, then “Confirm”.
 4) Advance to `MOVEMENT` and try moving units; observe movement changes or blocked moves.
 5) Advance to `ATTACK` → select attacker then target → advance to `DICE_RESOLUTION` → “Roll Dice”; observe roll modifiers and unit removal on HIT.
-

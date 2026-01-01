@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 
 type BoardViewportProps = {
@@ -24,6 +24,8 @@ const CLICK_DRAG_THRESHOLD = 6;
 export default function BoardViewport({ onClick, children }: BoardViewportProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const panRef = useRef(pan);
+  const zoomRef = useRef(zoom);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const isPanningRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -47,7 +49,11 @@ export default function BoardViewport({ onClick, children }: BoardViewportProps)
     const deltaX = event.clientX - lastPointRef.current.x;
     const deltaY = event.clientY - lastPointRef.current.y;
     lastPointRef.current = { x: event.clientX, y: event.clientY };
-    setPan((current) => ({ x: current.x + deltaX, y: current.y + deltaY }));
+    setPan((current) => {
+      const next = { x: current.x + deltaX, y: current.y + deltaY };
+      panRef.current = next;
+      return next;
+    });
 
     if (startPointRef.current) {
       const movedX = event.clientX - startPointRef.current.x;
@@ -91,12 +97,43 @@ export default function BoardViewport({ onClick, children }: BoardViewportProps)
     pointerIdRef.current = null;
   }
 
-  function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const direction = event.deltaY > 0 ? -1 : 1;
-    const nextZoom = Math.min(2, Math.max(0.5, zoom + direction * 0.1));
-    setZoom(nextZoom);
-  }
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) {
+      return;
+    }
+    function handleWheel(event: WheelEvent) {
+      event.preventDefault();
+      const rect = node.getBoundingClientRect();
+      const clientX = event.clientX - rect.left;
+      const clientY = event.clientY - rect.top;
+      const currentZoom = zoomRef.current;
+      const zoomFactor = Math.exp(-event.deltaY * 0.001);
+      const nextZoom = Math.min(2, Math.max(0.5, currentZoom * zoomFactor));
+      const worldX = (clientX - panRef.current.x) / currentZoom;
+      const worldY = (clientY - panRef.current.y) / currentZoom;
+      const nextPan = {
+        x: clientX - worldX * nextZoom,
+        y: clientY - worldY * nextZoom,
+      };
+      panRef.current = nextPan;
+      zoomRef.current = nextZoom;
+      setPan(nextPan);
+      setZoom(nextZoom);
+    }
+    node.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      node.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   return (
     <Box
@@ -108,13 +145,13 @@ export default function BoardViewport({ onClick, children }: BoardViewportProps)
         overflow: "hidden",
         touchAction: "none",
         position: "relative",
+        cursor: isPanningRef.current ? "grabbing" : "grab",
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerCancel}
       onPointerCancel={handlePointerCancel}
-      onWheel={handleWheel}
     >
       <Box
         sx={{
