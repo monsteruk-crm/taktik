@@ -780,3 +780,250 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ### Files touched
 - Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Apply overlay-first command UI shell
+
+### BEFORE
+- The UI used a sticky header plus a persistent side panel layout that competed with the board for space.
+- Board height was fixed by `vh` values and collapsed on small screens.
+- Cards, tactics, and log were rendered as permanent panels rather than overlays.
+
+### NOW
+- Added a fixed-height command bar and made the board fill the remaining viewport height using `calc(100dvh - var(--command-bar-height))`.
+- Replaced permanent panels with modal overlays: cards/tactics and log now open in Dialogs/Drawers without shrinking the board.
+- Added a context drawer (right on desktop, bottom sheet on mobile) that appears only when selection or pending actions exist.
+
+### NEXT
+- Refine context panel copy once VP and scenario scoring are implemented.
+- Add a compact, keyboard-only shortcut sheet for advanced players.
+
+### Known limitations / TODOs
+- VP is placeholder in the command bar until scoring is implemented in the engine.
+
+### Files touched
+- UI: `app/page.tsx`, `components/BoardViewport.tsx`, `lib/ui/CardPanel.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Add targeting action bar when cards overlay closes
+
+### BEFORE
+- Selecting card/tactic targets required the cards modal to remain open, blocking map interaction.
+- There was no compact confirm/cancel UI when the overlay was dismissed.
+
+### NOW
+- Starting targeting closes the cards overlay and shows a fixed bottom action bar with target count plus Confirm/Cancel.
+- The bar works for both pending cards and tactic targeting without changing engine logic.
+
+### NEXT
+- Add a small “reopen cards” affordance on the targeting bar once UX settles.
+
+### Known limitations / TODOs
+- The targeting bar is always fixed; consider snapping above mobile bottom sheets if needed.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Allow board interaction with context panel open
+
+### BEFORE
+- The context drawer opened as a modal, blocking clicks on the board after selecting a unit.
+
+### NOW
+- Context drawer no longer renders a backdrop and does not trap focus, so the board remains interactive while the panel is open.
+
+### NEXT
+- Add a subtle “tap outside to close” affordance if players want a quick hide action on mobile.
+
+### Known limitations / TODOs
+- The context panel still occupies screen space; use the size toggles to reduce coverage on mobile.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Keep cards overlay closed during targeting
+
+### BEFORE
+- Starting pending-card targeting closed the overlay but it immediately reopened because the pending card still existed.
+- The modal blocked map clicks, preventing target selection.
+
+### NOW
+- Auto-open only occurs when a pending card exists and targeting is not active, keeping the overlay closed while selecting targets.
+
+### NEXT
+- Add a small “resume cards” action on the targeting bar if players want to reopen the overlay mid-selection.
+
+### Known limitations / TODOs
+- Targeting still relies on the bottom action bar for confirmation.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Suppress Cards & Tactics overlay while targeting
+
+### BEFORE
+- The Cards & Tactics overlay still opened if a pending card existed, even while targeting a card or tactic.
+
+### NOW
+- Overlay visibility is suppressed during any targeting mode, so map clicks are always available for target selection.
+
+### NEXT
+- Consider adding a small “return to cards” button inside the targeting bar.
+
+### Known limitations / TODOs
+- Overlay reopening is manual once targeting ends.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Fix targeting overlay reference order
+
+### BEFORE
+- A runtime ReferenceError occurred because `cardsOverlayOpen` referenced `isPendingTargeting` before it was defined.
+
+### NOW
+- Moved targeting flag initialization above `cardsOverlayOpen` so the overlay state computes safely.
+
+### NEXT
+- Keep derived UI flags grouped together to avoid ordering issues.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Let map clicks pass through context drawer
+
+### BEFORE
+- Even with no backdrop, the context drawer’s root layer still captured pointer events and blocked board clicks.
+
+### NOW
+- Context drawer root ignores pointer events while the paper remains interactive, so the board stays clickable.
+
+### NEXT
+- Consider adding a context close affordance that doesn’t cover the board.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Render cards overlay only when open
+
+### BEFORE
+- Closing the cards overlay during targeting could still leave modal remnants and trigger DOM removeChild errors.
+
+### NOW
+- Cards overlay mounts only when open and disables transition animations, avoiding DOM churn during targeting confirms.
+
+### NEXT
+- Reintroduce transitions if stable under React 19 + Turbopack.
+
+### Known limitations / TODOs
+- Overlay opens/closes instantly (no animation) for now.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Raise targeting bar above context panel
+
+### BEFORE
+- The targeting action bar could be obscured by the right-side context drawer, blocking Confirm/Cancel clicks.
+
+### NOW
+- Increased the targeting bar z-index so it stays above the context drawer.
+
+### NEXT
+- If overlap remains on narrow screens, add a safe-area inset or move the bar upward on desktop.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Pin targeting bar above all overlays
+
+### BEFORE
+- A z-index of 60 still allowed the context drawer to overlap the targeting action bar in some layouts.
+
+### NOW
+- Raised the targeting bar to z-index 9999 so it always sits above other UI overlays.
+
+### NEXT
+- If additional overlays are added later, keep the targeting bar at the top of the z-index stack.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-01 — Align E2E steps with targeting bar flow
+
+### BEFORE
+- The manual checklist still referenced the “small targeting bar” and had duplicate step numbering.
+
+### NOW
+- Updated the checklist to reference the bottom targeting bar and corrected step numbers in the cards and tactics sections.
+
+### NEXT
+- Re-run the combined walkthrough once new overlays are added.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+---
+
+## 2026-01-01 — Fix targeting bar type guards
+
+### BEFORE
+- TypeScript errors surfaced because the targeting bar read `.count` on non-unit targeting specs and referenced an undefined variable.
+
+### NOW
+- Confirm buttons in the targeting bar guard on `type === "unit"` and reuse the existing `targetingSpec`.
+
+### NEXT
+- Keep targeting UI checks aligned with `TargetingSpec` unions.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`

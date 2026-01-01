@@ -4,7 +4,7 @@ import type { SxProps, Theme } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 
 type BoardViewportProps = {
-  /** Height of the viewport container. Defaults to "70vh" (legacy MVP layout). */
+  /** Height of the viewport container. Defaults to command-bar safe viewport fill. */
   height?: string | number;
   /** Optional style override for the outer viewport container. */
   sx?: SxProps<Theme>;
@@ -29,7 +29,7 @@ const CLICK_DRAG_THRESHOLD = 6;
 export default function BoardViewport({
   onClick,
   children,
-  height = "70vh",
+  height = "calc(100dvh - var(--command-bar-height))",
   sx,
 }: BoardViewportProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });

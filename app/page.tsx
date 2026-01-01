@@ -4,7 +4,9 @@ import type { RefObject } from "react";
 import { startTransition, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Container from "@mui/material/Container";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import Paper from "@mui/material/Paper";
@@ -37,15 +39,13 @@ export default function Home() {
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
   const [queuedTactic, setQueuedTactic] = useState<QueuedTactic | null>(null);
-  // Overlay-first command UI.
   const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
-  const [opsOpen, setOpsOpen] = useState(true);
-
-  useEffect(() => {
-    // Desktop defaults to open; mobile defaults to closed.
-    setOpsOpen(isDesktop);
-  }, [isDesktop]);
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const [isCardsOverlayOpen, setIsCardsOverlayOpen] = useState(false);
+  const [isLogOverlayOpen, setIsLogOverlayOpen] = useState(false);
+  const [contextSheetSize, setContextSheetSize] = useState<"peek" | "half" | "full">(
+    "peek"
+  );
   const isGameOver = state.phase === "VICTORY";
   const canMove = state.phase === "MOVEMENT" && !isGameOver;
   const canAttack = state.phase === "ATTACK" && !isGameOver;
@@ -118,7 +118,6 @@ export default function Home() {
     [state.boardWidth, state.boardHeight]
   );
   const logRef = useRef<HTMLDivElement | null>(null);
-  const logRows = 5;
   const logRowHeight = 18;
 
   useEffect(() => {
@@ -135,6 +134,12 @@ export default function Home() {
       setSelectedTargetUnitIds([]);
     });
   }, [state.pendingCard?.id]);
+
+  useEffect(() => {
+    if (state.pendingCard && targetingContext?.source !== "pending") {
+      setIsCardsOverlayOpen(true);
+    }
+  }, [state.pendingCard?.id, targetingContext]);
 
   useEffect(() => {
     if (!queuedTactic) {
@@ -269,300 +274,576 @@ export default function Home() {
   const pendingAttackLabel = state.pendingAttack
     ? `${state.pendingAttack.attackerId} -> ${state.pendingAttack.targetId}`
     : "None";
-  const lastRollLabel = state.lastRoll ? `${state.lastRoll.value} -> ${state.lastRoll.outcome}` : "None";
+  const lastRollLabel = state.lastRoll
+    ? `${state.lastRoll.value} -> ${state.lastRoll.outcome}`
+    : "None";
+  const selectedUnit =
+    (mode === "MOVE" ? selectedUnitId : selectedAttackerId) &&
+    state.units.find(
+      (unit) => unit.id === (mode === "MOVE" ? selectedUnitId : selectedAttackerId)
+    );
+  const contextOpen = Boolean(
+    selectedUnit ||
+      state.pendingAttack ||
+      state.pendingCard ||
+      queuedTactic
+  );
+  const isPendingTargeting = targetingContext?.source === "pending";
+  const isTacticTargeting = targetingContext?.source === "tactic";
+  const cardsOverlayOpen =
+    (Boolean(state.pendingCard) && !isPendingTargeting) || (isCardsOverlayOpen && !isTargeting);
 
-  const opsContent = (
-    <Stack spacing={2} sx={{ width: "100%" }}>
-      <CardPanel
-        commonDeckCount={state.commonDeck.length}
-        pendingCard={state.pendingCard}
-        storedBonuses={state.storedBonuses}
-        tactics={state.selectedTacticalDeck}
-        openReactionWindows={openReactionWindows}
-        queuedTactic={queuedTactic}
-        queuedTacticCard={queuedTacticCard}
-        tacticTargetingCard={tacticTargetingCard}
-        canDrawCard={canDrawCard}
-        canStoreBonus={canStoreBonus}
-        canPlayCard={canPlayCard}
-        isPendingTargeting={targetingContext?.source === "pending"}
-        isTacticTargeting={targetingContext?.source === "tactic"}
-        pendingTargetingSpec={pendingTargetingSpec}
-        tacticTargetingSpec={tacticTargetingCard?.targeting ?? null}
-        selectedTargetUnitIds={selectedTargetUnitIds}
-        onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
-        onStoreBonus={() => dispatch({ type: "STORE_BONUS" })}
-        onStartPendingTargeting={() => {
-          if (!state.pendingCard || pendingTargetingSpec?.type !== "unit") {
-            return;
-          }
-          setTargetingContext({ source: "pending" });
-          setSelectedUnitId(null);
-          setSelectedAttackerId(null);
-          setSelectedTargetUnitIds([]);
-        }}
-        onConfirmPendingTargets={() => {
-          if (!state.pendingCard) {
-            return;
-          }
-          const targets =
-            state.pendingCard.targeting.type === "unit" ? { unitIds: selectedTargetUnitIds } : undefined;
-          dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id, targets });
-          setTargetingContext(null);
-          setSelectedTargetUnitIds([]);
-        }}
-        onPlayPendingCard={() => {
-          if (!state.pendingCard) {
-            return;
-          }
-          dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id });
-          setTargetingContext(null);
-          setSelectedTargetUnitIds([]);
-        }}
-        onStartTacticTargeting={(cardId, window) => {
-          setTargetingContext({ source: "tactic", cardId, window });
-          setSelectedUnitId(null);
-          setSelectedAttackerId(null);
-          setSelectedTargetUnitIds([]);
-        }}
-        onQueueTactic={(cardId, window) => {
-          setQueuedTactic({ cardId, window });
-        }}
-        onConfirmTacticTargets={() => {
-          if (!tacticTargetingCard || targetingContext?.source !== "tactic") {
-            return;
-          }
-          const targets =
-            tacticTargetingCard.targeting.type === "unit" ? { unitIds: selectedTargetUnitIds } : undefined;
-          setQueuedTactic({
-            cardId: tacticTargetingCard.id,
-            window: targetingContext.window,
-            ...(targets ? { targets } : {}),
-          });
-          setTargetingContext(null);
-          setSelectedTargetUnitIds([]);
-        }}
-        onCancelTargeting={() => {
-          setTargetingContext(null);
-          setSelectedTargetUnitIds([]);
-        }}
-        onClearQueuedTactic={() => setQueuedTactic(null)}
-      />
+  function handleCancelTargeting() {
+    setTargetingContext(null);
+    setSelectedTargetUnitIds([]);
+  }
 
-      <Paper sx={{ width: "100%", border: "1px solid #000", p: 2 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="subtitle1" fontWeight={600}>
-            Log
-          </Typography>
-          {!isDesktop ? (
-            <Button variant="outlined" size="small" onClick={() => setOpsOpen(false)}>
-              Close
-            </Button>
-          ) : null}
-        </Stack>
-        <Box
-          ref={logRef}
-          sx={{
-            mt: 1,
-            maxHeight: `${logRows * logRowHeight}px`,
-            overflowY: "auto",
-            pr: 1,
-          }}
-        >
-          <Stack spacing={0.5}>
-            {state.log.map((entry, index) => (
-              <Typography
-                key={`${entry}-${index}`}
-                variant="caption"
-                sx={{ minHeight: `${logRowHeight}px`, lineHeight: `${logRowHeight}px` }}
-              >
-                {entry || " "}
-              </Typography>
-            ))}
-          </Stack>
-        </Box>
-      </Paper>
-    </Stack>
+  function handleStartPendingTargeting() {
+    if (!state.pendingCard || pendingTargetingSpec?.type !== "unit") {
+      return;
+    }
+    setTargetingContext({ source: "pending" });
+    setSelectedUnitId(null);
+    setSelectedAttackerId(null);
+    setSelectedTargetUnitIds([]);
+    setIsCardsOverlayOpen(false);
+  }
+
+  function handleConfirmPendingTargets() {
+    if (!state.pendingCard) {
+      return;
+    }
+    const targets =
+      state.pendingCard.targeting.type === "unit" ? { unitIds: selectedTargetUnitIds } : undefined;
+    dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id, targets });
+    handleCancelTargeting();
+  }
+
+  function handleStartTacticTargeting(cardId: string, window: ReactionWindow) {
+    setTargetingContext({ source: "tactic", cardId, window });
+    setSelectedUnitId(null);
+    setSelectedAttackerId(null);
+    setSelectedTargetUnitIds([]);
+    setIsCardsOverlayOpen(false);
+  }
+
+  function handleConfirmTacticTargets() {
+    if (!tacticTargetingCard || targetingContext?.source !== "tactic") {
+      return;
+    }
+    const targets =
+      tacticTargetingCard.targeting.type === "unit" ? { unitIds: selectedTargetUnitIds } : undefined;
+    setQueuedTactic({
+      cardId: tacticTargetingCard.id,
+      window: targetingContext.window,
+      ...(targets ? { targets } : {}),
+    });
+    handleCancelTargeting();
+  }
+
+  const cardsContent = (
+    <CardPanel
+      commonDeckCount={state.commonDeck.length}
+      pendingCard={state.pendingCard}
+      storedBonuses={state.storedBonuses}
+      tactics={state.selectedTacticalDeck}
+      openReactionWindows={openReactionWindows}
+      queuedTactic={queuedTactic}
+      queuedTacticCard={queuedTacticCard}
+      tacticTargetingCard={tacticTargetingCard}
+      canStoreBonus={canStoreBonus}
+      canPlayCard={canPlayCard}
+      isPendingTargeting={isPendingTargeting}
+      isTacticTargeting={isTacticTargeting}
+      pendingTargetingSpec={pendingTargetingSpec}
+      tacticTargetingSpec={tacticTargetingCard?.targeting ?? null}
+      selectedTargetUnitIds={selectedTargetUnitIds}
+      onStoreBonus={() => dispatch({ type: "STORE_BONUS" })}
+      onStartPendingTargeting={handleStartPendingTargeting}
+      onConfirmPendingTargets={handleConfirmPendingTargets}
+      onPlayPendingCard={() => {
+        if (!state.pendingCard) {
+          return;
+        }
+        dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id });
+        handleCancelTargeting();
+      }}
+      onStartTacticTargeting={handleStartTacticTargeting}
+      onQueueTactic={(cardId, window) => {
+        setQueuedTactic({ cardId, window });
+      }}
+      onConfirmTacticTargets={handleConfirmTacticTargets}
+      onCancelTargeting={handleCancelTargeting}
+      onClearQueuedTactic={() => setQueuedTactic(null)}
+    />
   );
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#ffffff", color: "#000000" }}>
+    <Box
+      sx={{
+        minHeight: "100dvh",
+        bgcolor: "#ffffff",
+        color: "#000000",
+        "--command-bar-height": { xs: "120px", md: "88px" },
+        pt: "var(--command-bar-height)",
+      }}
+    >
       <Box
         sx={{
-          position: "sticky",
+          position: "fixed",
           top: 0,
-          zIndex: 20,
+          left: 0,
+          right: 0,
+          height: "var(--command-bar-height)",
+          zIndex: 30,
           borderBottom: "1px solid #000",
           bgcolor: "#fff",
+          px: 2,
+          py: 1,
         }}
       >
-        <Container maxWidth="xl" sx={{ py: 2 }}>
-          <Stack spacing={1}>
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={1}
-              alignItems={{ xs: "flex-start", md: "center" }}
-              justifyContent="space-between"
-            >
-              <Stack spacing={0.25}>
-                <Typography variant="h4" fontWeight={600}>
-                  TAKTIK MVP
-                </Typography>
-                <Typography variant="body2">Placeholder UI</Typography>
-              </Stack>
+        <Stack spacing={1}>
+          <Stack
+            direction="row"
+            spacing={1}
+            flexWrap="wrap"
+            alignItems="center"
+            justifyContent="space-between"
+          >
+            <Typography variant="subtitle1" fontWeight={700}>
+              TAKTIK MVP
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Typography variant="body2">Player: {state.activePlayer}</Typography>
+              <Typography variant="body2">VP: --</Typography>
+              <Typography variant="body2">Turn: {state.turn}</Typography>
+              <Typography variant="body2">Phase: {state.phase}</Typography>
+              {state.winner ? <Typography variant="body2">Winner: {state.winner}</Typography> : null}
+            </Stack>
+          </Stack>
 
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
-                <Typography variant="body2">Current Player: {state.activePlayer}</Typography>
-                <Typography variant="body2">Phase: {state.phase}</Typography>
-                {state.winner ? <Typography variant="body2">Winner: {state.winner}</Typography> : null}
-                <Button variant="outlined" size="small" onClick={() => setOpsOpen((v) => !v)}>
-                  {opsOpen ? "Hide Panels" : "Show Panels"}
-                </Button>
-              </Stack>
+          <Divider sx={{ borderColor: "#000" }} />
+
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Button
+              variant="outlined"
+              onClick={() => dispatch({ type: "DRAW_CARD" })}
+              disabled={!canDrawCard}
+            >
+              Draw Card
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setMode("MOVE");
+                setSelectedAttackerId(null);
+              }}
+              disabled={!canMove}
+            >
+              Move
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setMode("ATTACK");
+                setSelectedUnitId(null);
+              }}
+              disabled={!canAttack}
+            >
+              Attack
+            </Button>
+            <Button variant="outlined" onClick={() => dispatch({ type: "NEXT_PHASE" })} disabled={isGameOver}>
+              Next Phase
+            </Button>
+            <Button variant="outlined" onClick={() => dispatch({ type: "TURN_START" })} disabled={isGameOver}>
+              Turn Start
+            </Button>
+            <Button variant="outlined" onClick={() => dispatch({ type: "END_TURN" })} disabled={isGameOver}>
+              End Turn
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                const reaction = queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
+                dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+                if (reaction) {
+                  setQueuedTactic(null);
+                }
+              }}
+              disabled={!canRollDice}
+            >
+              Roll Dice
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                const reaction =
+                  queuedTactic &&
+                  (queuedTactic.window === "afterAttackRoll" || queuedTactic.window === "beforeDamage")
+                    ? queuedTactic
+                    : undefined;
+                dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+                if (reaction) {
+                  setQueuedTactic(null);
+                }
+              }}
+              disabled={!canResolveAttack}
+            >
+              Resolve Attack
+            </Button>
+          </Stack>
+
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Typography variant="body2">Mode: {mode}</Typography>
+            <Typography variant="body2">Selected: {selectionLabel}</Typography>
+            <Typography variant="body2">Pending Attack: {pendingAttackLabel}</Typography>
+            <Typography variant="body2">Last Roll: {lastRollLabel}</Typography>
+          </Stack>
+        </Stack>
+      </Box>
+
+      <BoardViewport onClick={handleViewportClick}>
+        {() => (
+          <IsometricBoard
+            state={state}
+            selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
+            moveRange={moveRange}
+          />
+        )}
+      </BoardViewport>
+
+      {contextOpen ? (
+        <Drawer
+          anchor={isMobile ? "bottom" : "right"}
+          open={contextOpen}
+          onClose={() => {
+            if (isMobile) {
+              setContextSheetSize("peek");
+            }
+          }}
+          ModalProps={{
+            hideBackdrop: true,
+            disableAutoFocus: true,
+            disableEnforceFocus: true,
+            disableRestoreFocus: true,
+          }}
+          slotProps={{
+            root: {
+              sx: {
+                pointerEvents: "none",
+              },
+            },
+            paper: {
+              sx: {
+                pointerEvents: "auto",
+                width: isMobile ? "100%" : 360,
+                height: isMobile
+                    ? contextSheetSize === "full"
+                        ? "80dvh"
+                        : contextSheetSize === "half"
+                            ? "45dvh"
+                            : "20dvh"
+                    : "auto",
+                borderTop: isMobile ? "2px solid #000" : "none",
+                borderLeft: !isMobile ? "2px solid #000" : "none",
+                p: 2,
+              },
+            },
+          }}
+        >
+          <Stack spacing={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle1" fontWeight={700}>
+                Context
+              </Typography>
+              {isMobile ? (
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setContextSheetSize("peek")}
+                  >
+                    Peek
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setContextSheetSize("half")}
+                  >
+                    Half
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setContextSheetSize("full")}
+                  >
+                    Full
+                  </Button>
+                </Stack>
+              ) : null}
             </Stack>
 
             <Divider sx={{ borderColor: "#000" }} />
 
+            <Stack spacing={1}>
+              {selectedUnit ? (
+                <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" fontWeight={600}>
+                      Selected Unit
+                    </Typography>
+                    <Typography variant="caption">ID: {selectedUnit.id}</Typography>
+                    <Typography variant="caption">Owner: {selectedUnit.owner}</Typography>
+                    <Typography variant="caption">Type: {selectedUnit.type}</Typography>
+                    <Typography variant="caption">
+                      Position: ({selectedUnit.position.x}, {selectedUnit.position.y})
+                    </Typography>
+                  </Stack>
+                </Paper>
+              ) : (
+                <Typography variant="caption">No unit selected.</Typography>
+              )}
+
+              {state.pendingAttack ? (
+                <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" fontWeight={600}>
+                      Pending Attack
+                    </Typography>
+                    <Typography variant="caption">
+                      {state.pendingAttack.attackerId} → {state.pendingAttack.targetId}
+                    </Typography>
+                  </Stack>
+                </Paper>
+              ) : null}
+
+              {state.pendingCard ? (
+                <Typography variant="caption">Pending card ready to resolve.</Typography>
+              ) : null}
+            </Stack>
+
             <Stack direction="row" spacing={1} flexWrap="wrap">
               <Button
                 variant="outlined"
+                size="small"
+                onClick={() => setIsCardsOverlayOpen(true)}
+                disabled={
+                  !state.pendingCard &&
+                  state.storedBonuses.length === 0 &&
+                  openReactionWindows.length === 0
+                }
+              >
+                Cards & Tactics
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setIsLogOverlayOpen(true)}
+                disabled={state.log.length === 0}
+              >
+                Log
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
                 onClick={() => {
-                  setMode("MOVE");
+                  setSelectedUnitId(null);
                   setSelectedAttackerId(null);
                 }}
-                disabled={!canMove}
+                disabled={!selectedUnitId && !selectedAttackerId}
               >
-                Move
+                Clear Selection
               </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setMode("ATTACK");
-                  setSelectedUnitId(null);
-                }}
-                disabled={!canAttack}
-              >
-                Attack
-              </Button>
-              <Button variant="outlined" onClick={() => dispatch({ type: "NEXT_PHASE" })} disabled={isGameOver}>
-                Next Phase
-              </Button>
-              <Button variant="outlined" onClick={() => dispatch({ type: "TURN_START" })} disabled={isGameOver}>
-                Turn Start
-              </Button>
-              <Button variant="outlined" onClick={() => dispatch({ type: "END_TURN" })} disabled={isGameOver}>
-                End Turn
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  const reaction = queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
-                  dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
-                  if (reaction) {
-                    setQueuedTactic(null);
-                  }
-                }}
-                disabled={!canRollDice}
-              >
-                Roll Dice
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  const reaction =
-                    queuedTactic && (queuedTactic.window === "afterAttackRoll" || queuedTactic.window === "beforeDamage")
-                      ? queuedTactic
-                      : undefined;
-                  dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
-                  if (reaction) {
-                    setQueuedTactic(null);
-                  }
-                }}
-                disabled={!canResolveAttack}
-              >
-                Resolve Attack
-              </Button>
-            </Stack>
-
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} flexWrap="wrap">
-              <Typography variant="body2">Mode: {mode}</Typography>
-              <Typography variant="body2">Selected: {selectionLabel}</Typography>
-              <Typography variant="body2">Pending Attack: {pendingAttackLabel}</Typography>
-              <Typography variant="body2">Last Roll: {lastRollLabel}</Typography>
             </Stack>
           </Stack>
-        </Container>
-      </Box>
+        </Drawer>
+      ) : null}
 
-      <Container
-        maxWidth="xl"
-        sx={{
-          pt: 2,
-          pb: 4,
-        }}
-      >
-        <Box
-          sx={{
-            position: "relative",
-            height: { xs: "70vh", md: "78vh" },
+      {cardsOverlayOpen ? (
+        isMobile ? (
+          <Drawer
+            anchor="bottom"
+            open
+            onClose={() => setIsCardsOverlayOpen(false)}
+            transitionDuration={0}
+            PaperProps={{
+              sx: {
+                borderTop: "2px solid #000",
+                p: 2,
+                height: "85dvh",
+              },
+            }}
+          >
+            <Stack spacing={2}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle1" fontWeight={700}>
+                  Cards & Tactics
+                </Typography>
+                <Button variant="outlined" size="small" onClick={() => setIsCardsOverlayOpen(false)}>
+                  Close
+                </Button>
+              </Stack>
+              {cardsContent}
+            </Stack>
+          </Drawer>
+        ) : (
+          <Dialog
+            open
+            onClose={() => setIsCardsOverlayOpen(false)}
+            fullWidth
+            maxWidth="md"
+            transitionDuration={0}
+            PaperProps={{ sx: { border: "2px solid #000" } }}
+          >
+            <DialogTitle sx={{ borderBottom: "1px solid #000" }}>Cards & Tactics</DialogTitle>
+            <DialogContent sx={{ py: 2 }}>{cardsContent}</DialogContent>
+          </Dialog>
+        )
+      ) : null}
+
+      {isMobile ? (
+        <Drawer
+          anchor="bottom"
+          open={isLogOverlayOpen}
+          onClose={() => setIsLogOverlayOpen(false)}
+          slotProps={{
+            paper:{
+            sx: {
+              borderTop: "2px solid #000",
+              p: 2,
+              height: "60dvh",
+            }}
           }}
         >
-          <BoardViewport onClick={handleViewportClick} height="100%">
-            {() => (
-              <IsometricBoard
-                state={state}
-                selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
-                moveRange={moveRange}
-              />
-            )}
-          </BoardViewport>
-
-          {/* Desktop: right-side overlay slab that does NOT shrink the board. */}
-          {isDesktop && opsOpen ? (
-            <Box
-              sx={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                bottom: 16,
-                width: 420,
-                overflow: "auto",
-                bgcolor: "#fff",
-                border: "1px solid #000",
-                p: 2,
-              }}
-            >
-              {opsContent}
-            </Box>
-          ) : null}
-
-          {/* Mobile: panels open as a bottom drawer. */}
-          {!isDesktop ? (
-            <Drawer
-              anchor="bottom"
-              open={opsOpen}
-              onClose={() => setOpsOpen(false)}
-              PaperProps={{
-                sx: {
-                  borderTop: "1px solid #000",
-                  p: 2,
-                },
-              }}
-            >
-              {opsContent}
-            </Drawer>
-          ) : null}
-
-          {/* Mobile: floating button to open panels. */}
-          {!isDesktop && !opsOpen ? (
-            <Box sx={{ position: "absolute", right: 16, bottom: 16 }}>
-              <Button variant="outlined" onClick={() => setOpsOpen(true)}>
-                Open Panels
+          <Stack spacing={1}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle1" fontWeight={700}>
+                Log
+              </Typography>
+              <Button variant="outlined" size="small" onClick={() => setIsLogOverlayOpen(false)}>
+                Close
               </Button>
+            </Stack>
+            <Box
+              ref={logRef}
+              sx={{
+                mt: 1,
+                overflowY: "auto",
+                pr: 1,
+              }}
+            >
+              <Stack spacing={0.5}>
+                {state.log.map((entry, index) => (
+                  <Typography
+                    key={`${entry}-${index}`}
+                    variant="caption"
+                    sx={{ minHeight: `${logRowHeight}px`, lineHeight: `${logRowHeight}px` }}
+                  >
+                    {entry || " "}
+                  </Typography>
+                ))}
+              </Stack>
             </Box>
-          ) : null}
+          </Stack>
+        </Drawer>
+      ) : (
+        <Dialog
+          open={isLogOverlayOpen}
+          onClose={() => setIsLogOverlayOpen(false)}
+          fullWidth
+          maxWidth="sm"
+          slotProps={{paper:{ sx: { border: "2px solid #000" } }}}
+        >
+          <DialogTitle sx={{ borderBottom: "1px solid #000" }}>Log</DialogTitle>
+          <DialogContent sx={{ py: 2 }}>
+            <Box
+              ref={logRef}
+              sx={{
+                maxHeight: "60dvh",
+                overflowY: "auto",
+                pr: 1,
+              }}
+            >
+              <Stack spacing={0.5}>
+                {state.log.map((entry, index) => (
+                  <Typography
+                    key={`${entry}-${index}`}
+                    variant="caption"
+                    sx={{ minHeight: `${logRowHeight}px`, lineHeight: `${logRowHeight}px` }}
+                  >
+                    {entry || " "}
+                  </Typography>
+                ))}
+              </Stack>
+            </Box>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {isTargeting ? (
+        <Box
+          sx={{
+            position: "fixed",
+            left: 16,
+            right: 16,
+            bottom: 16,
+            zIndex: 9999,
+          }}
+        >
+          <Paper sx={{ border: "2px solid #000", p: 2 }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              justifyContent="space-between"
+            >
+              <Stack spacing={0.25}>
+                <Typography variant="caption" fontWeight={700}>
+                  Targeting {isPendingTargeting ? "Pending Card" : "Tactic"}
+                </Typography>
+                {targetingCard ? (
+                  <Typography variant="caption">{targetingCard.name}</Typography>
+                ) : null}
+                {targetingSpec?.type === "unit" ? (
+                  <Typography variant="caption">
+                    Selected {selectedTargetUnitIds.length}/{targetingSpec.count}
+                  </Typography>
+                ) : null}
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {isPendingTargeting ? (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleConfirmPendingTargets}
+                    disabled={
+                      pendingTargetingSpec?.type !== "unit" ||
+                      selectedTargetUnitIds.length !== pendingTargetingSpec.count
+                    }
+                  >
+                    Confirm
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleConfirmTacticTargets}
+                    disabled={
+                      targetingSpec?.type !== "unit" ||
+                      selectedTargetUnitIds.length !== targetingSpec.count
+                    }
+                  >
+                    Confirm
+                  </Button>
+                )}
+                <Button variant="outlined" size="small" onClick={handleCancelTargeting}>
+                  Cancel
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
         </Box>
-      </Container>
+      ) : null}
     </Box>
   );
 }

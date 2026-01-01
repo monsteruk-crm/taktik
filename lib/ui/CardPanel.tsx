@@ -18,7 +18,6 @@ type CardPanelProps = {
   queuedTactic: { cardId: string; window: ReactionWindow; targets?: { unitIds?: string[] } } | null;
   queuedTacticCard: CardDefinition | null;
   tacticTargetingCard: CardDefinition | null;
-  canDrawCard: boolean;
   canStoreBonus: boolean;
   canPlayCard: boolean;
   isPendingTargeting: boolean;
@@ -26,7 +25,6 @@ type CardPanelProps = {
   pendingTargetingSpec: TargetingSpec | null;
   tacticTargetingSpec: TargetingSpec | null;
   selectedTargetUnitIds: string[];
-  onDrawCard: () => void;
   onStoreBonus: () => void;
   onStartPendingTargeting: () => void;
   onConfirmPendingTargets: () => void;
@@ -47,7 +45,6 @@ export default function CardPanel({
   queuedTactic,
   queuedTacticCard,
   tacticTargetingCard,
-  canDrawCard,
   canStoreBonus,
   canPlayCard,
   isPendingTargeting,
@@ -55,7 +52,6 @@ export default function CardPanel({
   pendingTargetingSpec,
   tacticTargetingSpec,
   selectedTargetUnitIds,
-  onDrawCard,
   onStoreBonus,
   onStartPendingTargeting,
   onConfirmPendingTargets,
@@ -131,19 +127,18 @@ export default function CardPanel({
           Cards
         </Typography>
         <Typography variant="body2">Common deck: {commonDeckCount} cards</Typography>
-        <Box>
-          <Button variant="outlined" onClick={onDrawCard} disabled={!canDrawCard}>
-            Draw Card
-          </Button>
-        </Box>
         <Paper variant="outlined" sx={{ p: 2, borderColor: "#000" }}>
           <Stack spacing={1}>
             <Typography variant="caption" fontWeight={600}>
               Pending Card
             </Typography>
             {pendingCard ? (
-              <Stack spacing={0.5}>
-                <CardArt card={pendingCard} label={`Art for ${pendingCard.name}`} />
+              <Stack spacing={0.5} alignItems="center">
+                <CardArt
+                  card={pendingCard}
+                  label={`Art for ${pendingCard.name}`}
+                  maxWidth={260}
+                />
                 <Typography variant="caption">
                   {pendingCard.kind}: {pendingCard.name}
                 </Typography>
@@ -230,7 +225,7 @@ export default function CardPanel({
               ) : (
                 storedBonuses.map((card) => (
                   <Stack key={card.id} spacing={0.25}>
-                    <CardArt card={card} label={`Art for ${card.name}`} />
+                    <CardArt card={card} label={`Art for ${card.name}`} maxWidth={120} />
                     <Typography variant="caption">
                       {card.id}: {card.name}
                     </Typography>
