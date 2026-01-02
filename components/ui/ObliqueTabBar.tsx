@@ -19,9 +19,7 @@ type ObliqueTabBarProps = {
   rightContent?: ReactNode;
 };
 
-const SHAPE_LEFT = "polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)";
-const SHAPE_MID = "polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%)";
-const SHAPE_RIGHT = "polygon(12px 0, 100% 0, 100% 100%, 0 100%)";
+const SLANT = 14;
 
 const TAB_STRIPE: Record<string, string> = {
   cards: semanticColors.dice,
@@ -91,17 +89,18 @@ export default function ObliqueTabBar({
       >
         {visibleTabs.map((tab, index) => {
           const isActive = tab.id === activeId;
+
           const stripeColor = TAB_STRIPE[tab.id] ?? semanticColors.neutralStripe;
           const fillColor = isActive ? stripeColor : semanticColors.panel;
           const hoverFill = isActive ? stripeColor : semanticColors.panel2;
-          const backgroundImage = `linear-gradient(90deg, ${stripeColor} 0 6px, ${fillColor} 6px 100%)`;
-          const hoverBackgroundImage = `linear-gradient(90deg, ${stripeColor} 0 6px, ${hoverFill} 6px 100%)`;
-          const shape =
-            index === 0
-              ? SHAPE_LEFT
-              : index === visibleTabs.length - 1
-                ? SHAPE_RIGHT
-                : SHAPE_MID;
+          const showStripe = !isActive;
+          const isFirst = index === 0;
+          const isLast = index === visibleTabs.length - 1;
+          const clipPath = isFirst
+            ? `polygon(0% 0%, 100% 0%, calc(100% - ${SLANT}px) 100%, 0% 100%)`
+            : isLast
+              ? `polygon(${SLANT}px 0%, 100% 0%, 100% 100%, 0% 100%)`
+              : `polygon(${SLANT}px 0%, 100% 0%, calc(100% - ${SLANT}px) 100%, 0% 100%)`;
           return (
             <ButtonBase
               key={tab.id}
@@ -118,7 +117,6 @@ export default function ObliqueTabBar({
                 px: size === "sm" ? 2 : 2.5,
                 border: `2px solid ${semanticColors.ink}`,
                 backgroundColor: fillColor,
-                backgroundImage,
                 color: isActive ? textOn(fillColor) : semanticColors.ink,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
@@ -129,8 +127,8 @@ export default function ObliqueTabBar({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 justifyContent: "center",
-                clipPath: shape,
                 marginLeft: index === 0 ? 0 : -2,
+                clipPath,
                 zIndex: isActive ? 3 : 1,
                 transition: `background-color ${DUR.micro}ms ${EASE.snap}, color ${DUR.micro}ms ${EASE.snap}`,
                 "&::after": {
@@ -140,12 +138,26 @@ export default function ObliqueTabBar({
                   border: `1px solid ${
                     isActive ? semanticColors.ink2 : semanticColors.neutralStripe
                   }`,
-                  clipPath: shape,
+                  clipPath,
                   pointerEvents: "none",
                 },
+                ...(showStripe
+                  ? {
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 6,
+                        backgroundColor: stripeColor,
+                        clipPath,
+                        pointerEvents: "none",
+                      },
+                    }
+                  : null),
                 "&:hover": {
                   backgroundColor: hoverFill,
-                  backgroundImage: hoverBackgroundImage,
                   color: isActive ? textOn(fillColor) : semanticColors.ink,
                 },
                 "&.Mui-focusVisible": {
@@ -155,9 +167,15 @@ export default function ObliqueTabBar({
                 "@media (prefers-reduced-motion: reduce)": {
                   transition: "none",
                 },
+                "& > .oblique-tab-label": {
+                  position: "relative",
+                  zIndex: 1,
+                },
               }}
             >
-              {tab.label}
+              <Box component="span" className="oblique-tab-label">
+                {tab.label}
+              </Box>
             </ButtonBase>
           );
         })}

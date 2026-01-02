@@ -1821,3 +1821,208 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/ui/SkewedButton.tsx`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueKey simplification
+
+### BEFORE
+- ObliqueKey had layered rail elements and extra state branches that made styling harder to reason about.
+
+### NOW
+- Simplified ObliqueKey to a single ButtonBase with clip-path, a stripe via linear-gradient, and typed props similar to SkewedButton.
+- Added support for children/label while keeping the same oblique shape and interaction states.
+
+### NEXT
+- Validate button contrast across all tones in the console and command dock.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueKey stripe clipping fix
+
+### BEFORE
+- Inactive keys showed stray accent color on the right edge due to gradient + clip-path interaction.
+
+### NOW
+- Moved the accent stripe back to a clipped pseudo-element and limited gradients to inactive-only, removing edge bleed.
+
+### NEXT
+- Recheck inactive keys at very small widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueKey left-edge fix
+
+### BEFORE
+- Inactive keys showed a triangular sliver of the accent stripe at the top-left due to the left edge being slanted in the clip-path.
+
+### NOW
+- Straightened the left edge in the ObliqueKey clip-path so the accent stripe renders as a clean vertical bar with no red wedge.
+
+### NEXT
+- Recheck adjacent key seams at all sizes.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueKey skew simplification
+
+### BEFORE
+- ObliqueKey clip-path produced edge bleed and accent wedges on inactive buttons.
+
+### NOW
+- Replaced clip-path geometry with a simple skew transform, matching the SkewedButton strategy and eliminating stripe bleed.
+- Kept the vertical stripe as a normal bar and unskewed the label text for readability.
+
+### NEXT
+- Validate the skewed shape against the design guidelines for oblique controls.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueTabBar skew cleanup
+
+### BEFORE
+- Tab clip-paths caused accent bleed and jagged edges similar to the old ObliqueKey.
+
+### NOW
+- Switched ObliqueTabBar to a skewed ButtonBase approach, with counter‑skewed labels and clean vertical stripes.
+
+### NEXT
+- Verify tab seams at narrow widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueTabBar slab fix
+
+### BEFORE
+- Skewed tabs overlapped and cropped the first/last edges.
+
+### NOW
+- Tabs use a clipped rectangular shell with an internal skewed slab, keeping straight outer edges while preserving the oblique fill.
+- Overlap reduced to border-only so tabs no longer cover each other.
+
+### NEXT
+- Verify the slab offset on very small widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueTabBar slanted edges
+
+### BEFORE
+- Tabs lost the slanted edges and rendered as squares after the slab fix.
+
+### NOW
+- Added outer clip-paths per tab position so the first tab slants right, middle tabs slant both sides, and last tab slants left.
+- Kept the internal skewed slab for consistent fill without edge bleed.
+
+### NEXT
+- Fine-tune slant width if needed for tighter joins.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueTabBar chevron reset
+
+### BEFORE
+- Tabs had odd internal skew artifacts and gaps when the slab method was used.
+
+### NOW
+- Returned to clean chevron clip-path tabs with straight outer edges and no internal slab, matching the reference shape.
+- Stripes are clipped to the tab shape to avoid bleed.
+
+### NEXT
+- Verify seam alignment across all widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`
+---
+
+## 2026-01-02 — Fix SkewedTabsConditional typing
+
+### BEFORE
+- `components/ui/SkewedTabsConditional.tsx` was plain JS; the missing type annotations and default React import usage caused TypeScript to fail during the build.
+
+### NOW
+- Typed the component (`React.FC`), the tab data, and the clip-path helper so the compiler knows what to expect, and added explicit `React.SyntheticEvent`/`number` parameters for the Tabs `onChange` handler.
+- `tsc` now runs cleanly with the updated file.
+
+### NEXT
+- Keep any new UI utilities strongly typed before adding them so the build stays green.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `components/ui/SkewedTabsConditional.tsx`
+---
+## 2026-01-02 — SkewedTabsConditional gap suppression
+
+### BEFORE
+- SkewedTabsConditional showed visible gaps between tabs because flex gaps cannot be negative.
+
+### NOW
+- Tabs are pulled together with negative left margin per tab and a matching container offset.
+
+### NEXT
+- Confirm the interlock at different tab widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/SkewedTabsConditional.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — SkewedTabsConditional full-width layout
+
+### BEFORE
+- The test tabs did not stretch to full width, making gap testing inconsistent.
+
+### NOW
+- Tabs flex to fill the container and overlap by the slant width for interlock testing.
+
+### NEXT
+- Adjust the clip-path or overlap if a seam remains after full-width scaling.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/SkewedTabsConditional.tsx`
+- Docs: `docs/progress.md`
