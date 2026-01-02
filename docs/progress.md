@@ -1155,6 +1155,25 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-02 — Add mandatory design-system compliance rule
+
+### BEFORE
+- AGENTS instructions did not explicitly enforce the brutalist-constructivism design system docs.
+
+### NOW
+- Added a mandatory rule in `AGENTS.md` requiring adherence to the locked design prompt and visual style bible for any UI work.
+
+### NEXT
+- Verify upcoming UI changes reference the design docs before implementation.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Docs: `AGENTS.md`, `docs/progress.md`
+
+---
+
 ## 2026-01-01 — Align E2E steps with targeting bar flow
 
 ### BEFORE
@@ -1190,4 +1209,83 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ### Files touched
 - UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+## 2026-01-02 — Command screen layout + Ops Console
+
+### BEFORE
+- The UI relied on centered modals/drawers for cards, tactics, and log, plus a floating context panel.
+- The layout used a tall fixed command bar and a large, centered panel stack that pulled focus from the board.
+- Move highlights used a neon drop-shadow glow and the page could scroll.
+
+### NOW
+- Added a brutalist MUI theme with flat, rectangular components and palette-aligned defaults.
+- Rebuilt the screen as a board-first command surface with a thin AppBar, a right-hand Ops Console dock (tabs: Cards/Tactics/Log), and a mobile bottom-sheet console toggle.
+- Flattened highlight styling (no glow), locked the base background, and ensured the board viewport fills the available height.
+- Updated manual E2E layout checks to match the new console-driven UI.
+
+### NEXT
+- Validate command-bar density on small screens and consider additional compression or shortcuts if needed.
+- Add lightweight unit context readouts inside the console without changing engine logic.
+
+### Known limitations / TODOs
+- Action buttons in the command bar may require horizontal scrolling on very narrow devices.
+- Targeting confirm/cancel remains in the bottom targeting bar rather than the console.
+
+### Files touched
+- UI: `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `components/OpsConsole.tsx`, `components/BoardViewport.tsx`, `lib/ui/theme.ts`, `lib/ui/CardArt.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+## 2026-01-02 — Fix MUI theme provider client boundary
+
+### BEFORE
+- The root layout passed the MUI theme directly through a server component wrapper, triggering a runtime error about functions in Client Components.
+
+### NOW
+- Moved the ThemeProvider + AppRouterCacheProvider into a dedicated client wrapper component to satisfy Next.js client boundary rules.
+
+### NEXT
+- Re-run the UI smoke checks to confirm the console layout renders without runtime errors.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/layout.tsx`, `app/ThemeRegistry.tsx`
+- Docs: `docs/progress.md`
+
+## 2026-01-02 — Define Geist font CSS variables
+
+### BEFORE
+- The CSS referenced `--font-geist-sans` and `--font-geist-mono` without fallback definitions, triggering unresolved custom property warnings.
+
+### NOW
+- Added explicit fallback font variable definitions in `app/globals.css` so the CSS custom properties resolve even before Next.js injects font variables.
+
+### NEXT
+- Confirm typography renders with Geist and falls back cleanly when fonts are unavailable.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/globals.css`
+- Docs: `docs/progress.md`
+
+## 2026-01-02 — Center board on median unit position
+
+### BEFORE
+- The board viewport opened at pan (0,0), which could place the unit cluster away from center.
+
+### NOW
+- Added an initial pan calculation that centers the viewport on the median unit position at first render.
+
+### NEXT
+- Consider persisting pan/zoom between turns or sessions if needed.
+
+### Known limitations / TODOs
+- Initial centering runs once on mount and does not re-center after unit movement.
+
+### Files touched
+- UI: `components/BoardViewport.tsx`, `app/page.tsx`
 - Docs: `docs/progress.md`

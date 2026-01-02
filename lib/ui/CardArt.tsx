@@ -19,8 +19,8 @@ export default function CardArt({ card, label, maxWidth = 180 }: CardArtProps) {
       sx={{
         width: "100%",
         maxWidth,
-        border: "1px solid #000",
-        borderRadius: 1,
+        border: "2px solid #1B1B1B",
+        borderRadius: 0,
         display: "block",
       }}
       onError={(event: React.SyntheticEvent<HTMLImageElement>) => {

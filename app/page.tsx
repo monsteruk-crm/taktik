@@ -2,15 +2,12 @@
 
 import type { RefObject } from "react";
 import { startTransition, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
-import Drawer from "@mui/material/Drawer";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
+import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -19,8 +16,8 @@ import { gameReducer, initialGameState } from "@/lib/engine";
 import { getMoveRange } from "@/lib/engine/movement";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
-import CardPanel from "@/lib/ui/CardPanel";
-import { getBoardOrigin, screenToGrid } from "@/lib/ui/iso";
+import OpsConsole from "@/components/OpsConsole";
+import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 
 export default function Home() {
   type TargetingContext =
@@ -40,12 +37,8 @@ export default function Home() {
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
   const [queuedTactic, setQueuedTactic] = useState<QueuedTactic | null>(null);
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [isCardsOverlayOpen, setIsCardsOverlayOpen] = useState(false);
-  const [isLogOverlayOpen, setIsLogOverlayOpen] = useState(false);
-  const [contextSheetSize, setContextSheetSize] = useState<"peek" | "half" | "full">(
-    "peek"
-  );
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const isGameOver = state.phase === "VICTORY";
   const canMove = state.phase === "MOVEMENT" && !isGameOver;
   const canAttack = state.phase === "ATTACK" && !isGameOver;
@@ -117,6 +110,28 @@ export default function Home() {
     () => getBoardOrigin(state.boardWidth, state.boardHeight),
     [state.boardWidth, state.boardHeight]
   );
+  const medianUnitPosition = useMemo(() => {
+    if (state.units.length === 0) {
+      return { x: Math.floor(state.boardWidth / 2), y: Math.floor(state.boardHeight / 2) };
+    }
+    const xs = state.units.map((unit) => unit.position.x).sort((a, b) => a - b);
+    const ys = state.units.map((unit) => unit.position.y).sort((a, b) => a - b);
+    const mid = Math.floor(xs.length / 2);
+    const medianX =
+      xs.length % 2 === 0 ? (xs[mid - 1] + xs[mid]) / 2 : xs[mid];
+    const medianY =
+      ys.length % 2 === 0 ? (ys[mid - 1] + ys[mid]) / 2 : ys[mid];
+    return { x: medianX, y: medianY };
+  }, [state.boardHeight, state.boardWidth, state.units]);
+  const initialPan = useMemo(() => {
+    const { sx, sy } = gridToScreen(medianUnitPosition);
+    const worldX = originX + sx;
+    const worldY = originY + sy;
+    return ({ width, height }: { width: number; height: number }) => ({
+      x: width / 2 - worldX,
+      y: height / 2 - worldY,
+    });
+  }, [medianUnitPosition, originX, originY]);
   const logRef = useRef<HTMLDivElement | null>(null);
   const logRowHeight = 18;
 
@@ -125,6 +140,12 @@ export default function Home() {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [state.log]);
+
+  useEffect(() => {
+    if (isConsoleOpen && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [isConsoleOpen]);
 
   useEffect(() => {
     startTransition(() => {
@@ -136,10 +157,10 @@ export default function Home() {
   }, [state.pendingCard?.id]);
 
   useEffect(() => {
-    if (state.pendingCard && targetingContext?.source !== "pending") {
-      setIsCardsOverlayOpen(true);
+    if (!isMobile) {
+      setIsConsoleOpen(false);
     }
-  }, [state.pendingCard?.id, targetingContext]);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!queuedTactic) {
@@ -281,21 +302,8 @@ export default function Home() {
   const lastRollLabel = state.lastRoll
     ? `${state.lastRoll.value} -> ${state.lastRoll.outcome}`
     : "None";
-  const selectedUnit =
-    (mode === "MOVE" ? selectedUnitId : selectedAttackerId) &&
-    state.units.find(
-      (unit) => unit.id === (mode === "MOVE" ? selectedUnitId : selectedAttackerId)
-    );
-  const contextOpen = Boolean(
-    selectedUnit ||
-      state.pendingAttack ||
-      state.pendingCard ||
-      queuedTactic
-  );
   const isPendingTargeting = targetingContext?.source === "pending";
   const isTacticTargeting = targetingContext?.source === "tactic";
-  const cardsOverlayOpen =
-    (Boolean(state.pendingCard) && !isPendingTargeting) || (isCardsOverlayOpen && !isTargeting);
 
   function handleCancelTargeting() {
     setTargetingContext(null);
@@ -310,7 +318,6 @@ export default function Home() {
     setSelectedUnitId(null);
     setSelectedAttackerId(null);
     setSelectedTargetUnitIds([]);
-    setIsCardsOverlayOpen(false);
   }
 
   function handleConfirmPendingTargets() {
@@ -328,7 +335,6 @@ export default function Home() {
     setSelectedUnitId(null);
     setSelectedAttackerId(null);
     setSelectedTargetUnitIds([]);
-    setIsCardsOverlayOpen(false);
   }
 
   function handleConfirmTacticTargets() {
@@ -345,8 +351,8 @@ export default function Home() {
     handleCancelTargeting();
   }
 
-  const cardsContent = (
-    <CardPanel
+  const opsConsole = (
+    <OpsConsole
       commonDeckCount={state.commonDeck.length}
       pendingCard={state.pendingCard}
       storedBonuses={state.storedBonuses}
@@ -357,12 +363,17 @@ export default function Home() {
       tacticTargetingCard={tacticTargetingCard}
       canStoreBonus={canStoreBonus}
       canPlayCard={canPlayCard}
+      canDrawCard={canDrawCard}
       isPendingTargeting={isPendingTargeting}
       isTacticTargeting={isTacticTargeting}
       pendingTargetingSpec={pendingTargetingSpec}
       tacticTargetingSpec={tacticTargetingCard?.targeting ?? null}
       selectedTargetUnitIds={selectedTargetUnitIds}
+      logEntries={state.log}
+      logRef={logRef}
+      logRowHeight={logRowHeight}
       onStoreBonus={() => dispatch({ type: "STORE_BONUS" })}
+      onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
       onStartPendingTargeting={handleStartPendingTargeting}
       onConfirmPendingTargets={handleConfirmPendingTargets}
       onPlayPendingCard={() => {
@@ -382,411 +393,276 @@ export default function Home() {
     />
   );
 
-  const contextContent = (
-    <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="subtitle1" fontWeight={700}>
-          Context
-        </Typography>
-        {isMobile ? (
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setContextSheetSize("peek")}
-            >
-              Peek
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setContextSheetSize("half")}
-            >
-              Half
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setContextSheetSize("full")}
-            >
-              Full
-            </Button>
-          </Stack>
-        ) : null}
-      </Stack>
-
-      <Divider sx={{ borderColor: "#000" }} />
-
-      <Stack spacing={1}>
-        {selectedUnit ? (
-          <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
-            <Stack spacing={0.5}>
-              <Typography variant="caption" fontWeight={600}>
-                Selected Unit
-              </Typography>
-              <Typography variant="caption">ID: {selectedUnit.id}</Typography>
-              <Typography variant="caption">Owner: {selectedUnit.owner}</Typography>
-              <Typography variant="caption">Type: {selectedUnit.type}</Typography>
-              <Typography variant="caption">
-                Position: ({selectedUnit.position.x}, {selectedUnit.position.y})
-              </Typography>
-            </Stack>
-          </Paper>
-        ) : (
-          <Typography variant="caption">No unit selected.</Typography>
-        )}
-
-        {state.pendingAttack ? (
-          <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
-            <Stack spacing={0.5}>
-              <Typography variant="caption" fontWeight={600}>
-                Pending Attack
-              </Typography>
-              <Typography variant="caption">
-                {state.pendingAttack.attackerId} → {state.pendingAttack.targetId}
-              </Typography>
-            </Stack>
-          </Paper>
-        ) : null}
-
-        {state.pendingCard ? (
-          <Typography variant="caption">Pending card ready to resolve.</Typography>
-        ) : null}
-      </Stack>
-
-      <Stack direction="row" spacing={1} flexWrap="wrap">
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => setIsCardsOverlayOpen(true)}
-          disabled={
-            !state.pendingCard &&
-            state.storedBonuses.length === 0 &&
-            openReactionWindows.length === 0
-          }
-        >
-          Cards & Tactics
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => setIsLogOverlayOpen(true)}
-          disabled={state.log.length === 0}
-        >
-          Log
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => {
-            setSelectedUnitId(null);
-            setSelectedAttackerId(null);
-          }}
-          disabled={!selectedUnitId && !selectedAttackerId}
-        >
-          Clear Selection
-        </Button>
-      </Stack>
-    </Stack>
-  );
-
   return (
     <Box
       sx={{
-        minHeight: "100dvh",
-        bgcolor: "#ffffff",
-        color: "#000000",
-        "--command-bar-height": { xs: "120px", md: "88px" },
-        pt: "var(--command-bar-height)",
+        height: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        bgcolor: "background.default",
+        color: "text.primary",
+        overflow: "hidden",
       }}
     >
-      <Box
+      <AppBar
+        position="static"
+        elevation={0}
+        color="transparent"
         sx={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "var(--command-bar-height)",
-          zIndex: 30,
-          borderBottom: "1px solid #000",
-          bgcolor: "#fff",
+          border: 0,
+          borderBottom: "2px solid #1B1B1B",
+          bgcolor: "background.default",
+          color: "text.primary",
+          height: { xs: 56, md: 64 },
           px: 2,
-          py: 1,
+          py: 0.5,
         }}
       >
-        <Stack spacing={1}>
-          <Stack
-            direction="row"
-            spacing={1}
-            flexWrap="wrap"
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <Typography variant="subtitle1" fontWeight={700}>
-              TAKTIK MVP
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Typography variant="body2">Player: {state.activePlayer}</Typography>
-              <Typography variant="body2">VP: --</Typography>
-              <Typography variant="body2">Turn: {state.turn}</Typography>
-              <Typography variant="body2">Phase: {state.phase}</Typography>
-              {state.winner ? <Typography variant="body2">Winner: {state.winner}</Typography> : null}
-            </Stack>
-          </Stack>
-
-          <Divider sx={{ borderColor: "#000" }} />
-
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Button
-              variant="outlined"
-              onClick={() => dispatch({ type: "DRAW_CARD" })}
-              disabled={!canDrawCard}
-            >
-              Draw Card
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setMode("MOVE");
-                setSelectedAttackerId(null);
-              }}
-              disabled={!canMove}
-            >
-              Move
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setMode("ATTACK");
-                setSelectedUnitId(null);
-              }}
-              disabled={!canAttack}
-            >
-              Attack
-            </Button>
-            <Button variant="outlined" onClick={() => dispatch({ type: "NEXT_PHASE" })} disabled={isGameOver}>
-              Next Phase
-            </Button>
-            <Button variant="outlined" onClick={() => dispatch({ type: "TURN_START" })} disabled={isGameOver}>
-              Turn Start
-            </Button>
-            <Button variant="outlined" onClick={() => dispatch({ type: "END_TURN" })} disabled={isGameOver}>
-              End Turn
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                const reaction = queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
-                dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
-                if (reaction) {
-                  setQueuedTactic(null);
-                }
-              }}
-              disabled={!canRollDice}
-            >
-              Roll Dice
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                const reaction =
-                  queuedTactic &&
-                  (queuedTactic.window === "afterAttackRoll" || queuedTactic.window === "beforeDamage")
-                    ? queuedTactic
-                    : undefined;
-                dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
-                if (reaction) {
-                  setQueuedTactic(null);
-                }
-              }}
-              disabled={!canResolveAttack}
-            >
-              Resolve Attack
-            </Button>
-          </Stack>
-
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Typography variant="body2">Mode: {mode}</Typography>
-            <Typography variant="body2">Selected: {selectionLabel}</Typography>
-            <Typography variant="body2">Pending Attack: {pendingAttackLabel}</Typography>
-            <Typography variant="body2">Last Roll: {lastRollLabel}</Typography>
-          </Stack>
-        </Stack>
-      </Box>
-
-      <BoardViewport onClick={handleViewportClick}>
-        {() => (
-          <IsometricBoard
-            state={state}
-            selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
-            moveRange={moveRange}
-          />
-        )}
-      </BoardViewport>
-
-      {contextOpen ? (
-        isMobile ? (
-          <Box
-            sx={{
-              position: "fixed",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height:
-                contextSheetSize === "full"
-                  ? "80dvh"
-                  : contextSheetSize === "half"
-                    ? "45dvh"
-                    : "20dvh",
-              bgcolor: "#fff",
-              borderTop: "2px solid #000",
-              p: 2,
-              overflowY: "auto",
-              zIndex: 20,
-            }}
-          >
-            {contextContent}
-          </Box>
-        ) : (
-          <Box
-            sx={{
-              position: "fixed",
-              top: 120,
-              right: 16,
-              width: 360,
-              maxHeight: "calc(100dvh - 140px)",
-              overflowY: "auto",
-              border: "2px solid #000",
-              bgcolor: "#fff",
-              p: 2,
-              zIndex: 20,
-            }}
-          >
-            {contextContent}
-          </Box>
-        )
-      ) : null}
-
-      {cardsOverlayOpen ? (
-        isMobile ? (
-          <Drawer
-            anchor="bottom"
-            open
-            onClose={() => setIsCardsOverlayOpen(false)}
-            transitionDuration={0}
-            PaperProps={{
-              sx: {
-                borderTop: "2px solid #000",
-                p: 2,
-                height: "85dvh",
-              },
-            }}
-          >
-            <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Cards & Tactics
-                </Typography>
-                <Button variant="outlined" size="small" onClick={() => setIsCardsOverlayOpen(false)}>
-                  Close
-                </Button>
-              </Stack>
-              {cardsContent}
-            </Stack>
-          </Drawer>
-        ) : (
-          <Dialog
-            open
-            onClose={() => setIsCardsOverlayOpen(false)}
-            fullWidth
-            maxWidth="md"
-            transitionDuration={0}
-            PaperProps={{ sx: { border: "2px solid #000" } }}
-          >
-            <DialogTitle sx={{ borderBottom: "1px solid #000" }}>Cards & Tactics</DialogTitle>
-            <DialogContent sx={{ py: 2 }}>{cardsContent}</DialogContent>
-          </Dialog>
-        )
-      ) : null}
-
-      {isMobile ? (
-        <Drawer
-          anchor="bottom"
-          open={isLogOverlayOpen}
-          onClose={() => setIsLogOverlayOpen(false)}
-          slotProps={{
-            paper:{
-            sx: {
-              borderTop: "2px solid #000",
-              p: 2,
-              height: "60dvh",
-            }}
+        <Box
+          sx={{
+            height: "100%",
+            display: "grid",
+            gridTemplateRows: "1fr 1fr",
+            gap: 0.5,
           }}
         >
-          <Stack spacing={1}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="subtitle1" fontWeight={700}>
-                Log
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+              minWidth: 0,
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="center"
+              sx={{ minWidth: 0, overflow: "hidden" }}
+            >
+              <Typography variant="subtitle1" fontWeight={700} noWrap>
+                TAKTIK MVP
               </Typography>
-              <Button variant="outlined" size="small" onClick={() => setIsLogOverlayOpen(false)}>
-                Close
-              </Button>
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ flexWrap: "nowrap", overflow: "hidden" }}
+              >
+                <Typography variant="caption" noWrap>
+                  PLAYER: {state.activePlayer}
+                </Typography>
+                <Typography variant="caption" noWrap>
+                  VP: --
+                </Typography>
+                <Typography variant="caption" noWrap>
+                  TURN: {state.turn}
+                </Typography>
+                <Typography variant="caption" noWrap>
+                  PHASE: {state.phase}
+                </Typography>
+                {state.winner ? (
+                  <Typography variant="caption" noWrap>
+                    WINNER: {state.winner}
+                  </Typography>
+                ) : null}
+              </Stack>
             </Stack>
-            <Box
-              ref={logRef}
-              sx={{
-                mt: 1,
-                overflowY: "auto",
-                pr: 1,
-              }}
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setIsConsoleOpen((prev) => !prev)}
+              sx={{ display: { xs: "inline-flex", md: "none" } }}
             >
-              <Stack spacing={0.5}>
-                {state.log.map((entry, index) => (
-                  <Typography
-                    key={`${entry}-${index}`}
-                    variant="caption"
-                    sx={{ minHeight: `${logRowHeight}px`, lineHeight: `${logRowHeight}px` }}
-                  >
-                    {entry || " "}
-                  </Typography>
-                ))}
+              CONSOLE
+            </Button>
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gap: 1,
+              alignItems: "center",
+              minWidth: 0,
+            }}
+          >
+            <Box sx={{ overflowX: "auto" }}>
+              <Stack direction="row" spacing={1} sx={{ width: "max-content" }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => dispatch({ type: "DRAW_CARD" })}
+                  disabled={!canDrawCard}
+                >
+                  DRAW CARD
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setMode("MOVE");
+                    setSelectedAttackerId(null);
+                  }}
+                  disabled={!canMove}
+                >
+                  MOVE
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setMode("ATTACK");
+                    setSelectedUnitId(null);
+                  }}
+                  disabled={!canAttack}
+                >
+                  ATTACK
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => dispatch({ type: "NEXT_PHASE" })}
+                  disabled={isGameOver}
+                >
+                  NEXT PHASE
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => dispatch({ type: "TURN_START" })}
+                  disabled={isGameOver}
+                >
+                  TURN START
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => dispatch({ type: "END_TURN" })}
+                  disabled={isGameOver}
+                >
+                  END TURN
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    const reaction =
+                      queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
+                    dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+                    if (reaction) {
+                      setQueuedTactic(null);
+                    }
+                  }}
+                  disabled={!canRollDice}
+                >
+                  ROLL DICE
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    const reaction =
+                      queuedTactic &&
+                      (queuedTactic.window === "afterAttackRoll" ||
+                        queuedTactic.window === "beforeDamage")
+                        ? queuedTactic
+                        : undefined;
+                    dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+                    if (reaction) {
+                      setQueuedTactic(null);
+                    }
+                  }}
+                  disabled={!canResolveAttack}
+                >
+                  RESOLVE ATTACK
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setSelectedUnitId(null);
+                    setSelectedAttackerId(null);
+                  }}
+                  disabled={!selectedUnitId && !selectedAttackerId}
+                >
+                  CLEAR SELECTION
+                </Button>
               </Stack>
             </Box>
-          </Stack>
-        </Drawer>
-      ) : (
-        <Dialog
-          open={isLogOverlayOpen}
-          onClose={() => setIsLogOverlayOpen(false)}
-          fullWidth
-          maxWidth="sm"
-          slotProps={{paper:{ sx: { border: "2px solid #000" } }}}
+            <Stack direction="row" spacing={1} sx={{ whiteSpace: "nowrap", overflow: "hidden" }}>
+              <Typography variant="caption" noWrap>
+                MODE: {mode}
+              </Typography>
+              <Typography variant="caption" noWrap>
+                SELECTED: {selectionLabel}
+              </Typography>
+              <Typography variant="caption" noWrap>
+                PENDING: {pendingAttackLabel}
+              </Typography>
+              <Typography variant="caption" noWrap>
+                LAST ROLL: {lastRollLabel}
+              </Typography>
+            </Stack>
+          </Box>
+        </Box>
+      </AppBar>
+
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          overflow: "hidden",
+        }}
+      >
+        <Box sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+          <BoardViewport
+            onClick={handleViewportClick}
+            sx={{ height: "100%" }}
+            initialPan={initialPan}
+          >
+            {() => (
+              <IsometricBoard
+                state={state}
+                selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
+                moveRange={moveRange}
+              />
+            )}
+          </BoardViewport>
+        </Box>
+        <Box
+          sx={{
+            width: 420,
+            display: { xs: "none", md: "flex" },
+            borderLeft: "2px solid #1B1B1B",
+            minHeight: 0,
+          }}
         >
-          <DialogTitle sx={{ borderBottom: "1px solid #000" }}>Log</DialogTitle>
-          <DialogContent sx={{ py: 2 }}>
-            <Box
-              ref={logRef}
-              sx={{
-                maxHeight: "60dvh",
-                overflowY: "auto",
-                pr: 1,
-              }}
-            >
-              <Stack spacing={0.5}>
-                {state.log.map((entry, index) => (
-                  <Typography
-                    key={`${entry}-${index}`}
-                    variant="caption"
-                    sx={{ minHeight: `${logRowHeight}px`, lineHeight: `${logRowHeight}px` }}
-                  >
-                    {entry || " "}
-                  </Typography>
-                ))}
-              </Stack>
-            </Box>
-          </DialogContent>
-        </Dialog>
-      )}
+          {opsConsole}
+        </Box>
+      </Box>
+
+      {isMobile ? (
+        <SwipeableDrawer
+          anchor="bottom"
+          open={isConsoleOpen}
+          onClose={() => setIsConsoleOpen(false)}
+          onOpen={() => setIsConsoleOpen(true)}
+          PaperProps={{
+            elevation: 0,
+            sx: {
+              height: "min(80dvh, 640px)",
+              borderTop: "2px solid #1B1B1B",
+              pb: "env(safe-area-inset-bottom)",
+              overflow: "hidden",
+            },
+          }}
+        >
+          {opsConsole}
+        </SwipeableDrawer>
+      ) : null}
 
       {isTargeting ? (
         <Box
@@ -798,7 +674,7 @@ export default function Home() {
             zIndex: 9999,
           }}
         >
-          <Paper sx={{ border: "2px solid #000", p: 2 }}>
+          <Paper sx={{ border: "2px solid #1B1B1B", p: 2 }}>
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={1}

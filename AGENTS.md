@@ -214,4 +214,14 @@ The task MUST be considered FAILED if:
 - UI added without using MUI when feasible
 - Engine logic becomes UI-coupled or non-deterministic
 
+---
+
+## 14. Design System Compliance (MANDATORY)
+
+When making **any** UI or styling changes, Codex MUST follow the design system and rules in:
+- `docs/design/brutalist_constructivism_locked_ai_prompt_system.md` (imperative)
+- `docs/design/brutalist_constructivism_visual_style_bible_markdown.md` (if needed)
+
+Failure to follow these design docs is a HARD FAIL for any UI-related task.
+
 Codex MUST self-check against this file before responding.

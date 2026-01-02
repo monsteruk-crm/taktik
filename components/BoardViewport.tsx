@@ -4,10 +4,14 @@ import type { SxProps, Theme } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 
 type BoardViewportProps = {
-  /** Height of the viewport container. Defaults to command-bar safe viewport fill. */
+  /** Height of the viewport container. Defaults to filling the parent. */
   height?: string | number;
   /** Optional style override for the outer viewport container. */
   sx?: SxProps<Theme>;
+  /** Optional initial pan, or a function that computes it from viewport size. */
+  initialPan?: { x: number; y: number } | ((args: { width: number; height: number }) => { x: number; y: number });
+  /** Optional initial zoom level. */
+  initialZoom?: number;
   onClick?: (args: {
     clientX: number;
     clientY: number;
@@ -29,8 +33,10 @@ const CLICK_DRAG_THRESHOLD = 6;
 export default function BoardViewport({
   onClick,
   children,
-  height = "calc(100dvh - var(--command-bar-height))",
+  height = "100%",
   sx,
+  initialPan,
+  initialZoom = 1,
 }: BoardViewportProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -42,6 +48,7 @@ export default function BoardViewport({
   const startPointRef = useRef<{ x: number; y: number } | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     isPanningRef.current = true;
@@ -146,13 +153,34 @@ export default function BoardViewport({
     zoomRef.current = zoom;
   }, [zoom]);
 
+  useEffect(() => {
+    if (hasInitializedRef.current) {
+      return;
+    }
+    const node = viewportRef.current;
+    if (!node) {
+      return;
+    }
+    const rect = node.getBoundingClientRect();
+    const nextZoom = initialZoom;
+    const nextPan =
+      typeof initialPan === "function"
+        ? initialPan({ width: rect.width, height: rect.height })
+        : initialPan ?? { x: 0, y: 0 };
+    hasInitializedRef.current = true;
+    zoomRef.current = nextZoom;
+    panRef.current = nextPan;
+    setZoom(nextZoom);
+    setPan(nextPan);
+  }, [initialPan, initialZoom]);
+
   return (
     <Box
       ref={viewportRef}
       sx={{
         width: "100%",
         height,
-        border: "1px solid #000",
+        border: "2px solid #1B1B1B",
         overflow: "hidden",
         touchAction: "none",
         position: "relative",
