@@ -57,23 +57,7 @@ export default function MobileConsoleDrawer({
     const dragStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
     const wasDraggedRef = useRef(false);
     const reducedMotion = useReducedMotion();
-
-    useEffect(() => {
-        if (!open) {
-            return;
-        }
-        setSize("half");
-    }, [open]);
-
-    useEffect(() => {
-        if (open) {
-            return;
-        }
-        setDragHeight(null);
-        setIsDragging(false);
-        dragStartRef.current = null;
-        wasDraggedRef.current = false;
-    }, [open]);
+    const activeSize = size;
 
     useEffect(() => {
         const update = () => setViewportHeight(window.innerHeight || 0);
@@ -107,8 +91,8 @@ export default function MobileConsoleDrawer({
         if (!viewportHeight) {
             return 0;
         }
-        return getSizeHeight(viewportHeight, size, maxHeight);
-    }, [maxHeight, size, viewportHeight]);
+        return getSizeHeight(viewportHeight, activeSize, maxHeight);
+    }, [activeSize, maxHeight, viewportHeight]);
 
     const cycleSize = () => {
         setSize((current) =>
@@ -242,7 +226,7 @@ export default function MobileConsoleDrawer({
                             bgcolor: "#1B1B1B",
                         }}
                     />
-                    {size === "peek" ? (
+                    {activeSize === "peek" ? (
                         <Typography variant="caption" fontWeight={700}>
                             TAP TO EXPAND
                         </Typography>

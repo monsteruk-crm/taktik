@@ -12,6 +12,9 @@ From `docs/Taktik_Manual_EN.md`, tactic cards like “Precision Shot”, “Supp
 - Only one tactic can be played per reaction window (no nested reactions).
 - Tactic effects are short-lived (current implementation uses `untilEndOfTurn`).
 - `Commander's Luck` is the only card-id exception and may reroll the attack roll deterministically.
+- Engine source of truth:
+  - `getOpenReactionWindows(state)` derives open windows.
+  - `validateAndApplyTacticReaction(...)` validates and applies reaction tactics.
 
 ## Edge cases
 - Tactics are rejected if the reaction window is not currently open.

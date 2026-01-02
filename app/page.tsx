@@ -1,17 +1,26 @@
 "use client";
 
 import type { RefObject } from "react";
-import { startTransition, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import type { ReactionWindow } from "@/lib/engine";
-import { gameReducer, initialGameState } from "@/lib/engine";
+import type { Player, ReactionWindow } from "@/lib/engine";
+import { gameReducer, getOpenReactionWindows, initialGameState } from "@/lib/engine";
 import { getMoveRange } from "@/lib/engine/movement";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
 import CommandHeader from "@/components/CommandHeader";
+import EdgeCommandDock from "@/components/EdgeCommandDock";
 import MobileConsoleDrawer from "@/components/MobileConsoleDrawer";
 import OpsConsole from "@/components/OpsConsole";
 import Frame from "@/components/ui/Frame";
@@ -20,17 +29,20 @@ import ObliqueTabBar from "@/components/ui/ObliqueTabBar";
 import PhaseRuler from "@/components/ui/PhaseRuler";
 import Plate from "@/components/ui/Plate";
 import OverlayPanel from "@/components/ui/OverlayPanel";
+import StatusCapsule from "@/components/ui/StatusCapsule";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
+import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
 
 export default function Home() {
   type TargetingContext =
-    | { source: "pending" }
-    | { source: "tactic"; cardId: string; window: ReactionWindow };
+    | { source: "pending"; ownerId: Player }
+    | { source: "tactic"; cardId: string; window: ReactionWindow; ownerId: Player };
   type QueuedTactic = {
     cardId: string;
     window: ReactionWindow;
     targets?: { unitIds?: string[] };
+    ownerId: Player;
   };
 
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
@@ -42,10 +54,21 @@ export default function Home() {
   const [queuedTactic, setQueuedTactic] = useState<QueuedTactic | null>(null);
   const isNarrow = useMediaQuery("(max-width:1100px)");
   const isTiny = useMediaQuery("(max-width:420px)");
+  const isLandscape = useMediaQuery("(orientation: landscape)");
+  const isShort = useMediaQuery("(max-height:520px)");
+  const landscapeMode = isNarrow && isLandscape && isShort;
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleTab, setConsoleTab] = useState<"cards" | "tactics" | "log">("cards");
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [commandBarHeight, setCommandBarHeight] = useState(0);
+  const [dockOpen, setDockOpen] = useState(false);
+  const [dockPinned, setDockPinned] = useState(false);
+  const [dockTab, setDockTab] = useState<"cmd" | "console">("cmd");
+  const dockAutoOpenRef = useRef<number | null>(null);
+  const dockAutoCloseRef = useRef<number | null>(null);
+  const dockEnteredRef = useRef(false);
+  const lastPhaseRef = useRef<string | null>(null);
+  const dockInteractedRef = useRef(false);
   const isGameOver = state.phase === "VICTORY";
   const canMove = state.phase === "MOVEMENT" && !isGameOver;
   const canAttack = state.phase === "ATTACK" && !isGameOver;
@@ -75,35 +98,58 @@ export default function Home() {
   const tacticById = useMemo(() => {
     return new Map(state.selectedTacticalDeck.map((card) => [card.id, card]));
   }, [state.selectedTacticalDeck]);
-  const targetingCard =
-    targetingContext?.source === "pending"
-      ? state.pendingCard
-      : targetingContext?.source === "tactic"
-        ? tacticById.get(targetingContext.cardId) ?? null
-        : null;
-  const targetingSpec = targetingCard?.targeting ?? null;
-  const isTargeting = !!targetingContext;
-  const openReactionWindows = useMemo(() => {
-    if (isGameOver) {
-      return [] as ReactionWindow[];
+  const openReactionWindows = useMemo(() => getOpenReactionWindows(state), [state]);
+  const SHOW_DEV_LOGS = process.env.NEXT_PUBLIC_SHOW_DEV_LOGS === "true";
+  const resolvedConsoleTab =
+    !SHOW_DEV_LOGS && consoleTab === "log" ? "cards" : consoleTab;
+  const consoleOpen = isNarrow && !landscapeMode ? isConsoleOpen : false;
+  const resolvedQueuedTactic = useMemo(() => {
+    if (!queuedTactic) {
+      return null;
     }
-    const windows: ReactionWindow[] = [];
-    if (state.phase === "MOVEMENT") {
-      windows.push("beforeMove");
+    if (queuedTactic.ownerId !== state.activePlayer) {
+      return null;
     }
-    if (state.phase === "DICE_RESOLUTION" && state.pendingAttack) {
-      if (!state.lastRoll) {
-        windows.push("beforeAttackRoll");
-      } else {
-        windows.push("afterAttackRoll", "beforeDamage");
+    if (!openReactionWindows.includes(queuedTactic.window)) {
+      return null;
+    }
+    if (!tacticById.has(queuedTactic.cardId)) {
+      return null;
+    }
+    return queuedTactic;
+  }, [openReactionWindows, queuedTactic, state.activePlayer, tacticById]);
+  const queuedTacticCard = resolvedQueuedTactic
+    ? tacticById.get(resolvedQueuedTactic.cardId) ?? null
+    : null;
+  const resolvedTargetingContext = useMemo(() => {
+    if (!targetingContext) {
+      return null;
+    }
+    if (targetingContext.ownerId !== state.activePlayer) {
+      return null;
+    }
+    if (targetingContext.source === "tactic") {
+      if (!openReactionWindows.includes(targetingContext.window)) {
+        return null;
+      }
+      if (!tacticById.has(targetingContext.cardId)) {
+        return null;
       }
     }
-    return windows;
-  }, [isGameOver, state.lastRoll, state.pendingAttack, state.phase]);
-  const queuedTacticCard = queuedTactic ? tacticById.get(queuedTactic.cardId) ?? null : null;
+    return targetingContext;
+  }, [openReactionWindows, state.activePlayer, tacticById, targetingContext]);
+  const targetingCard =
+    resolvedTargetingContext?.source === "pending"
+      ? state.pendingCard
+      : resolvedTargetingContext?.source === "tactic"
+        ? tacticById.get(resolvedTargetingContext.cardId) ?? null
+        : null;
+  const targetingSpec = targetingCard?.targeting ?? null;
+  const isTargeting = !!resolvedTargetingContext;
+  const resolvedTargetUnitIds = isTargeting ? selectedTargetUnitIds : [];
   const tacticTargetingCard =
-    targetingContext?.source === "tactic"
-      ? tacticById.get(targetingContext.cardId) ?? null
+    resolvedTargetingContext?.source === "tactic"
+      ? tacticById.get(resolvedTargetingContext.cardId) ?? null
       : null;
 
   useEffect(() => {
@@ -126,6 +172,91 @@ export default function Home() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (dockAutoOpenRef.current) {
+        window.clearTimeout(dockAutoOpenRef.current);
+      }
+      if (dockAutoCloseRef.current) {
+        window.clearTimeout(dockAutoCloseRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleDockAutoClose = useCallback(() => {
+    if (dockPinned) {
+      return;
+    }
+    if (dockAutoCloseRef.current) {
+      window.clearTimeout(dockAutoCloseRef.current);
+    }
+    dockAutoCloseRef.current = window.setTimeout(() => {
+      if (!dockPinned && !dockInteractedRef.current) {
+        setDockOpen(false);
+      }
+    }, 2200);
+  }, [dockPinned]);
+
+  const triggerDockAutoOpen = useCallback(
+    (tab: "cmd" | "console") => {
+      if (!landscapeMode || dockPinned) {
+        return;
+      }
+      dockInteractedRef.current = false;
+      if (dockAutoOpenRef.current) {
+        window.clearTimeout(dockAutoOpenRef.current);
+      }
+      dockAutoOpenRef.current = window.setTimeout(() => {
+        setDockTab(tab);
+        setDockOpen(true);
+        scheduleDockAutoClose();
+      }, 0);
+    },
+    [dockPinned, landscapeMode, scheduleDockAutoClose]
+  );
+
+  const handleDockInteract = useCallback(() => {
+    dockInteractedRef.current = true;
+    if (dockAutoCloseRef.current) {
+      window.clearTimeout(dockAutoCloseRef.current);
+    }
+  }, []);
+
+  const openDockCmd = useCallback(() => {
+    handleDockInteract();
+    setDockTab("cmd");
+    setDockOpen(true);
+  }, [handleDockInteract]);
+
+  const openDockConsole = useCallback(() => {
+    handleDockInteract();
+    setDockTab("console");
+    setDockOpen(true);
+  }, [handleDockInteract]);
+
+  useEffect(() => {
+    if (!landscapeMode) {
+      dockEnteredRef.current = false;
+      return;
+    }
+    if (!dockEnteredRef.current) {
+      dockEnteredRef.current = true;
+      triggerDockAutoOpen("cmd");
+    }
+  }, [landscapeMode, triggerDockAutoOpen]);
+
+  useEffect(() => {
+    if (!landscapeMode) {
+      return;
+    }
+    if (lastPhaseRef.current !== state.phase) {
+      lastPhaseRef.current = state.phase;
+      if (state.phase === "CARD_DRAW" || state.phase === "DICE_RESOLUTION") {
+        triggerDockAutoOpen("cmd");
+      }
+    }
+  }, [landscapeMode, state.phase, triggerDockAutoOpen]);
 
   const unitByPosition = useMemo(() => {
     const map = new Map<string, string>();
@@ -163,7 +294,6 @@ export default function Home() {
   const logRef = useRef<HTMLDivElement | null>(null);
   const logRowHeight = 18;
   const reducedMotion = useReducedMotion();
-  const SHOW_DEV_LOGS = process.env.NEXT_PUBLIC_SHOW_DEV_LOGS === "true";
 
   useEffect(() => {
     if (logRef.current) {
@@ -172,10 +302,10 @@ export default function Home() {
   }, [state.log]);
 
   useEffect(() => {
-    if (isConsoleOpen && logRef.current) {
+    if (consoleOpen && logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
-  }, [isConsoleOpen]);
+  }, [consoleOpen]);
 
   useEffect(() => {
     startTransition(() => {
@@ -184,48 +314,8 @@ export default function Home() {
       }
       setSelectedTargetUnitIds([]);
     });
-  }, [state.pendingCard?.id]);
+  }, [state.pendingCard?.id, targetingContext?.source]);
 
-  useEffect(() => {
-    if (!isNarrow) {
-      setIsConsoleOpen(false);
-    }
-  }, [isNarrow]);
-
-  useEffect(() => {
-    if (!SHOW_DEV_LOGS && consoleTab === "log") {
-      setConsoleTab("cards");
-    }
-  }, [SHOW_DEV_LOGS, consoleTab]);
-
-  useEffect(() => {
-    if (!queuedTactic) {
-      return;
-    }
-    const windowOpen = openReactionWindows.includes(queuedTactic.window);
-    const cardAvailable = tacticById.has(queuedTactic.cardId);
-    if (!windowOpen || !cardAvailable) {
-      setQueuedTactic(null);
-    }
-  }, [openReactionWindows, queuedTactic, tacticById]);
-
-  useEffect(() => {
-    if (!targetingContext || targetingContext.source !== "tactic") {
-      return;
-    }
-    const windowOpen = openReactionWindows.includes(targetingContext.window);
-    const cardAvailable = tacticById.has(targetingContext.cardId);
-    if (!windowOpen || !cardAvailable) {
-      setTargetingContext(null);
-      setSelectedTargetUnitIds([]);
-    }
-  }, [openReactionWindows, targetingContext, tacticById]);
-
-  useEffect(() => {
-    setQueuedTactic(null);
-    setTargetingContext(null);
-    setSelectedTargetUnitIds([]);
-  }, [state.activePlayer]);
 
   function handleTileClick(position: { x: number; y: number }) {
     const unitId = unitByPosition.get(`${position.x},${position.y}`);
@@ -275,7 +365,13 @@ export default function Home() {
         );
         if (inRange) {
           const reaction =
-            queuedTactic?.window === "beforeMove" ? queuedTactic : undefined;
+            resolvedQueuedTactic?.window === "beforeMove"
+              ? {
+                  cardId: resolvedQueuedTactic.cardId,
+                  window: resolvedQueuedTactic.window,
+                  ...(resolvedQueuedTactic.targets ? { targets: resolvedQueuedTactic.targets } : {}),
+                }
+              : undefined;
           dispatch({
             type: "MOVE_UNIT",
             unitId: selectedUnitId,
@@ -338,8 +434,188 @@ export default function Home() {
   const lastRollLabel = state.lastRoll
     ? `${state.lastRoll.value} -> ${state.lastRoll.outcome}`
     : "None";
-  const isPendingTargeting = targetingContext?.source === "pending";
-  const isTacticTargeting = targetingContext?.source === "tactic";
+  const isPendingTargeting = resolvedTargetingContext?.source === "pending";
+  const isTacticTargeting = resolvedTargetingContext?.source === "tactic";
+  const dockShort = useCallback((label: string) => shortKey(label), []);
+  const dockValue = useCallback((value: string) => shortUnit(value), []);
+  const commandDockContent = useMemo(() => {
+    const keys = [
+      {
+        id: "move",
+        label: dockShort("MOVE"),
+        onClick: () => {
+          setMode("MOVE");
+          setSelectedAttackerId(null);
+        },
+        disabled: !canMove,
+        tone: "blue" as const,
+        active: mode === "MOVE",
+      },
+      {
+        id: "attack",
+        label: dockShort("ATTACK"),
+        onClick: () => {
+          setMode("ATTACK");
+          setSelectedUnitId(null);
+        },
+        disabled: !canAttack,
+        tone: "red" as const,
+        active: mode === "ATTACK",
+      },
+      {
+        id: "end",
+        label: dockShort("END TURN"),
+        onClick: () => dispatch({ type: "END_TURN" }),
+        disabled: isGameOver,
+        tone: "black" as const,
+      },
+      {
+        id: "draw",
+        label: dockShort("DRAW CARD"),
+        onClick: () => dispatch({ type: "DRAW_CARD" }),
+        disabled: !canDrawCard,
+        tone: "neutral" as const,
+      },
+      {
+        id: "next",
+        label: dockShort("NEXT PHASE"),
+        onClick: () => dispatch({ type: "NEXT_PHASE" }),
+        disabled: isGameOver,
+        tone: "neutral" as const,
+      },
+      {
+        id: "roll",
+        label: dockShort("ROLL DICE"),
+        onClick: () => {
+          const reaction =
+            resolvedQueuedTactic?.window === "beforeAttackRoll"
+              ? {
+                  cardId: resolvedQueuedTactic.cardId,
+                  window: resolvedQueuedTactic.window,
+                  ...(resolvedQueuedTactic.targets
+                    ? { targets: resolvedQueuedTactic.targets }
+                    : {}),
+                }
+              : undefined;
+          dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+          if (reaction) {
+            setQueuedTactic(null);
+          }
+        },
+        disabled: !canRollDice,
+        tone: "yellow" as const,
+      },
+      {
+        id: "resolve",
+        label: dockShort("RESOLVE ATTACK"),
+        onClick: () => {
+          const reaction =
+            resolvedQueuedTactic &&
+            (resolvedQueuedTactic.window === "afterAttackRoll" ||
+              resolvedQueuedTactic.window === "beforeDamage")
+              ? {
+                  cardId: resolvedQueuedTactic.cardId,
+                  window: resolvedQueuedTactic.window,
+                  ...(resolvedQueuedTactic.targets
+                    ? { targets: resolvedQueuedTactic.targets }
+                    : {}),
+                }
+              : undefined;
+          dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+          if (reaction) {
+            setQueuedTactic(null);
+          }
+        },
+        disabled: !canResolveAttack,
+        tone: "neutral" as const,
+      },
+    ];
+
+    if (selectedUnitId || selectedAttackerId || state.pendingAttack) {
+      keys.push({
+        id: "clear",
+        label: dockShort("CLEAR SELECTION"),
+        onClick: () => {
+          setSelectedUnitId(null);
+          setSelectedAttackerId(null);
+        },
+        disabled: false,
+        tone: "neutral" as const,
+      });
+    }
+
+    return (
+      <Stack spacing={1.5}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 1,
+          }}
+        >
+          {keys.map((key) => (
+            <ObliqueKey
+              key={key.id}
+              label={key.label}
+              onClick={key.onClick}
+              disabled={key.disabled}
+              tone={key.tone}
+              active={key.active}
+              size="sm"
+            />
+          ))}
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 1,
+          }}
+        >
+          <StatusCapsule label="MODE" value={mode} compact maxWidth={140} icon={null} />
+          <StatusCapsule label="STATUS" value="READY" compact maxWidth={140} icon={null} />
+          <StatusCapsule
+            label="SELECTED"
+            value={dockValue(selectionLabel)}
+            compact
+            maxWidth={160}
+            icon={null}
+          />
+          <StatusCapsule
+            label="PENDING"
+            value={dockValue(pendingAttackLabel)}
+            compact
+            maxWidth={160}
+            icon={null}
+          />
+          <StatusCapsule
+            label="LAST ROLL"
+            value={dockValue(lastRollLabel)}
+            compact
+            maxWidth={160}
+            icon={null}
+          />
+        </Box>
+      </Stack>
+    );
+  }, [
+    canAttack,
+    canDrawCard,
+    canMove,
+    canResolveAttack,
+    canRollDice,
+    dockShort,
+    dockValue,
+    isGameOver,
+    lastRollLabel,
+    mode,
+    pendingAttackLabel,
+    resolvedQueuedTactic,
+    selectionLabel,
+    selectedAttackerId,
+    selectedUnitId,
+    state.pendingAttack,
+  ]);
 
   function handleCancelTargeting() {
     setTargetingContext(null);
@@ -350,7 +626,7 @@ export default function Home() {
     if (!state.pendingCard || pendingTargetingSpec?.type !== "unit") {
       return;
     }
-    setTargetingContext({ source: "pending" });
+    setTargetingContext({ source: "pending", ownerId: state.activePlayer });
     setSelectedUnitId(null);
     setSelectedAttackerId(null);
     setSelectedTargetUnitIds([]);
@@ -361,27 +637,32 @@ export default function Home() {
       return;
     }
     const targets =
-      state.pendingCard.targeting.type === "unit" ? { unitIds: selectedTargetUnitIds } : undefined;
+      state.pendingCard.targeting.type === "unit"
+        ? { unitIds: resolvedTargetUnitIds }
+        : undefined;
     dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id, targets });
     handleCancelTargeting();
   }
 
   function handleStartTacticTargeting(cardId: string, window: ReactionWindow) {
-    setTargetingContext({ source: "tactic", cardId, window });
+    setTargetingContext({ source: "tactic", cardId, window, ownerId: state.activePlayer });
     setSelectedUnitId(null);
     setSelectedAttackerId(null);
     setSelectedTargetUnitIds([]);
   }
 
   function handleConfirmTacticTargets() {
-    if (!tacticTargetingCard || targetingContext?.source !== "tactic") {
+    if (!tacticTargetingCard || resolvedTargetingContext?.source !== "tactic") {
       return;
     }
     const targets =
-      tacticTargetingCard.targeting.type === "unit" ? { unitIds: selectedTargetUnitIds } : undefined;
+      tacticTargetingCard.targeting.type === "unit"
+        ? { unitIds: resolvedTargetUnitIds }
+        : undefined;
     setQueuedTactic({
       cardId: tacticTargetingCard.id,
-      window: targetingContext.window,
+      window: resolvedTargetingContext.window,
+      ownerId: state.activePlayer,
       ...(targets ? { targets } : {}),
     });
     handleCancelTargeting();
@@ -400,7 +681,15 @@ export default function Home() {
       storedBonuses={state.storedBonuses}
       tactics={state.selectedTacticalDeck}
       openReactionWindows={openReactionWindows}
-      queuedTactic={queuedTactic}
+      queuedTactic={
+        resolvedQueuedTactic
+          ? {
+              cardId: resolvedQueuedTactic.cardId,
+              window: resolvedQueuedTactic.window,
+              ...(resolvedQueuedTactic.targets ? { targets: resolvedQueuedTactic.targets } : {}),
+            }
+          : null
+      }
       queuedTacticCard={queuedTacticCard}
       tacticTargetingCard={tacticTargetingCard}
       canStoreBonus={canStoreBonus}
@@ -412,7 +701,7 @@ export default function Home() {
       isTacticTargeting={isTacticTargeting}
       pendingTargetingSpec={pendingTargetingSpec}
       tacticTargetingSpec={tacticTargetingCard?.targeting ?? null}
-      selectedTargetUnitIds={selectedTargetUnitIds}
+      selectedTargetUnitIds={resolvedTargetUnitIds}
       logEntries={state.log}
       logRef={logRef}
       logRowHeight={logRowHeight}
@@ -431,7 +720,7 @@ export default function Home() {
       }}
       onStartTacticTargeting={handleStartTacticTargeting}
       onQueueTactic={(cardId, window) => {
-        setQueuedTactic({ cardId, window });
+        setQueuedTactic({ cardId, window, ownerId: state.activePlayer });
       }}
       onConfirmTacticTargets={handleConfirmTacticTargets}
       onCancelTargeting={handleCancelTargeting}
@@ -465,6 +754,7 @@ export default function Home() {
         }}
       >
         <CommandHeader
+          variant={landscapeMode ? "landscape" : "default"}
           isNarrow={isNarrow}
           isTiny={isTiny}
           player={state.activePlayer}
@@ -485,6 +775,8 @@ export default function Home() {
           hasSelection={Boolean(selectedUnitId || selectedAttackerId || state.pendingAttack)}
           showConsoleToggle={isNarrow}
           onToggleConsole={() => setIsConsoleOpen((prev) => !prev)}
+          onOpenDockCmd={openDockCmd}
+          onOpenDockConsole={openDockConsole}
           onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
           onMove={() => {
             setMode("MOVE");
@@ -498,7 +790,15 @@ export default function Home() {
           onEndTurn={() => dispatch({ type: "END_TURN" })}
           onRollDice={() => {
             const reaction =
-              queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
+              resolvedQueuedTactic?.window === "beforeAttackRoll"
+                ? {
+                    cardId: resolvedQueuedTactic.cardId,
+                    window: resolvedQueuedTactic.window,
+                    ...(resolvedQueuedTactic.targets
+                      ? { targets: resolvedQueuedTactic.targets }
+                      : {}),
+                  }
+                : undefined;
             dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
             if (reaction) {
               setQueuedTactic(null);
@@ -506,10 +806,16 @@ export default function Home() {
           }}
           onResolveAttack={() => {
             const reaction =
-              queuedTactic &&
-              (queuedTactic.window === "afterAttackRoll" ||
-                queuedTactic.window === "beforeDamage")
-                ? queuedTactic
+              resolvedQueuedTactic &&
+              (resolvedQueuedTactic.window === "afterAttackRoll" ||
+                resolvedQueuedTactic.window === "beforeDamage")
+                ? {
+                    cardId: resolvedQueuedTactic.cardId,
+                    window: resolvedQueuedTactic.window,
+                    ...(resolvedQueuedTactic.targets
+                      ? { targets: resolvedQueuedTactic.targets }
+                      : {}),
+                  }
                 : undefined;
             dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
             if (reaction) {
@@ -521,12 +827,15 @@ export default function Home() {
             setSelectedAttackerId(null);
           }}
         />
-        <PhaseRuler phase={state.phase} compact={isNarrow} hideTopBorder />
+        {!landscapeMode ? (
+          <PhaseRuler phase={state.phase} compact={isNarrow} hideTopBorder />
+        ) : null}
       </Box>
 
       <Box
         sx={{
-          flex: 1,
+          flex: landscapeMode ? "0 0 auto" : 1,
+          height: landscapeMode ? `calc(100dvh - ${commandBarHeight}px)` : "auto",
           minHeight: 0,
           display: "flex",
           overflow: "hidden",
@@ -572,9 +881,45 @@ export default function Home() {
         </Box>
       </Box>
 
-      {isNarrow ? (
+      {landscapeMode ? (
+        <EdgeCommandDock
+          open={dockOpen}
+          pinned={dockPinned}
+          tab={dockTab}
+          onOpenChange={(open) => {
+            handleDockInteract();
+            setDockOpen(open);
+          }}
+          onPinnedChange={(next) => {
+            handleDockInteract();
+            setDockPinned(next);
+          }}
+          onTabChange={(tab) => {
+            handleDockInteract();
+            setDockTab(tab);
+          }}
+          topOffset={commandBarHeight}
+          cmdContent={commandDockContent}
+          consoleContent={opsConsole(false, {
+            activeTab: resolvedConsoleTab,
+            onTabChange: (tab) => {
+              if (!SHOW_DEV_LOGS && tab === "log") {
+                return;
+              }
+              setConsoleTab(tab);
+            },
+            showHeader: false,
+            showTabs: true,
+            scrollMode: "body",
+          })}
+          onUserInteract={handleDockInteract}
+        />
+      ) : null}
+
+      {isNarrow && !landscapeMode ? (
         <MobileConsoleDrawer
-          open={isConsoleOpen}
+          key={consoleOpen ? "open" : "closed"}
+          open={consoleOpen}
           onOpenChange={setIsConsoleOpen}
           topOffset={commandBarHeight}
           header={
@@ -604,16 +949,26 @@ export default function Home() {
                   { id: "tactics", label: "TACTICS" },
                   { id: "log", label: "LOG", hidden: !SHOW_DEV_LOGS },
                 ]}
-                activeId={consoleTab}
-                onChange={(id) => setConsoleTab(id as "cards" | "tactics" | "log")}
+                activeId={resolvedConsoleTab}
+                onChange={(id) => {
+                  if (!SHOW_DEV_LOGS && id === "log") {
+                    return;
+                  }
+                  setConsoleTab(id as "cards" | "tactics" | "log");
+                }}
                 size="md"
               />
               <Box sx={{ borderBottom: "2px solid #1B1B1B", mt: 0.5 }} />
             </>
           }
           body={opsConsole(false, {
-            activeTab: consoleTab,
-            onTabChange: setConsoleTab,
+            activeTab: resolvedConsoleTab,
+            onTabChange: (tab) => {
+              if (!SHOW_DEV_LOGS && tab === "log") {
+                return;
+              }
+              setConsoleTab(tab);
+            },
             showHeader: false,
             showTabs: false,
             scrollMode: "body",
@@ -666,7 +1021,7 @@ export default function Home() {
                   ) : null}
                   {targetingSpec?.type === "unit" ? (
                     <Typography variant="caption">
-                      SELECTED {selectedTargetUnitIds.length}/{targetingSpec.count}
+                      SELECTED {resolvedTargetUnitIds.length}/{targetingSpec.count}
                     </Typography>
                   ) : null}
                 </Stack>
@@ -677,7 +1032,7 @@ export default function Home() {
                       onClick={handleConfirmPendingTargets}
                       disabled={
                         pendingTargetingSpec?.type !== "unit" ||
-                        selectedTargetUnitIds.length !== pendingTargetingSpec.count
+                        resolvedTargetUnitIds.length !== pendingTargetingSpec.count
                       }
                       tone="yellow"
                       size="sm"
@@ -688,7 +1043,7 @@ export default function Home() {
                       onClick={handleConfirmTacticTargets}
                       disabled={
                         targetingSpec?.type !== "unit" ||
-                        selectedTargetUnitIds.length !== targetingSpec.count
+                        resolvedTargetUnitIds.length !== targetingSpec.count
                       }
                       tone="yellow"
                       size="sm"

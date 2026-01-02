@@ -14,3 +14,4 @@ export type {
 
 export type { GameAction } from "./reducer";
 export { gameReducer, getUnitMovementWithEffects, initialGameState } from "./reducer";
+export { canPlayTacticInWindow, getOpenReactionWindows } from "./reactions";

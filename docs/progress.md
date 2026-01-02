@@ -1549,3 +1549,122 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - UI: `components/CommandHeader.tsx`, `components/ui/PhaseRuler.tsx`, `app/page.tsx`
 - UI tokens: `lib/ui/headerFormat.ts`, `lib/ui/layoutTokens.ts`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — Reaction window abstraction
+
+### BEFORE
+- Reaction window availability was computed in the UI, and tactic validation/apply logic was duplicated across movement, roll, and resolve actions in the reducer.
+
+### NOW
+- Centralized reaction window derivation in `getOpenReactionWindows(state)` and moved tactic validation/application into a dedicated `lib/engine/reactions.ts` helper.
+- Reducer actions now reuse the shared helper instead of duplicating validation and effect application logic.
+- UI consumes the engine helper for open reaction windows, keeping the engine the single source of truth.
+
+### NEXT
+- Add unit tests around reaction window derivation and tactic validation to protect the abstraction.
+
+### Known limitations / TODOs
+- No automated tests exist yet for reaction validation paths.
+
+### Files touched
+- Engine: `lib/engine/reactions.ts`, `lib/engine/effects.ts`, `lib/engine/reducer.ts`, `lib/engine/index.ts`
+- UI: `app/page.tsx`
+- Docs: `docs/engine.md`, `docs/tactics-cards.md`, `docs/progress.md`
+---
+
+## 2026-01-02 — Reformat Next.js multi-zone implementation doc
+
+### BEFORE
+- `docs/implementation/nextjs-multi-zone.md` used bold-aplenty text, inline highlights, and inconsistent code formatting that made it difficult to read or reliably reference for implementation steps.
+
+### NOW
+- Rewrote the entire guide with plain headings, prose descriptions, fenced code blocks, and structured lists so each setup phase, configuration snippet, and deployment note is easy to scan and copy.
+- Grouped the architecture notes, environment variables, linking guidance, and testing checklist into distinct sections that mirror the implementation flow.
+
+### NEXT
+- Confirm the rewritten guide matches the live implementation (e.g., port numbers, env var names) and update the shared documentation whenever the multi-zone deployment changes.
+
+### Known limitations / TODOs
+- No automated linting verifies Markdown style; manual review is required whenever formatting changes are made.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/implementation/nextjs-multi-zone.md`
+---
+
+## 2026-01-02 — Fix targeting / queued tactic typings
+
+### BEFORE
+- OpsConsole and Home were failing TypeScript checks: required `ownerId` fields were missing from targeting/queued tactics, DEV log gating used `SHOW_DEV_LOGS` before declaration, and a `Plate` control tried to act like a button.
+
+### NOW
+- Ensured every targeting/queued-tactic state update supplies the active player as `ownerId`, which lets `useMemo` filters trust the data shape without TS errors.
+- Declared `SHOW_DEV_LOGS` before it is referenced so tab logic resolves correctly, and removed the invalid `type` prop from the `Plate` button replacement.
+- Ran `tsc` to confirm the project builds cleanly after the fixes.
+
+### NEXT
+- Keep guards around new targeting flows and `enqueue` logic in sync with the engine so these primitives stay type-safe.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `app/page.tsx`, `components/OpsConsole.tsx`
+---
+## 2026-01-02 — Hook state sync cleanup
+
+### BEFORE
+- Lint failed due to setState-in-effect patterns, unstable memoization dependencies, and ref access during render in key UI components.
+
+### NOW
+- Converted reaction/console state to derived values, stabilized memoized command-key data, and moved viewport initialization into a ref callback.
+- Updated mobile drawer sizing to reset via remount instead of effect-driven state updates.
+
+### NEXT
+- Watch for future hook lint violations as new UI features are added.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`, `components/BoardViewport.tsx`, `components/CommandHeader.tsx`, `components/MobileConsoleDrawer.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Landscape mobile command dock
+
+### BEFORE
+- Landscape mobile used the full header stack and phase ruler, shrinking the board and leaving actions buried in a vertical layout.
+
+### NOW
+- Added a landscape-only header variant with a slim strip, inline mini phase indicator, and a long-press quick-action ribbon.
+- Introduced a right-edge command dock with CMD/CONSOLE tabs, auto-open behavior for action phases, and pinned/manual controls.
+- Routed mobile landscape to the edge dock and kept the board height dominant with a fixed header offset.
+
+### NEXT
+- Validate dock ergonomics on real devices and tune the auto-open timing if it feels intrusive.
+
+### Known limitations / TODOs
+- Auto-open currently triggers on CARD_DRAW and DICE_RESOLUTION only.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`, `components/EdgeCommandDock.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Mobile viewport recenter + pinch zoom
+
+### BEFORE
+- The board pan/zoom stayed fixed on orientation change or resize, and mobile users could not pinch to zoom.
+
+### NOW
+- BoardViewport recenters on resize/orientation changes using the initial pan/zoom rules.
+- Added two-finger pinch zoom with midpoint anchoring to keep the board stable while scaling.
+
+### NEXT
+- Tune zoom clamps if playtesting shows too much/too little range.
+
+### Known limitations / TODOs
+- Recenter currently resets zoom to the default on resize.
+
+### Files touched
+- UI: `components/BoardViewport.tsx`
+- Docs: `docs/progress.md`

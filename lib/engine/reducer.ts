@@ -2,14 +2,18 @@ import type {
   AttackMeta,
   CardDefinition,
   Effect,
-  EffectDefinition,
-  EngineContext,
   GamePhase,
   GameState,
-  ReactionWindow,
   Unit,
 } from "./gameState";
 import { cardById, commonDeckCards, tacticalDeckCards } from "./cards";
+import { buildContext, instantiateEffect, validateTargets } from "./effects";
+import type { ReactionPlay } from "./reactions";
+import {
+  applyTacticReaction,
+  validateAndApplyTacticReaction,
+  validateTacticReaction,
+} from "./reactions";
 import { rollDie } from "./rng";
 
 function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed: number } {
@@ -24,8 +28,6 @@ function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed
   }
   return { shuffled, nextSeed };
 }
-
-type ReactionPlay = { cardId: string; window: ReactionWindow; targets?: { unitIds?: string[] } };
 
 export type GameAction =
   | { type: "NEXT_PHASE" }
@@ -65,151 +67,6 @@ function getUnitAt(units: Unit[], position: { x: number; y: number }) {
   );
 }
 
-function getUnitOwner(units: Unit[], unitId: string) {
-  return units.find((unit) => unit.id === unitId)?.owner ?? null;
-}
-
-function buildContext(state: GameState, effect: Effect): EngineContext {
-  return {
-    activePlayerId: state.activePlayer,
-    opponentPlayerId: state.activePlayer === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A",
-    effect,
-    getUnitOwner: (unitId) => getUnitOwner(state.units, unitId),
-    isUnitDamaged: () => false,
-  };
-}
-
-function instantiateEffect(
-  state: GameState,
-  definition: EffectDefinition,
-  sourceCardId: string,
-  ownerId: GameState["activePlayer"],
-  targetUnitIds?: string[]
-): Effect {
-  const duration = definition.duration;
-  const effect: Effect = {
-    id: `effect-${state.nextEffectId}`,
-    sourceCardId,
-    ownerId,
-    hooks: definition.hooks,
-    targetUnitIds,
-  };
-
-  if (duration.type === "untilEndOfTurn") {
-    effect.remainingTurns = 1;
-  }
-  if (duration.type === "nTurns") {
-    effect.remainingTurns = duration.turns;
-  }
-  if (duration.type === "untilPhase") {
-    effect.expiresAtPhase = duration.phase;
-  }
-
-  return effect;
-}
-
-function validateTargets(
-  ctx: EngineContext,
-  card: CardDefinition,
-  targets?: { unitIds?: string[] }
-): string | null {
-  if (card.targeting.type === "none") {
-    return null;
-  }
-  if (!targets?.unitIds) {
-    return "Targets required";
-  }
-  if (targets.unitIds.length !== card.targeting.count) {
-    return "Invalid target count";
-  }
-  for (const unitId of targets.unitIds) {
-    const owner = ctx.getUnitOwner(unitId);
-    if (owner === null) {
-      return "Invalid target unit";
-    }
-    if (card.targeting.owner === "enemy" && owner !== ctx.opponentPlayerId) {
-      return "Invalid enemy target";
-    }
-    if (card.targeting.owner === "self" && owner !== ctx.activePlayerId) {
-      return "Invalid friendly target";
-    }
-  }
-  return null;
-}
-
-function getTacticCard(state: GameState, cardId: string) {
-  return state.selectedTacticalDeck.find((card) => card.id === cardId) ?? null;
-}
-
-function validateTacticDefinition(card: CardDefinition) {
-  if (card.kind !== "tactic") {
-    return "Card is not a tactic";
-  }
-  if (card.timing !== "reaction") {
-    return "Tactic timing must be reaction";
-  }
-  if (!card.reactionWindow) {
-    return "Tactic reaction window missing";
-  }
-  return null;
-}
-
-function validateReactionWindow(state: GameState, window: ReactionWindow) {
-  if (window === "beforeMove" || window === "afterMove") {
-    if (state.phase !== "MOVEMENT") {
-      return "Reaction window only available during movement";
-    }
-    return null;
-  }
-  if (window === "beforeAttackRoll") {
-    if (state.phase !== "DICE_RESOLUTION") {
-      return "Reaction window only available during dice resolution";
-    }
-    if (!state.pendingAttack) {
-      return "No pending attack for reaction";
-    }
-    if (state.lastRoll) {
-      return "Attack roll already completed";
-    }
-    return null;
-  }
-  if (window === "afterAttackRoll" || window === "beforeDamage") {
-    if (state.phase !== "DICE_RESOLUTION") {
-      return "Reaction window only available during dice resolution";
-    }
-    if (!state.pendingAttack) {
-      return "No pending attack for reaction";
-    }
-    if (!state.lastRoll) {
-      return "Attack roll not completed yet";
-    }
-    return null;
-  }
-  return "Unknown reaction window";
-}
-
-function applyTacticEffect(
-  state: GameState,
-  card: CardDefinition,
-  ownerId: GameState["activePlayer"],
-  targets?: { unitIds?: string[] }
-) {
-  let nextState = state;
-  const effects: Effect[] = [];
-
-  for (const def of card.creates) {
-    const effect = instantiateEffect(nextState, def, card.id, ownerId, targets?.unitIds);
-    nextState = { ...nextState, nextEffectId: nextState.nextEffectId + 1 };
-    effects.push(effect);
-  }
-
-  return {
-    ...nextState,
-    activeEffects: [...nextState.activeEffects, ...effects],
-    selectedTacticalDeck: nextState.selectedTacticalDeck.filter((item) => item.id !== card.id),
-    log: [...nextState.log, `Tactic played: ${card.name} (${card.reactionWindow ?? "unknown"})`],
-  };
-}
 function canUnitMove(state: GameState, unitId: string) {
   return state.activeEffects.every((effect) => {
     const ctx = buildContext(state, effect);
@@ -479,61 +336,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
     const reaction = action.reaction;
-    if (reaction && reaction.window !== "beforeMove" && reaction.window !== "afterMove") {
-      return { ...state, log: [...state.log, "Invalid reaction window for movement"] };
-    }
     let preMoveState = state;
     let reactionCard: CardDefinition | null = null;
     if (reaction) {
-      reactionCard = getTacticCard(state, reaction.cardId);
-      if (!reactionCard) {
-        return { ...state, log: [...state.log, "Tactic card not available"] };
+      const validation = validateTacticReaction(state, reaction, {
+        expectedWindows: ["beforeMove", "afterMove"],
+        invalidWindowMessage: "Invalid reaction window for movement",
+      });
+      if (!validation.ok) {
+        return { ...state, log: [...state.log, validation.reason] };
       }
-      const definitionError = validateTacticDefinition(reactionCard);
-      if (definitionError) {
-        return {
-          ...state,
-          log: [...state.log, `Cannot play tactic: ${definitionError}`],
-        };
-      }
-      if (reactionCard.reactionWindow !== reaction.window) {
-        return { ...state, log: [...state.log, "Reaction window mismatch"] };
-      }
-      const windowError = validateReactionWindow(state, reaction.window);
-      if (windowError) {
-        return { ...state, log: [...state.log, `Cannot play tactic: ${windowError}`] };
-      }
-      const validationEffect: Effect = {
-        id: "validation",
-        sourceCardId: reactionCard.id,
-        ownerId: state.activePlayer,
-        hooks: {},
-        targetUnitIds: reaction.targets?.unitIds,
-      };
-      const targetError = validateTargets(
-        buildContext(state, validationEffect),
-        reactionCard,
-        reaction.targets
-      );
-      if (targetError) {
-        return {
-          ...state,
-          log: [...state.log, `Cannot play tactic: ${targetError}`],
-        };
-      }
-      if (reaction.window === "beforeMove" && reactionCard.targeting.type === "unit") {
-        const invalidTarget = (reaction.targets?.unitIds ?? []).find((unitId) =>
-          state.units.find((unit) => unit.id === unitId && unit.hasMoved)
-        );
-        if (invalidTarget) {
-          return {
-            ...state,
-            log: [...state.log, "Cannot play tactic: target already moved"],
-          };
-        }
-      }
+      reactionCard = validation.card;
       if (reaction.window === "beforeMove") {
-        preMoveState = applyTacticEffect(
+        preMoveState = applyTacticReaction(
           state,
           reactionCard,
           state.activePlayer,
@@ -605,7 +420,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       log: [...nextState.log, `Unit ${unit.id} moved to (${action.to.x},${action.to.y})`],
     };
     if (reaction && reaction.window === "afterMove" && reactionCard) {
-      nextState = applyTacticEffect(
+      nextState = applyTacticReaction(
         nextState,
         reactionCard,
         nextState.activePlayer,
@@ -677,53 +492,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     const reaction = action.reaction;
-    if (reaction && reaction.window !== "beforeAttackRoll") {
-      return { ...state, log: [...state.log, "Invalid reaction window for roll"] };
-    }
     let rollState = state;
     if (reaction) {
-      const reactionCard = getTacticCard(state, reaction.cardId);
-      if (!reactionCard) {
-        return { ...state, log: [...state.log, "Tactic card not available"] };
+      const reactionResult = validateAndApplyTacticReaction(state, reaction, {
+        expectedWindows: ["beforeAttackRoll"],
+        invalidWindowMessage: "Invalid reaction window for roll",
+      });
+      if (!reactionResult.ok) {
+        return reactionResult.state;
       }
-      const definitionError = validateTacticDefinition(reactionCard);
-      if (definitionError) {
-        return {
-          ...state,
-          log: [...state.log, `Cannot play tactic: ${definitionError}`],
-        };
-      }
-      if (reactionCard.reactionWindow !== reaction.window) {
-        return { ...state, log: [...state.log, "Reaction window mismatch"] };
-      }
-      const windowError = validateReactionWindow(state, reaction.window);
-      if (windowError) {
-        return { ...state, log: [...state.log, `Cannot play tactic: ${windowError}`] };
-      }
-      const validationEffect: Effect = {
-        id: "validation",
-        sourceCardId: reactionCard.id,
-        ownerId: state.activePlayer,
-        hooks: {},
-        targetUnitIds: reaction.targets?.unitIds,
-      };
-      const targetError = validateTargets(
-        buildContext(state, validationEffect),
-        reactionCard,
-        reaction.targets
-      );
-      if (targetError) {
-        return {
-          ...state,
-          log: [...state.log, `Cannot play tactic: ${targetError}`],
-        };
-      }
-      rollState = applyTacticEffect(
-        state,
-        reactionCard,
-        state.activePlayer,
-        reaction.targets
-      );
+      rollState = reactionResult.state;
     }
 
     const pendingAttack = rollState.pendingAttack;
@@ -762,58 +540,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     const reaction = action.reaction;
-    if (
-      reaction &&
-      reaction.window !== "afterAttackRoll" &&
-      reaction.window !== "beforeDamage"
-    ) {
-      return { ...state, log: [...state.log, "Invalid reaction window for resolution"] };
-    }
     let resolveState = state;
     let reactionCard: CardDefinition | null = null;
     if (reaction) {
-      reactionCard = getTacticCard(state, reaction.cardId);
-      if (!reactionCard) {
-        return { ...state, log: [...state.log, "Tactic card not available"] };
+      const reactionResult = validateAndApplyTacticReaction(state, reaction, {
+        expectedWindows: ["afterAttackRoll", "beforeDamage"],
+        invalidWindowMessage: "Invalid reaction window for resolution",
+      });
+      if (!reactionResult.ok) {
+        return reactionResult.state;
       }
-      const definitionError = validateTacticDefinition(reactionCard);
-      if (definitionError) {
-        return {
-          ...state,
-          log: [...state.log, `Cannot play tactic: ${definitionError}`],
-        };
-      }
-      if (reactionCard.reactionWindow !== reaction.window) {
-        return { ...state, log: [...state.log, "Reaction window mismatch"] };
-      }
-      const windowError = validateReactionWindow(state, reaction.window);
-      if (windowError) {
-        return { ...state, log: [...state.log, `Cannot play tactic: ${windowError}`] };
-      }
-      const validationEffect: Effect = {
-        id: "validation",
-        sourceCardId: reactionCard.id,
-        ownerId: state.activePlayer,
-        hooks: {},
-        targetUnitIds: reaction.targets?.unitIds,
-      };
-      const targetError = validateTargets(
-        buildContext(state, validationEffect),
-        reactionCard,
-        reaction.targets
-      );
-      if (targetError) {
-        return {
-          ...state,
-          log: [...state.log, `Cannot play tactic: ${targetError}`],
-        };
-      }
-      resolveState = applyTacticEffect(
-        state,
-        reactionCard,
-        state.activePlayer,
-        reaction.targets
-      );
+      resolveState = reactionResult.state;
+      reactionCard = reactionResult.card;
     }
 
     const lastRoll = resolveState.lastRoll;

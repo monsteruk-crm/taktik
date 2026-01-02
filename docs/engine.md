@@ -166,8 +166,16 @@ Manual mismatch:
   - `beforeMove`: when `MOVE_UNIT` is executed in `MOVEMENT`.
   - `beforeAttackRoll`: when `ROLL_DICE` is executed with a `pendingAttack` and no `lastRoll`.
   - `afterAttackRoll` / `beforeDamage`: when `RESOLVE_ATTACK` is executed with a `pendingAttack` and `lastRoll`.
+  - Source-of-truth: `getOpenReactionWindows(state)` in `lib/engine/reactions.ts`.
 - Only one tactic can be played per action (no nested reactions).
+- Tactic validation and application is centralized in `validateAndApplyTacticReaction(...)` (also in `lib/engine/reactions.ts`) and used by the reducer during movement and combat actions.
 - `Commander's Luck` is the single allowed card-id exception: it triggers a deterministic reroll during `RESOLVE_ATTACK`.
+
+### Reaction windows (derived)
+- Windows are **derived**, not stored in `GameState`.
+- The only valid reaction windows are: `beforeMove`, `afterMove`, `beforeAttackRoll`, `afterAttackRoll`, `beforeDamage`.
+- Engine source of truth: `getOpenReactionWindows(state)` in `lib/engine/reactions.ts`.
+- Reducer uses `validateAndApplyTacticReaction(...)` to validate window legality, targeting, and apply effects without duplicating logic across actions.
 
 Planned alignment (TODO):
 - Make reaction/bonus cancellation match the manual (cancel a single malus, and support canceling the malus drawn this turn).

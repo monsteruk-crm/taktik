@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SxProps, Theme } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 
@@ -40,6 +40,7 @@ export default function BoardViewport({
 }: BoardViewportProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -49,18 +50,52 @@ export default function BoardViewport({
   const pointerIdRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const hasInitializedRef = useRef(false);
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
+
+  function clampZoom(nextZoom: number) {
+    return Math.min(3, Math.max(0.6, nextZoom));
+  }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     isPanningRef.current = true;
+    setIsPanning(true);
     lastPointRef.current = { x: event.clientX, y: event.clientY };
     startPointRef.current = { x: event.clientX, y: event.clientY };
     isDraggingRef.current = false;
     pointerIdRef.current = event.pointerId;
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointersRef.current.size === 2) {
+      const [a, b] = Array.from(pointersRef.current.values());
+      const distance = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchRef.current = { distance, zoom: zoomRef.current };
+    }
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     if (!isPanningRef.current || !lastPointRef.current) {
+      return;
+    }
+    if (pointersRef.current.has(event.pointerId)) {
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const [a, b] = Array.from(pointersRef.current.values());
+      const distance = Math.hypot(a.x - b.x, a.y - b.y);
+      const scale = distance / pinchRef.current.distance;
+      const nextZoom = clampZoom(pinchRef.current.zoom * scale);
+      const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const worldX = (midpoint.x - panRef.current.x) / zoomRef.current;
+      const worldY = (midpoint.y - panRef.current.y) / zoomRef.current;
+      const nextPan = {
+        x: midpoint.x - worldX * nextZoom,
+        y: midpoint.y - worldY * nextZoom,
+      };
+      zoomRef.current = nextZoom;
+      panRef.current = nextPan;
+      setZoom(nextZoom);
+      setPan(nextPan);
       return;
     }
     const deltaX = event.clientX - lastPointRef.current.x;
@@ -84,6 +119,11 @@ export default function BoardViewport({
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
     isPanningRef.current = false;
+    setIsPanning(false);
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchRef.current = null;
+    }
     if (!isDraggingRef.current && startPointRef.current && onClick) {
       onClick({
         clientX: event.clientX,
@@ -105,6 +145,11 @@ export default function BoardViewport({
 
   function handlePointerCancel(event: React.PointerEvent<HTMLDivElement>) {
     isPanningRef.current = false;
+    setIsPanning(false);
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchRef.current = null;
+    }
     lastPointRef.current = null;
     startPointRef.current = null;
     isDraggingRef.current = false;
@@ -153,30 +198,56 @@ export default function BoardViewport({
     zoomRef.current = zoom;
   }, [zoom]);
 
+  const setViewportNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      viewportRef.current = node;
+      if (!node || hasInitializedRef.current) {
+        return;
+      }
+      const rect = node.getBoundingClientRect();
+      const nextZoom = initialZoom;
+      const nextPan =
+        typeof initialPan === "function"
+          ? initialPan({ width: rect.width, height: rect.height })
+          : initialPan ?? { x: 0, y: 0 };
+      hasInitializedRef.current = true;
+      zoomRef.current = nextZoom;
+      panRef.current = nextPan;
+      setZoom(nextZoom);
+      setPan(nextPan);
+    },
+    [initialPan, initialZoom]
+  );
+
   useEffect(() => {
-    if (hasInitializedRef.current) {
-      return;
-    }
     const node = viewportRef.current;
     if (!node) {
       return;
     }
-    const rect = node.getBoundingClientRect();
-    const nextZoom = initialZoom;
-    const nextPan =
-      typeof initialPan === "function"
-        ? initialPan({ width: rect.width, height: rect.height })
-        : initialPan ?? { x: 0, y: 0 };
-    hasInitializedRef.current = true;
-    zoomRef.current = nextZoom;
-    panRef.current = nextPan;
-    setZoom(nextZoom);
-    setPan(nextPan);
+    const recenter = () => {
+      const rect = node.getBoundingClientRect();
+      const nextZoom = initialZoom;
+      const nextPan =
+        typeof initialPan === "function"
+          ? initialPan({ width: rect.width, height: rect.height })
+          : initialPan ?? { x: 0, y: 0 };
+      zoomRef.current = nextZoom;
+      panRef.current = nextPan;
+      setZoom(nextZoom);
+      setPan(nextPan);
+    };
+    const observer = new ResizeObserver(() => recenter());
+    observer.observe(node);
+    window.addEventListener("orientationchange", recenter);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("orientationchange", recenter);
+    };
   }, [initialPan, initialZoom]);
 
   return (
     <Box
-      ref={viewportRef}
+      ref={setViewportNode}
       sx={{
         width: "100%",
         height,
@@ -184,7 +255,7 @@ export default function BoardViewport({
         overflow: "hidden",
         touchAction: "none",
         position: "relative",
-        cursor: isPanningRef.current ? "grabbing" : "grab",
+        cursor: isPanning ? "grabbing" : "grab",
         ...sx,
       }}
       onPointerDown={handlePointerDown}
