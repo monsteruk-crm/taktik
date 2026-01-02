@@ -2,14 +2,11 @@
 
 import type { RefObject } from "react";
 import { startTransition, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import Typography from "@mui/material/Typography";
-import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { ReactionWindow } from "@/lib/engine";
 import { gameReducer, initialGameState } from "@/lib/engine";
@@ -17,6 +14,8 @@ import { getMoveRange } from "@/lib/engine/movement";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
 import OpsConsole from "@/components/OpsConsole";
+import Frame from "@/components/ui/Frame";
+import Plate from "@/components/ui/Plate";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 
 export default function Home() {
@@ -36,9 +35,9 @@ export default function Home() {
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
   const [queuedTactic, setQueuedTactic] = useState<QueuedTactic | null>(null);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isNarrow = useMediaQuery("(max-width:1100px)");
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [sheetSize, setSheetSize] = useState<"peek" | "half" | "full">("peek");
   const isGameOver = state.phase === "VICTORY";
   const canMove = state.phase === "MOVEMENT" && !isGameOver;
   const canAttack = state.phase === "ATTACK" && !isGameOver;
@@ -157,10 +156,10 @@ export default function Home() {
   }, [state.pendingCard?.id]);
 
   useEffect(() => {
-    if (!isMobile) {
+    if (!isNarrow) {
       setIsConsoleOpen(false);
     }
-  }, [isMobile]);
+  }, [isNarrow]);
 
   useEffect(() => {
     if (!queuedTactic) {
@@ -304,6 +303,12 @@ export default function Home() {
     : "None";
   const isPendingTargeting = targetingContext?.source === "pending";
   const isTacticTargeting = targetingContext?.source === "tactic";
+  const playerAccent = state.activePlayer === "PLAYER_A" ? "#1F4E79" : "#C1121F";
+  const sheetHeights: Record<"peek" | "half" | "full", string> = {
+    peek: "min(20dvh, 720px)",
+    half: "min(55dvh, 720px)",
+    full: "min(85dvh, 720px)",
+  };
 
   function handleCancelTargeting() {
     setTargetingContext(null);
@@ -351,7 +356,72 @@ export default function Home() {
     handleCancelTargeting();
   }
 
-  const opsConsole = (
+  const CommandKey = ({
+    label,
+    onClick,
+    disabled,
+    baseBg = "#E6E6E2",
+    baseColor = "#1B1B1B",
+    accentColor,
+    active,
+  }: {
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    baseBg?: string;
+    baseColor?: string;
+    accentColor?: string;
+    active?: boolean;
+  }) => (
+    <Button
+      variant="outlined"
+      size="small"
+      onClick={onClick}
+      disabled={disabled}
+      sx={{
+        border: "2px solid #1B1B1B",
+        backgroundColor: active ? baseColor : baseBg,
+        color: active ? baseBg : baseColor,
+        minWidth: { xs: 92, md: 110 },
+        height: { xs: 36, md: 40 },
+        letterSpacing: "0.08em",
+        position: "relative",
+        ...(accentColor
+          ? {
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 6,
+                backgroundColor: accentColor,
+              },
+              pl: 2,
+            }
+          : null),
+        "&:hover": {
+          backgroundColor: baseColor,
+          color: baseBg,
+          borderColor: "#1B1B1B",
+        },
+        "&.Mui-disabled": {
+          opacity: 0.35,
+          backgroundColor: baseBg,
+          color: baseColor,
+          borderColor: "#1B1B1B",
+        },
+        "&.Mui-disabled:hover": {
+          backgroundColor: baseBg,
+          color: baseColor,
+        },
+      }}
+    >
+      {label}
+    </Button>
+  );
+
+  const opsConsole = (fillHeight: boolean) => (
     <OpsConsole
       commonDeckCount={state.commonDeck.length}
       pendingCard={state.pendingCard}
@@ -364,6 +434,8 @@ export default function Home() {
       canStoreBonus={canStoreBonus}
       canPlayCard={canPlayCard}
       canDrawCard={canDrawCard}
+      activePlayer={state.activePlayer}
+      turn={state.turn}
       isPendingTargeting={isPendingTargeting}
       isTacticTargeting={isTacticTargeting}
       pendingTargetingSpec={pendingTargetingSpec}
@@ -372,6 +444,7 @@ export default function Home() {
       logEntries={state.log}
       logRef={logRef}
       logRowHeight={logRowHeight}
+      fillHeight={fillHeight}
       onStoreBonus={() => dispatch({ type: "STORE_BONUS" })}
       onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
       onStartPendingTargeting={handleStartPendingTargeting}
@@ -404,210 +477,181 @@ export default function Home() {
         overflow: "hidden",
       }}
     >
-      <AppBar
-        position="static"
-        elevation={0}
-        color="transparent"
+      <Box
+        component="header"
         sx={{
-          border: 0,
           borderBottom: "2px solid #1B1B1B",
-          bgcolor: "background.default",
-          color: "text.primary",
-          height: { xs: 56, md: 64 },
           px: 2,
-          py: 0.5,
+          py: 1,
+          display: "grid",
+          gap: 1,
         }}
       >
         <Box
           sx={{
-            height: "100%",
             display: "grid",
-            gridTemplateRows: "1fr 1fr",
-            gap: 0.5,
+            gap: 1,
+            gridTemplateAreas: isNarrow
+              ? '"player stats" "commands commands"'
+              : '"player stats status" "commands commands commands"',
+            gridTemplateColumns: isNarrow ? "1fr auto" : "auto 1fr auto",
+            alignItems: "center",
           }}
         >
+          <Plate accentColor={playerAccent} sx={{ gridArea: "player", minWidth: 160 }}>
+            <Typography variant="caption" fontWeight={700}>
+              PLAYER: {state.activePlayer}
+            </Typography>
+          </Plate>
           <Box
             sx={{
+              gridArea: "stats",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 2,
-              minWidth: 0,
+              flexWrap: "wrap",
+              gap: 1,
+              justifyContent: { xs: "flex-end", lg: "center" },
             }}
           >
-            <Stack
-              direction="row"
-              spacing={2}
-              alignItems="center"
-              sx={{ minWidth: 0, overflow: "hidden" }}
-            >
-              <Typography variant="subtitle1" fontWeight={700} noWrap>
-                TAKTIK MVP
-              </Typography>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                sx={{ flexWrap: "nowrap", overflow: "hidden" }}
+            <Plate sx={{ py: 0.4, px: 1 }}>
+              <Typography variant="caption">VP: --</Typography>
+            </Plate>
+            <Plate sx={{ py: 0.4, px: 1 }}>
+              <Typography variant="caption">TURN: {state.turn}</Typography>
+            </Plate>
+            <Plate sx={{ py: 0.4, px: 1 }}>
+              <Typography variant="caption">PHASE: {state.phase}</Typography>
+            </Plate>
+            {isNarrow ? (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setIsConsoleOpen((prev) => !prev)}
+                sx={{
+                  border: "2px solid #1B1B1B",
+                  minHeight: 32,
+                }}
               >
-                <Typography variant="caption" noWrap>
-                  PLAYER: {state.activePlayer}
-                </Typography>
-                <Typography variant="caption" noWrap>
-                  VP: --
-                </Typography>
-                <Typography variant="caption" noWrap>
-                  TURN: {state.turn}
-                </Typography>
-                <Typography variant="caption" noWrap>
-                  PHASE: {state.phase}
-                </Typography>
-                {state.winner ? (
-                  <Typography variant="caption" noWrap>
-                    WINNER: {state.winner}
-                  </Typography>
-                ) : null}
-              </Stack>
-            </Stack>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setIsConsoleOpen((prev) => !prev)}
-              sx={{ display: { xs: "inline-flex", md: "none" } }}
-            >
-              CONSOLE
-            </Button>
+                CONSOLE
+              </Button>
+            ) : null}
           </Box>
+          <Plate
+            accentColor="#8A8F94"
+            sx={{
+              gridArea: "status",
+              minWidth: 200,
+              justifyContent: "space-between",
+              display: isNarrow ? "none" : "flex",
+            }}
+          >
+            <Typography variant="caption">STATUS: READY</Typography>
+            <Typography variant="caption">MODE: {mode}</Typography>
+          </Plate>
 
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gridArea: "commands",
+              display: "flex",
+              flexWrap: "wrap",
               gap: 1,
               alignItems: "center",
-              minWidth: 0,
             }}
           >
-            <Box sx={{ overflowX: "auto" }}>
-              <Stack direction="row" spacing={1} sx={{ width: "max-content" }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => dispatch({ type: "DRAW_CARD" })}
-                  disabled={!canDrawCard}
-                >
-                  DRAW CARD
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setMode("MOVE");
-                    setSelectedAttackerId(null);
-                  }}
-                  disabled={!canMove}
-                >
-                  MOVE
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setMode("ATTACK");
-                    setSelectedUnitId(null);
-                  }}
-                  disabled={!canAttack}
-                >
-                  ATTACK
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => dispatch({ type: "NEXT_PHASE" })}
-                  disabled={isGameOver}
-                >
-                  NEXT PHASE
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => dispatch({ type: "TURN_START" })}
-                  disabled={isGameOver}
-                >
-                  TURN START
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => dispatch({ type: "END_TURN" })}
-                  disabled={isGameOver}
-                >
-                  END TURN
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    const reaction =
-                      queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
-                    dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
-                    if (reaction) {
-                      setQueuedTactic(null);
-                    }
-                  }}
-                  disabled={!canRollDice}
-                >
-                  ROLL DICE
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    const reaction =
-                      queuedTactic &&
-                      (queuedTactic.window === "afterAttackRoll" ||
-                        queuedTactic.window === "beforeDamage")
-                        ? queuedTactic
-                        : undefined;
-                    dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
-                    if (reaction) {
-                      setQueuedTactic(null);
-                    }
-                  }}
-                  disabled={!canResolveAttack}
-                >
-                  RESOLVE ATTACK
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setSelectedUnitId(null);
-                    setSelectedAttackerId(null);
-                  }}
-                  disabled={!selectedUnitId && !selectedAttackerId}
-                >
-                  CLEAR SELECTION
-                </Button>
-              </Stack>
-            </Box>
-            <Stack direction="row" spacing={1} sx={{ whiteSpace: "nowrap", overflow: "hidden" }}>
-              <Typography variant="caption" noWrap>
-                MODE: {mode}
-              </Typography>
-              <Typography variant="caption" noWrap>
-                SELECTED: {selectionLabel}
-              </Typography>
-              <Typography variant="caption" noWrap>
-                PENDING: {pendingAttackLabel}
-              </Typography>
-              <Typography variant="caption" noWrap>
-                LAST ROLL: {lastRollLabel}
-              </Typography>
-            </Stack>
+            <CommandKey
+              label="DRAW CARD"
+              onClick={() => dispatch({ type: "DRAW_CARD" })}
+              disabled={!canDrawCard}
+            />
+            <CommandKey
+              label="MOVE"
+              onClick={() => {
+                setMode("MOVE");
+                setSelectedAttackerId(null);
+              }}
+              disabled={!canMove}
+              baseBg="#1F4E79"
+              baseColor="#E6E6E2"
+              active={mode === "MOVE"}
+            />
+            <CommandKey
+              label="ATTACK"
+              onClick={() => {
+                setMode("ATTACK");
+                setSelectedUnitId(null);
+              }}
+              disabled={!canAttack}
+              baseBg="#C1121F"
+              baseColor="#E6E6E2"
+              active={mode === "ATTACK"}
+            />
+            <CommandKey
+              label="NEXT PHASE"
+              onClick={() => dispatch({ type: "NEXT_PHASE" })}
+              disabled={isGameOver}
+            />
+            <CommandKey
+              label="TURN START"
+              onClick={() => dispatch({ type: "TURN_START" })}
+              disabled={isGameOver}
+            />
+            <CommandKey
+              label="END TURN"
+              onClick={() => dispatch({ type: "END_TURN" })}
+              disabled={isGameOver}
+              accentColor="#C1121F"
+            />
+            <CommandKey
+              label="ROLL DICE"
+              onClick={() => {
+                const reaction =
+                  queuedTactic?.window === "beforeAttackRoll" ? queuedTactic : undefined;
+                dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+                if (reaction) {
+                  setQueuedTactic(null);
+                }
+              }}
+              disabled={!canRollDice}
+              accentColor="#F2B705"
+            />
+            <CommandKey
+              label="RESOLVE ATTACK"
+              onClick={() => {
+                const reaction =
+                  queuedTactic &&
+                  (queuedTactic.window === "afterAttackRoll" ||
+                    queuedTactic.window === "beforeDamage")
+                    ? queuedTactic
+                    : undefined;
+                dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+                if (reaction) {
+                  setQueuedTactic(null);
+                }
+              }}
+              disabled={!canResolveAttack}
+            />
+            <CommandKey
+              label="CLEAR SELECTION"
+              onClick={() => {
+                setSelectedUnitId(null);
+                setSelectedAttackerId(null);
+              }}
+              disabled={!selectedUnitId && !selectedAttackerId}
+            />
+            <Plate sx={{ py: 0.35, px: 1 }}>
+              <Typography variant="caption">MODE: {mode}</Typography>
+            </Plate>
+            <Plate sx={{ py: 0.35, px: 1 }}>
+              <Typography variant="caption">SELECTED: {selectionLabel}</Typography>
+            </Plate>
+            <Plate sx={{ py: 0.35, px: 1 }}>
+              <Typography variant="caption">PENDING: {pendingAttackLabel}</Typography>
+            </Plate>
+            <Plate sx={{ py: 0.35, px: 1 }}>
+              <Typography variant="caption">LAST ROLL: {lastRollLabel}</Typography>
+            </Plate>
           </Box>
         </Box>
-      </AppBar>
+      </Box>
 
       <Box
         sx={{
@@ -617,34 +661,43 @@ export default function Home() {
           overflow: "hidden",
         }}
       >
-        <Box sx={{ flex: 1, minWidth: 0, position: "relative" }}>
-          <BoardViewport
-            onClick={handleViewportClick}
-            sx={{ height: "100%" }}
-            initialPan={initialPan}
-          >
-            {() => (
-              <IsometricBoard
-                state={state}
-                selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
-                moveRange={moveRange}
-              />
-            )}
-          </BoardViewport>
-        </Box>
+        <Frame
+          sx={{ flex: 1, minWidth: 0, minHeight: 0 }}
+          contentSx={{ flex: 1, minHeight: 0 }}
+          titleLeft="PLAY SURFACE"
+          accentColor="#1B1B1B"
+        >
+          <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
+            <BoardViewport
+              onClick={handleViewportClick}
+              sx={{ height: "100%" }}
+              initialPan={initialPan}
+            >
+              {() => (
+                <IsometricBoard
+                  state={state}
+                  selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
+                  moveRange={moveRange}
+                />
+              )}
+            </BoardViewport>
+          </Box>
+        </Frame>
         <Box
           sx={{
             width: 420,
-            display: { xs: "none", md: "flex" },
+            display: isNarrow ? "none" : "flex",
             borderLeft: "2px solid #1B1B1B",
             minHeight: 0,
+            height: "100%",
+            overflow: "hidden",
           }}
         >
-          {opsConsole}
+          {opsConsole(true)}
         </Box>
       </Box>
 
-      {isMobile ? (
+      {isNarrow ? (
         <SwipeableDrawer
           anchor="bottom"
           open={isConsoleOpen}
@@ -653,14 +706,49 @@ export default function Home() {
           PaperProps={{
             elevation: 0,
             sx: {
-              height: "min(80dvh, 640px)",
+              height: sheetHeights[sheetSize],
               borderTop: "2px solid #1B1B1B",
+              pt: 1,
               pb: "env(safe-area-inset-bottom)",
               overflow: "hidden",
             },
           }}
         >
-          {opsConsole}
+          <Box sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <Box
+              onClick={() =>
+                setSheetSize((current) =>
+                  current === "peek" ? "half" : current === "half" ? "full" : "peek"
+                )
+              }
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSheetSize((current) =>
+                    current === "peek" ? "half" : current === "half" ? "full" : "peek"
+                  );
+                }
+              }}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: 24,
+                cursor: "pointer",
+              }}
+            >
+              <Box
+                sx={{
+                  width: 48,
+                  height: 4,
+                  bgcolor: "#1B1B1B",
+                }}
+              />
+            </Box>
+            <Box sx={{ flex: 1, minHeight: 0 }}>{opsConsole(true)}</Box>
+          </Box>
         </SwipeableDrawer>
       ) : null}
 
@@ -674,7 +762,11 @@ export default function Home() {
             zIndex: 9999,
           }}
         >
-          <Paper sx={{ border: "2px solid #1B1B1B", p: 2 }}>
+          <Frame
+            titleLeft={`TARGETING ${isPendingTargeting ? "PENDING CARD" : "TACTIC"}`}
+            accentColor="#F2B705"
+            contentSx={{ gap: 1 }}
+          >
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={1}
@@ -682,15 +774,12 @@ export default function Home() {
               justifyContent="space-between"
             >
               <Stack spacing={0.25}>
-                <Typography variant="caption" fontWeight={700}>
-                  Targeting {isPendingTargeting ? "Pending Card" : "Tactic"}
-                </Typography>
                 {targetingCard ? (
                   <Typography variant="caption">{targetingCard.name}</Typography>
                 ) : null}
                 {targetingSpec?.type === "unit" ? (
                   <Typography variant="caption">
-                    Selected {selectedTargetUnitIds.length}/{targetingSpec.count}
+                    SELECTED {selectedTargetUnitIds.length}/{targetingSpec.count}
                   </Typography>
                 ) : null}
               </Stack>
@@ -705,7 +794,7 @@ export default function Home() {
                       selectedTargetUnitIds.length !== pendingTargetingSpec.count
                     }
                   >
-                    Confirm
+                    CONFIRM
                   </Button>
                 ) : (
                   <Button
@@ -717,15 +806,15 @@ export default function Home() {
                       selectedTargetUnitIds.length !== targetingSpec.count
                     }
                   >
-                    Confirm
+                    CONFIRM
                   </Button>
                 )}
                 <Button variant="outlined" size="small" onClick={handleCancelTargeting}>
-                  Cancel
+                  CANCEL
                 </Button>
               </Stack>
             </Stack>
-          </Paper>
+          </Frame>
         </Box>
       ) : null}
     </Box>

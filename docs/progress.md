@@ -1289,3 +1289,81 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/BoardViewport.tsx`, `app/page.tsx`
 - Docs: `docs/progress.md`
+
+## 2026-01-02 — Ops-room command plate + framed console polish
+
+### BEFORE
+- The command bar used a scrolling row of buttons and lacked the command-plate hierarchy.
+- The Ops Console tabs looked like default MUI tabs, and cards still read as a generic block.
+- Mobile console sizing was fixed and lacked snap heights or a grab handle.
+
+### NOW
+- Added Frame/Plate primitives and used them across the command plate, board frame, and console sections.
+- Rebuilt the command bar with a player plate, stats capsules, and wrapping command keys (no horizontal scrolling).
+- Refactored the Ops Console: header plate, hard tab plates, directive-style pending card module, and compact stored bonus tiles.
+- Implemented narrow breakpoint behavior at 1100px and added bottom-sheet snap sizes with a grab handle.
+- Updated UI smoke checks in the manual E2E doc to match the new command/console structure.
+
+### NEXT
+- Validate command plate density at 390×844 and adjust key grouping if needed.
+- Tune stored bonus tile expansion behavior on very narrow screens.
+
+### Known limitations / TODOs
+- Bottom sheet snap sizing is click-cycled; swipe snap points are not enforced beyond the Drawer default.
+
+### Files touched
+- UI: `app/page.tsx`, `components/OpsConsole.tsx`, `components/ui/Frame.tsx`, `components/ui/Plate.tsx`, `lib/ui/theme.ts`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+## 2026-01-02 — Ensure Ops Console dock scrolls
+
+### BEFORE
+- The console dock clipped content at the bottom when it exceeded the viewport.
+
+### NOW
+- Wrapped the right dock so the Ops Console can scroll independently while keeping headers/states visible.
+
+### NEXT
+- None (minor UI polish). Verify with long log/bonus lists to confirm scrolling.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+
+## 2026-01-02 — Desktop console dock scroll fix
+
+### BEFORE
+- The desktop Ops Console dock clipped content at the bottom with no reliable scrolling.
+
+### NOW
+- Allowed the dock container to scroll vertically and let the console render to natural height on desktop (fillHeight=false), while keeping mobile drawer full-height behavior.
+
+### NEXT
+- Validate long log and stored bonus lists on desktop to confirm smooth scroll.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`, `components/OpsConsole.tsx`
+- Docs: `docs/progress.md`
+
+## 2026-01-02 — Fix Ops Console scrolling + horizontal overflow
+
+### BEFORE
+- The Ops Console dock clipped vertically and could introduce horizontal scroll.
+
+### NOW
+- Ensured the console body is a flex column so tab panels can constrain height and scroll internally, and hid horizontal overflow at the console root.
+
+### NEXT
+- Recheck long card/log lists to confirm the internal scroll behaves on desktop and mobile.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/OpsConsole.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`

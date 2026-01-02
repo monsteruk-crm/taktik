@@ -87,6 +87,14 @@ const theme = createTheme({
           border: `2px solid ${palette.text}`,
           backgroundColor: palette.background,
           boxShadow: "none",
+          position: "relative",
+          "&::after": {
+            content: '""',
+            position: "absolute",
+            inset: 2,
+            border: "1px solid rgba(27, 27, 27, 0.35)",
+            pointerEvents: "none",
+          },
         },
       },
     },
@@ -182,6 +190,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderColor: palette.text,
+          borderWidth: 2,
         },
       },
     },

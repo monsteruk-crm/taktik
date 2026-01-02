@@ -36,13 +36,14 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 ## UI / Layout Smoke Checks
 
 1. Verify the screen shows:
-   - Top command bar with `Player`, `VP`, `Turn`, and `Phase`
-   - `Mode`, `Selected`, `Pending Attack`, `Last Roll`
-   - Desktop: right “Ops Console” dock with `CARDS / TACTICS / LOG` tabs
-   - Mobile: `CONSOLE` button opens a bottom sheet (no horizontal page scroll)
+   - Top command plate with player strip + VP/TURN/PHASE capsules
+   - Command keys wrap (no horizontal scrolling)
+   - Desktop: double-framed board surface + right “Ops Console” dock with “TAKTIK COMMAND” header and `CARDS / TACTICS / LOG` plates
+   - Mobile: `CONSOLE` button toggles a bottom sheet with a grab handle and 3 sizes (peek/half/full); no horizontal page scroll
 2. Verify the isometric board renders with ground tiles and units.
 3. Verify the board can be panned (drag) and zoomed (wheel).
 4. Verify the log area auto-scrolls to show newest entries in the `LOG` tab.
+5. Verify the pending card module reads as a directive (not a centered modal blob).
 
 ## Cards — Draw / Pending / Targeting / Play
 
