@@ -12,6 +12,8 @@ import Plate from "@/components/ui/Plate";
 import ObliqueKey from "@/components/ui/ObliqueKey";
 import ObliqueTabBar from "@/components/ui/ObliqueTabBar";
 import {DUR, EASE, useReducedMotion} from "@/lib/ui/motion";
+import { semanticColors } from "@/lib/ui/semanticColors";
+import BandHeader from "@/components/ui/BandHeader";
 
 type OpsConsoleProps = {
     commonDeckCount: number;
@@ -149,6 +151,15 @@ export default function OpsConsole({
             : "TARGET: NONE";
     const disablePendingTargeting = isTacticTargeting;
     const disableTacticControls = isPendingTargeting;
+    const playerStripe =
+        activePlayer === "PLAYER_A" ? semanticColors.playerA : semanticColors.playerB;
+    const pendingCardStripe = pendingCard
+        ? pendingCard.kind === "bonus"
+            ? semanticColors.move
+            : pendingCard.kind === "malus"
+                ? semanticColors.attack
+                : semanticColors.dice
+        : semanticColors.neutralStripe;
   const groupedTactics = useMemo(() => {
     return WINDOW_ORDER.map((window) => ({
       window,
@@ -199,23 +210,11 @@ export default function OpsConsole({
         >
             {showHeader ? (
                 <Box sx={{px: 2, pt: 2, pb: 1}}>
-                    <Plate accentColor="#1F4E79" sx={{width: "100%", px: 2, py: 1}}>
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                width: "100%",
-                            }}
-                        >
-                            <Typography variant="caption" fontWeight={700}>
-                                TAKTIK COMMAND
-                            </Typography>
-                            <Typography variant="caption">
-                                PLAYER: {activePlayer} • TURN: {turn}
-                            </Typography>
-                        </Box>
-                    </Plate>
+                    <BandHeader
+                        titleLeft="TAKTIK COMMAND"
+                        titleRight={`PLAYER: ${activePlayer} • TURN: ${turn}`}
+                        accentColor={playerStripe}
+                    />
                 </Box>
             ) : null}
 
@@ -270,7 +269,8 @@ export default function OpsConsole({
 
                             <Frame
                                 titleLeft="PENDING CARD DIRECTIVE"
-                                accentColor="#1F4E79"
+                                accentColor={pendingCardStripe}
+                                headerVariant="band"
                                 contentSx={{backgroundColor: "var(--action-panel)"}}
                             >
                                 {pendingCard ? (
@@ -307,6 +307,9 @@ export default function OpsConsole({
                                                     WebkitLineClamp: 2,
                                                     WebkitBoxOrient: "vertical",
                                                     overflow: "hidden",
+                                                    letterSpacing: "0.02em",
+                                                    lineHeight: 1.3,
+                                                    color: semanticColors.ink,
                                                 }}
                                             >
                                                 SUMMARY: {pendingCard.summary}
@@ -318,6 +321,9 @@ export default function OpsConsole({
                                                     WebkitLineClamp: 2,
                                                     WebkitBoxOrient: "vertical",
                                                     overflow: "hidden",
+                                                    letterSpacing: "0.02em",
+                                                    lineHeight: 1.3,
+                                                    color: semanticColors.ink,
                                                 }}
                                             >
                                                 USAGE: {pendingCard.usage}
@@ -354,7 +360,8 @@ export default function OpsConsole({
                                     disablePendingTargeting ||
                                     (pendingTargetingSpec?.type === "unit" && isPendingTargeting)
                                 }
-                                tone="neutral"
+                                tone={pendingTargetingSpec?.type === "unit" ? "yellow" : "black"}
+                                active
                                 size="sm"
                             />
                             {pendingTargetingSpec?.type === "unit" ? (
@@ -367,7 +374,8 @@ export default function OpsConsole({
                                             !isPendingTargeting ||
                                             selectedTargetUnitIds.length !== pendingTargetingSpec.count
                                         }
-                                        tone="yellow"
+                                        tone="black"
+                                        active
                                         size="sm"
                                     />
                                     <ObliqueKey
@@ -375,6 +383,7 @@ export default function OpsConsole({
                                         onClick={onCancelTargeting}
                                         disabled={!isPendingTargeting}
                                         tone="neutral"
+                                        active
                                         size="sm"
                                     />
                                 </>
@@ -398,6 +407,7 @@ export default function OpsConsole({
                                 titleLeft="STORED BONUSES"
                                 titleRight={`${storedBonuses.length}/6`}
                                 accentColor="#8A8F94"
+                                headerVariant="band"
                                 contentSx={{backgroundColor: "var(--action-panel)"}}
                             >
                                 {storedBonuses.length === 0 ? (
@@ -479,7 +489,14 @@ export default function OpsConsole({
                                                                 backgroundColor: "var(--panel)",
                                                             }}
                                                         >
-                                                            <Typography variant="caption">
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{
+                                                                    letterSpacing: "0.02em",
+                                                                    lineHeight: 1.3,
+                                                                    color: semanticColors.ink,
+                                                                }}
+                                                            >
                                                                 SUMMARY: {card.summary}
                                                             </Typography>
                                                         </Box>
@@ -503,10 +520,12 @@ export default function OpsConsole({
                         }}
                     >
                         <Stack spacing={2}>
-                            <Plate sx={{flexDirection: "column", alignItems: "flex-start", gap: 1}}>
-                                <Typography variant="caption" fontWeight={700}>
-                                    OPEN WINDOWS
-                                </Typography>
+                            <Frame
+                                titleLeft="OPEN WINDOWS"
+                                headerVariant="band"
+                                accentColor={semanticColors.neutralStripe}
+                                contentSx={{backgroundColor: "var(--action-panel)"}}
+                            >
                                 <Stack direction="row" spacing={1} flexWrap="wrap">
                                     {openReactionWindows.length === 0 ? (
                                         <Chip label="NONE" variant="outlined" size="small"/>
@@ -521,7 +540,7 @@ export default function OpsConsole({
                                         ))
                                     )}
                                 </Stack>
-                            </Plate>
+                            </Frame>
 
                             {queuedTacticCard ? (
                                 <Plate
@@ -558,6 +577,7 @@ export default function OpsConsole({
                                 <Frame
                                     titleLeft="TACTIC TARGETING"
                                     accentColor="#F2B705"
+                                    headerVariant="band"
                                     contentSx={{backgroundColor: "var(--action-panel)"}}
                                 >
                                     <Stack spacing={0.5}>
@@ -581,6 +601,7 @@ export default function OpsConsole({
                                         key={group.window}
                                         titleLeft={`WINDOW: ${windowLabels[group.window]}`}
                                         accentColor="#8A8F94"
+                                        headerVariant="band"
                                         contentSx={{backgroundColor: "var(--action-panel)"}}
                                     >
                                         <Stack spacing={1}>
@@ -625,7 +646,15 @@ export default function OpsConsole({
                                                                     </Plate>
                                                                 </Stack>
                                                                 <Typography
-                                                                    variant="caption">SUMMARY: {card.summary}</Typography>
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        letterSpacing: "0.02em",
+                                                                        lineHeight: 1.3,
+                                                                        color: semanticColors.ink,
+                                                                    }}
+                                                                >
+                                                                    SUMMARY: {card.summary}
+                                                                </Typography>
                                                                 {card.targeting.type === "unit" ? (
                                                                     isTargetingThis ? (
                                                                         <Stack direction="row" spacing={1}
@@ -639,13 +668,15 @@ export default function OpsConsole({
                                             selectedTargetUnitIds.length !==
                                               tacticTargetingSpec.count)
                                         }
-                                        tone="yellow"
+                                        tone="black"
+                                        active
                                         size="sm"
                                       />
                                       <ObliqueKey
                                         label="CANCEL"
                                         onClick={onCancelTargeting}
                                         tone="neutral"
+                                        active
                                         size="sm"
                                       />
                                     </Stack>
@@ -659,7 +690,8 @@ export default function OpsConsole({
                                         onStartTacticTargeting(card.id, card.reactionWindow);
                                       }}
                                       disabled={!canInteract || isTargetingThis}
-                                      tone="neutral"
+                                      tone="yellow"
+                                      active
                                       size="sm"
                                     />
                                   )
@@ -691,8 +723,9 @@ export default function OpsConsole({
                 {SHOW_DEV_LOGS ? (
                     <TabPanel activeId={resolvedTab} id="log">
                         <Frame
-                            titleLeft="LOG"
+                            titleLeft="BATTLE LOG"
                             accentColor="#1B1B1B"
+                            headerVariant="band"
                             contentSx={{gap: 1, backgroundColor: "var(--action-panel)"}}
                             sx={{flex: 1, minHeight: 0}}
                         >

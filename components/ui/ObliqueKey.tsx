@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import ButtonBase from "@mui/material/ButtonBase";
 import Box from "@mui/material/Box";
 import { DUR, EASE } from "@/lib/ui/motion";
+import { semanticColors, textOn } from "@/lib/ui/semanticColors";
 
 type ObliqueKeyTone = "neutral" | "blue" | "red" | "yellow" | "black";
 
@@ -17,12 +18,20 @@ type ObliqueKeyProps = {
   size?: "sm" | "md";
 };
 
-const TONE_BG: Record<ObliqueKeyTone, string> = {
-  neutral: "#E6E6E2",
-  blue: "#D9E4EF",
-  red: "#E9D0D0",
-  yellow: "#E7E0C6",
-  black: "#1B1B1B",
+const TONE_ACTIVE: Record<ObliqueKeyTone, string> = {
+  neutral: semanticColors.panel2,
+  blue: semanticColors.move,
+  red: semanticColors.attack,
+  yellow: semanticColors.dice,
+  black: semanticColors.ink,
+};
+
+const TONE_STRIPE: Record<ObliqueKeyTone, string> = {
+  neutral: semanticColors.neutralStripe,
+  blue: semanticColors.move,
+  red: semanticColors.attack,
+  yellow: semanticColors.dice,
+  black: semanticColors.ink,
 };
 
 const CLIP_PATH = "polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%)";
@@ -38,10 +47,21 @@ export default function ObliqueKey({
   endIcon,
   size = "md",
 }: ObliqueKeyProps) {
-  const isBlack = tone === "black";
-  const baseBg = TONE_BG[tone];
-  const baseColor = isBlack ? "#E6E6E2" : "#1B1B1B";
-  const stripeColor = accentColor ?? (isBlack ? "#C1121F" : undefined);
+  const activeFill = TONE_ACTIVE[tone];
+  const stripeColor = disabled
+    ? undefined
+    : active
+      ? accentColor
+      : accentColor ?? TONE_STRIPE[tone];
+  const fillColor = active ? activeFill : semanticColors.panel;
+  const hoverFill = active ? activeFill : semanticColors.panel2;
+  const textColor = active ? textOn(activeFill) : semanticColors.ink;
+  const backgroundImage = stripeColor
+    ? `linear-gradient(90deg, ${stripeColor} 0 6px, ${fillColor} 6px 100%)`
+    : "none";
+  const hoverBackgroundImage = stripeColor
+    ? `linear-gradient(90deg, ${stripeColor} 0 6px, ${hoverFill} 6px 100%)`
+    : "none";
 
   return (
     <ButtonBase
@@ -52,9 +72,10 @@ export default function ObliqueKey({
         height: size === "sm" ? { xs: 32, md: 36 } : { xs: 36, md: 40 },
         minWidth: size === "sm" ? { xs: 84, md: 96 } : { xs: 92, md: 110 },
         px: size === "sm" ? 1.5 : 2,
-        border: "2px solid #1B1B1B",
-        backgroundColor: active ? "#1B1B1B" : baseBg,
-        color: active ? "#E6E6E2" : baseColor,
+        border: `2px solid ${semanticColors.ink}`,
+        backgroundColor: fillColor,
+        backgroundImage,
+        color: textColor,
         textTransform: "uppercase",
         letterSpacing: "0.08em",
         fontWeight: 800,
@@ -70,7 +91,7 @@ export default function ObliqueKey({
           content: '""',
           position: "absolute",
           inset: 3,
-          border: "1px solid rgba(27, 27, 27, 0.35)",
+          border: `1px solid ${semanticColors.neutralStripe}`,
           clipPath: CLIP_PATH,
           pointerEvents: "none",
         },
@@ -81,23 +102,10 @@ export default function ObliqueKey({
               },
             }
           : null),
-        ...(stripeColor
-          ? {
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 6,
-                backgroundColor: stripeColor,
-                clipPath: CLIP_PATH,
-              },
-            }
-          : null),
         "&:hover": {
-          backgroundColor: "#1B1B1B",
-          color: "#E6E6E2",
+          backgroundColor: hoverFill,
+          backgroundImage: hoverBackgroundImage,
+          color: active ? textOn(activeFill) : semanticColors.ink,
         },
         "&:active": {
           transform: "translateY(1px)",
@@ -106,17 +114,19 @@ export default function ObliqueKey({
           border: "0 solid transparent",
         },
         "&.Mui-focusVisible": {
-          outline: "2px solid #1F4E79",
+          outline: `2px solid ${semanticColors.move}`,
         },
         "&.Mui-disabled": {
           opacity: 0.35,
-          color: baseColor,
-          backgroundColor: baseBg,
+          color: semanticColors.ink,
+          backgroundColor: semanticColors.panel2,
+          backgroundImage: "none",
           cursor: "default",
         },
         "&.Mui-disabled:hover": {
-          backgroundColor: baseBg,
-          color: baseColor,
+          backgroundColor: semanticColors.panel2,
+          backgroundImage: "none",
+          color: semanticColors.ink,
         },
         "&.Mui-disabled .oblique-rail": {
           opacity: 0,
@@ -138,7 +148,7 @@ export default function ObliqueKey({
           right: 4,
           bottom: -4,
           height: 2,
-          backgroundColor: "#1B1B1B",
+          backgroundColor: semanticColors.ink,
           opacity: active ? 1 : 0,
           transition: `opacity ${DUR.micro}ms ${EASE.snap}`,
           "@media (prefers-reduced-motion: reduce)": {

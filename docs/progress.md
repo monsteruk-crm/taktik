@@ -1668,3 +1668,100 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/BoardViewport.tsx`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — Bold semantic color emphasis
+
+### BEFORE
+- Most action keys, tabs, and overlays shared the same neutral concrete palette, making modes, focus, and ownership hard to scan.
+
+### NOW
+- Centralized semantic color tokens and applied active/inactive/disabled fill + stripe rules across keys, tabs, and status capsules.
+- Added a focus rail + FOCUS capsule to targeting overlays and enforced the focus tone for any targeting state.
+- Reinforced player ownership with blue/red stripes on command plates and OpsConsole headers, plus card-type stripes on pending directives.
+
+### NEXT
+- Validate color contrast on real devices and adjust token values if any state still blends.
+
+### Known limitations / TODOs
+- Some secondary plates still use neutral fills and may need further emphasis if playtests call for it.
+
+### Files touched
+- UI: `lib/ui/semanticColors.ts`, `components/ui/ObliqueKey.tsx`, `components/ui/ObliqueTabBar.tsx`, `components/ui/StatusCapsule.tsx`, `components/ui/OverlayPanel.tsx`, `components/OpsConsole.tsx`, `components/CommandHeader.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Semantic color activation fixes
+
+### BEFORE
+- Mode keys were disabled in non-action phases, so the active fill never appeared and the palette changes read as tiny edge stripes only.
+
+### NOW
+- Mode selectors stay enabled so the current mode renders as a filled accent state.
+- END TURN always renders as a black key with a red stripe when the game is active.
+- Mode status capsules inherit blue/red tones to mirror the active mode.
+
+### NEXT
+- Re-check command keys during each phase to confirm the color hierarchy still reads correctly on all device sizes.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Oblique tab/key stripe rendering fix
+
+### BEFORE
+- Accent stripes on ObliqueKey and ObliqueTabBar rendered as tiny slivers because the stripe element was clipped by a polygon larger than its width.
+
+### NOW
+- Switched oblique stripe rendering to hard-stop linear gradients so stripes fill the full 6px width while preserving the oblique clip on the button itself.
+
+### NEXT
+- Confirm stripe visibility across all tabs/keys at multiple widths, especially the EdgeCommandDock.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueKey.tsx`, `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Active tab fill by semantic color
+
+### BEFORE
+- Active tabs still filled black, with only a narrow accent stripe visible at the edge.
+
+### NOW
+- Active tabs fill with their semantic color (Cards = dice yellow, Tactics = move blue, Log = neutral gray) while preserving the oblique clip.
+
+### NEXT
+- Recheck contrast for the Log tab in low-light environments.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Color2 contrast and band headers
+
+### BEFORE
+- Active states relied on stripes, tabs still had inconsistent contrast, and pale header plates made panels blend together.
+
+### NOW
+- Added a contrast helper and expanded neutrals to enforce readable text on accent fills.
+- Introduced BandHeader and swapped OpsConsole section headers to ink bands with accent stripes for faster scanning.
+- Shifted inactive fills to panel tones, active fills to semantic accents, and updated focus actions to use bold active fills.
+- Added surface2/panel2 zone tinting and tightened body text spacing for better readability.
+
+### NEXT
+- Verify color legibility across themes and tune neutral bands if any section feels too heavy.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `lib/ui/semanticColors.ts`, `components/ui/BandHeader.tsx`, `components/ui/Frame.tsx`, `components/ui/ObliqueKey.tsx`, `components/ui/ObliqueTabBar.tsx`, `components/ui/StatusCapsule.tsx`, `components/OpsConsole.tsx`, `components/CommandHeader.tsx`, `app/page.tsx`, `app/globals.css`
+- Docs: `docs/progress.md`

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
+import { semanticColors, textOn } from "@/lib/ui/semanticColors";
 
 type CapsuleTone = "neutral" | "blue" | "red" | "yellow" | "black";
 
@@ -13,11 +14,11 @@ type StatusCapsuleProps = {
 };
 
 const TONE_BG: Record<CapsuleTone, string> = {
-  neutral: "#E6E6E2",
-  blue: "#D9E4EF",
-  red: "#E9D0D0",
-  yellow: "#E7E0C6",
-  black: "#1B1B1B",
+  neutral: semanticColors.panel,
+  blue: semanticColors.move,
+  red: semanticColors.attack,
+  yellow: semanticColors.dice,
+  black: semanticColors.ink,
 };
 
 export default function StatusCapsule({
@@ -28,8 +29,7 @@ export default function StatusCapsule({
   icon,
   maxWidth,
 }: StatusCapsuleProps) {
-  const isBlack = tone === "black";
-  const textColor = isBlack ? "#E6E6E2" : "#1B1B1B";
+  const textColor = textOn(TONE_BG[tone]);
   return (
     <Box
       sx={{
@@ -39,7 +39,7 @@ export default function StatusCapsule({
         gap: 0.5,
         px: compact ? 1 : 1.25,
         py: compact ? 0.35 : 0.6,
-        border: "2px solid #1B1B1B",
+        border: `2px solid ${semanticColors.ink}`,
         backgroundColor: TONE_BG[tone],
         color: textColor,
         textTransform: "uppercase",
@@ -51,7 +51,7 @@ export default function StatusCapsule({
           content: '""',
           position: "absolute",
           inset: 3,
-          border: "1px solid rgba(27, 27, 27, 0.25)",
+          border: `1px solid ${semanticColors.neutralStripe}`,
           pointerEvents: "none",
         },
       }}

@@ -3,12 +3,14 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import type { SxProps, Theme } from "@mui/material/styles";
 import Plate from "@/components/ui/Plate";
+import BandHeader from "@/components/ui/BandHeader";
 
 type FrameProps = {
   children: ReactNode;
   titleLeft?: string;
   titleRight?: string;
   accentColor?: string;
+  headerVariant?: "plate" | "band";
   sx?: SxProps<Theme>;
   contentSx?: SxProps<Theme>;
 };
@@ -18,6 +20,7 @@ export default function Frame({
   titleLeft,
   titleRight,
   accentColor,
+  headerVariant = "plate",
   sx,
   contentSx,
 }: FrameProps) {
@@ -54,18 +57,26 @@ export default function Frame({
         }}
       >
         {hasHeader ? (
-          <Plate accentColor={accentColor} sx={{ py: 0.5 }}>
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ width: "100%" }}
-            >
-              <span>{titleLeft}</span>
-              {titleRight ? <span>{titleRight}</span> : null}
-            </Stack>
-          </Plate>
+          headerVariant === "band" ? (
+            <BandHeader
+              titleLeft={titleLeft ?? ""}
+              titleRight={titleRight}
+              accentColor={accentColor}
+            />
+          ) : (
+            <Plate accentColor={accentColor} sx={{ py: 0.5 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ width: "100%" }}
+              >
+                <span>{titleLeft}</span>
+                {titleRight ? <span>{titleRight}</span> : null}
+              </Stack>
+            </Plate>
+          )
         ) : null}
         {children}
       </Box>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import { DUR, EASE } from "@/lib/ui/motion";
+import { semanticColors, textOn } from "@/lib/ui/semanticColors";
 
 type ObliqueTab = {
   id: string;
@@ -21,6 +22,12 @@ type ObliqueTabBarProps = {
 const SHAPE_LEFT = "polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)";
 const SHAPE_MID = "polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%)";
 const SHAPE_RIGHT = "polygon(12px 0, 100% 0, 100% 100%, 0 100%)";
+
+const TAB_STRIPE: Record<string, string> = {
+  cards: semanticColors.dice,
+  tactics: semanticColors.move,
+  log: semanticColors.neutralStripe,
+};
 
 export default function ObliqueTabBar({
   tabs,
@@ -84,6 +91,11 @@ export default function ObliqueTabBar({
       >
         {visibleTabs.map((tab, index) => {
           const isActive = tab.id === activeId;
+          const stripeColor = TAB_STRIPE[tab.id] ?? semanticColors.neutralStripe;
+          const fillColor = isActive ? stripeColor : semanticColors.panel;
+          const hoverFill = isActive ? stripeColor : semanticColors.panel2;
+          const backgroundImage = `linear-gradient(90deg, ${stripeColor} 0 6px, ${fillColor} 6px 100%)`;
+          const hoverBackgroundImage = `linear-gradient(90deg, ${stripeColor} 0 6px, ${hoverFill} 6px 100%)`;
           const shape =
             index === 0
               ? SHAPE_LEFT
@@ -104,9 +116,10 @@ export default function ObliqueTabBar({
                 position: "relative",
                 height: size === "sm" ? 40 : 44,
                 px: size === "sm" ? 2 : 2.5,
-                border: "2px solid #1B1B1B",
-                backgroundColor: isActive ? "#1B1B1B" : "#E6E6E2",
-                color: isActive ? "#E6E6E2" : "#1B1B1B",
+                border: `2px solid ${semanticColors.ink}`,
+                backgroundColor: fillColor,
+                backgroundImage,
+                color: isActive ? textOn(fillColor) : semanticColors.ink,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 fontWeight: 800,
@@ -125,17 +138,18 @@ export default function ObliqueTabBar({
                   position: "absolute",
                   inset: 3,
                   border: `1px solid ${
-                    isActive ? "rgba(230, 230, 226, 0.35)" : "rgba(27, 27, 27, 0.25)"
+                    isActive ? semanticColors.ink2 : semanticColors.neutralStripe
                   }`,
                   clipPath: shape,
                   pointerEvents: "none",
                 },
                 "&:hover": {
-                  backgroundColor: "#1B1B1B",
-                  color: "#E6E6E2",
+                  backgroundColor: hoverFill,
+                  backgroundImage: hoverBackgroundImage,
+                  color: isActive ? textOn(fillColor) : semanticColors.ink,
                 },
                 "&.Mui-focusVisible": {
-                  outline: "2px solid #1F4E79",
+                  outline: `2px solid ${semanticColors.move}`,
                   outlineOffset: 2,
                 },
                 "@media (prefers-reduced-motion: reduce)": {

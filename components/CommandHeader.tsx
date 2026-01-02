@@ -11,6 +11,7 @@ import StatusCapsule from "@/components/ui/StatusCapsule";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { shortKey, shortPhase, shortUnit } from "@/lib/ui/headerFormat";
 import { BORDER, GAP_MD, GAP_SM, PAD } from "@/lib/ui/layoutTokens";
+import { semanticColors } from "@/lib/ui/semanticColors";
 
 type KeyConfig = {
   id: string;
@@ -19,6 +20,7 @@ type KeyConfig = {
   disabled?: boolean;
   tone?: "neutral" | "blue" | "red" | "yellow" | "black";
   active?: boolean;
+  accentColor?: string;
 };
 
 type CommandHeaderProps = {
@@ -35,8 +37,6 @@ type CommandHeaderProps = {
   pendingAttackLabel: string;
   lastRollLabel: string;
   canDrawCard: boolean;
-  canMove: boolean;
-  canAttack: boolean;
   canRollDice: boolean;
   canResolveAttack: boolean;
   isGameOver: boolean;
@@ -69,8 +69,6 @@ export default function CommandHeader({
   pendingAttackLabel,
   lastRollLabel,
   canDrawCard,
-  canMove,
-  canAttack,
   canRollDice,
   canResolveAttack,
   isGameOver,
@@ -96,6 +94,9 @@ export default function CommandHeader({
   const keySize = isNarrow ? "sm" : "md";
   const phaseLabel = isNarrow ? shortPhase(phase) : phase;
   const showVp = !isTiny;
+  const playerStripe =
+    player === "PLAYER_A" ? semanticColors.playerA : semanticColors.playerB;
+  const playerTone = player === "PLAYER_A" ? "blue" : "red";
 
   const shortLabel = useCallback(
     (label: string) => (isTiny ? shortKey(label) : label),
@@ -107,7 +108,7 @@ export default function CommandHeader({
       id: "move",
       label: shortLabel("MOVE"),
       onClick: onMove,
-      disabled: !canMove,
+      disabled: isGameOver,
       tone: "blue",
       active: mode === "MOVE",
     },
@@ -115,7 +116,7 @@ export default function CommandHeader({
       id: "attack",
       label: shortLabel("ATTACK"),
       onClick: onAttack,
-      disabled: !canAttack,
+      disabled: isGameOver,
       tone: "red",
       active: mode === "ATTACK",
     },
@@ -125,6 +126,8 @@ export default function CommandHeader({
       onClick: onEndTurn,
       disabled: isGameOver,
       tone: "black",
+      accentColor: semanticColors.attack,
+      active: !isGameOver,
     },
   ];
 
@@ -150,6 +153,7 @@ export default function CommandHeader({
         onClick: onRollDice,
         disabled: !canRollDice,
         tone: "yellow",
+        active: canRollDice,
       },
       {
         id: "resolve",
@@ -277,7 +281,7 @@ export default function CommandHeader({
         onPointerUp={clearQuickReveal}
         onPointerCancel={clearQuickReveal}
         sx={{
-          backgroundColor: "var(--surface)",
+          backgroundColor: "var(--surface2)",
           borderBottom: `${BORDER}px solid #1B1B1B`,
           px: `${PAD}px`,
           py: `${GAP_SM}px`,
@@ -289,7 +293,14 @@ export default function CommandHeader({
           position: "relative",
         }}
       >
-        <StatusCapsule label="PLAYER" value={player} compact maxWidth={120} icon={null} />
+        <StatusCapsule
+          label="PLAYER"
+          value={player}
+          compact
+          maxWidth={120}
+          icon={null}
+          tone={playerTone}
+        />
         <Box
           sx={{
             display: "flex",
@@ -373,7 +384,13 @@ export default function CommandHeader({
             >
               <ObliqueKey label="MOVE" onClick={onMove} tone="blue" size="sm" />
               <ObliqueKey label="ATTACK" onClick={onAttack} tone="red" size="sm" />
-              <ObliqueKey label="END" onClick={onEndTurn} tone="black" size="sm" />
+              <ObliqueKey
+                label="END"
+                onClick={onEndTurn}
+                tone="black"
+                accentColor={semanticColors.attack}
+                size="sm"
+              />
             </Box>
           </>
         ) : null}
@@ -384,7 +401,7 @@ export default function CommandHeader({
   return (
     <Box
       sx={{
-        backgroundColor: "var(--surface)",
+        backgroundColor: "var(--surface2)",
         borderBottom: `${BORDER}px solid #1B1B1B`,
         px: `${PAD}px`,
         pt: `${PAD}px`,
@@ -402,7 +419,7 @@ export default function CommandHeader({
           alignItems: "center",
         }}
       >
-        <Plate accentColor="#1F4E79" sx={{ minWidth: 140, px: 2, py: 0.75 }}>
+        <Plate accentColor={playerStripe} sx={{ minWidth: 140, px: 2, py: 0.75 }}>
           <Typography variant="caption" fontWeight={700}>
             PLAYER: {player}
           </Typography>
@@ -467,6 +484,7 @@ export default function CommandHeader({
               disabled={key.disabled}
               tone={key.tone}
               active={key.active}
+              accentColor={key.accentColor}
               size={keySize}
             />
           ))}
@@ -485,6 +503,8 @@ export default function CommandHeader({
               onClick={key.onClick}
               disabled={key.disabled}
               tone={key.tone}
+              active={key.active}
+              accentColor={key.accentColor}
               size={keySize}
             />
           ))}
@@ -510,6 +530,7 @@ export default function CommandHeader({
             compact
             maxWidth={120}
             icon={null}
+            tone={mode === "MOVE" ? "blue" : "red"}
           />
           <StatusCapsule
             label={secondaryCollapsed.label}

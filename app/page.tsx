@@ -33,6 +33,7 @@ import StatusCapsule from "@/components/ui/StatusCapsule";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
+import { semanticColors } from "@/lib/ui/semanticColors";
 
 export default function Home() {
   type TargetingContext =
@@ -103,6 +104,8 @@ export default function Home() {
   const resolvedConsoleTab =
     !SHOW_DEV_LOGS && consoleTab === "log" ? "cards" : consoleTab;
   const consoleOpen = isNarrow && !landscapeMode ? isConsoleOpen : false;
+  const playerStripe =
+    state.activePlayer === "PLAYER_A" ? semanticColors.playerA : semanticColors.playerB;
   const resolvedQueuedTactic = useMemo(() => {
     if (!queuedTactic) {
       return null;
@@ -447,7 +450,7 @@ export default function Home() {
           setMode("MOVE");
           setSelectedAttackerId(null);
         },
-        disabled: !canMove,
+        disabled: isGameOver,
         tone: "blue" as const,
         active: mode === "MOVE",
       },
@@ -458,7 +461,7 @@ export default function Home() {
           setMode("ATTACK");
           setSelectedUnitId(null);
         },
-        disabled: !canAttack,
+        disabled: isGameOver,
         tone: "red" as const,
         active: mode === "ATTACK",
       },
@@ -468,6 +471,8 @@ export default function Home() {
         onClick: () => dispatch({ type: "END_TURN" }),
         disabled: isGameOver,
         tone: "black" as const,
+        accentColor: semanticColors.attack,
+        active: !isGameOver,
       },
       {
         id: "draw",
@@ -561,6 +566,7 @@ export default function Home() {
               disabled={key.disabled}
               tone={key.tone}
               active={key.active}
+              accentColor={key.accentColor}
               size="sm"
             />
           ))}
@@ -572,7 +578,14 @@ export default function Home() {
             gap: 1,
           }}
         >
-          <StatusCapsule label="MODE" value={mode} compact maxWidth={140} icon={null} />
+          <StatusCapsule
+            label="MODE"
+            value={mode}
+            compact
+            maxWidth={140}
+            icon={null}
+            tone={mode === "MOVE" ? "blue" : "red"}
+          />
           <StatusCapsule label="STATUS" value="READY" compact maxWidth={140} icon={null} />
           <StatusCapsule
             label="SELECTED"
@@ -599,9 +612,7 @@ export default function Home() {
       </Stack>
     );
   }, [
-    canAttack,
     canDrawCard,
-    canMove,
     canResolveAttack,
     canRollDice,
     dockShort,
@@ -734,7 +745,7 @@ export default function Home() {
         height: "100dvh",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "var(--surface)",
+        bgcolor: "var(--surface2)",
         color: "text.primary",
         overflow: "hidden",
       }}
@@ -750,7 +761,7 @@ export default function Home() {
           position: isNarrow ? "sticky" : "relative",
           top: 0,
           zIndex: 20,
-          backgroundColor: "var(--surface)",
+          backgroundColor: "var(--surface2)",
         }}
       >
         <CommandHeader
@@ -767,8 +778,6 @@ export default function Home() {
           pendingAttackLabel={pendingAttackLabel}
           lastRollLabel={lastRollLabel}
           canDrawCard={canDrawCard}
-          canMove={canMove}
-          canAttack={canAttack}
           canRollDice={canRollDice}
           canResolveAttack={canResolveAttack}
           isGameOver={isGameOver}
@@ -923,7 +932,7 @@ export default function Home() {
           onOpenChange={setIsConsoleOpen}
           topOffset={commandBarHeight}
           header={
-            <Plate accentColor="#1F4E79" sx={{ width: "100%", px: 2, py: 1 }}>
+            <Plate accentColor={playerStripe} sx={{ width: "100%", px: 2, py: 1 }}>
               <Box
                 sx={{
                   display: "flex",
@@ -994,21 +1003,11 @@ export default function Home() {
         >
           <OverlayPanel
             title={`TARGETING ${isPendingTargeting ? "PENDING CARD" : "TACTIC"}`}
-            tone={isPendingTargeting ? "focus" : "warning"}
+            tone="focus"
             accent="yellow"
             rightActions={null}
           >
-            <Box
-              aria-hidden="true"
-              sx={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: 0,
-                borderTop: "2px solid #1B1B1B",
-              }}
-            />
-            <Box sx={{ borderTop: "2px solid #1B1B1B", pt: 1 }}>
+            <Box sx={{ pt: 1 }}>
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={1}
@@ -1034,7 +1033,8 @@ export default function Home() {
                         pendingTargetingSpec?.type !== "unit" ||
                         resolvedTargetUnitIds.length !== pendingTargetingSpec.count
                       }
-                      tone="yellow"
+                      tone="black"
+                      active
                       size="sm"
                     />
                   ) : (
@@ -1045,7 +1045,8 @@ export default function Home() {
                         targetingSpec?.type !== "unit" ||
                         resolvedTargetUnitIds.length !== targetingSpec.count
                       }
-                      tone="yellow"
+                      tone="black"
+                      active
                       size="sm"
                     />
                   )}
@@ -1053,6 +1054,7 @@ export default function Home() {
                     label="CANCEL"
                     onClick={handleCancelTargeting}
                     tone="neutral"
+                    active
                     size="sm"
                   />
                 </Stack>

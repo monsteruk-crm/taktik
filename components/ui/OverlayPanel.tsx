@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import StatusCapsule from "@/components/ui/StatusCapsule";
+import { semanticColors } from "@/lib/ui/semanticColors";
 
 type OverlayTone = "neutral" | "info" | "warning" | "danger" | "focus";
 type OverlayAccent = "blue" | "red" | "yellow" | "black";
@@ -15,18 +17,18 @@ type OverlayPanelProps = {
 };
 
 const TONE_BG: Record<OverlayTone, string> = {
-  neutral: "#DEDED8",
-  info: "#D9E4EF",
-  warning: "#EFE5C7",
-  danger: "#E9D0D0",
-  focus: "#E7E0C6",
+  neutral: semanticColors.panel,
+  info: semanticColors.info,
+  warning: semanticColors.focus,
+  danger: semanticColors.danger,
+  focus: semanticColors.focus,
 };
 
 const ACCENT_COLOR: Record<OverlayAccent, string> = {
-  blue: "#1F4E79",
-  red: "#C1121F",
-  yellow: "#F2B705",
-  black: "#1B1B1B",
+  blue: semanticColors.move,
+  red: semanticColors.attack,
+  yellow: semanticColors.dice,
+  black: semanticColors.ink,
 };
 
 export default function OverlayPanel({
@@ -36,21 +38,35 @@ export default function OverlayPanel({
   children,
   rightActions,
 }: OverlayPanelProps) {
+  const showFocus = tone === "focus";
   return (
     <Box
       sx={{
         position: "relative",
         backgroundColor: TONE_BG[tone],
-        border: "2px solid #1B1B1B",
+        border: `2px solid ${semanticColors.ink}`,
         p: 2,
         display: "flex",
         flexDirection: "column",
         gap: 1.5,
+        ...(showFocus
+          ? {
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                height: 2,
+                backgroundColor: semanticColors.dice,
+              },
+            }
+          : null),
         "&::after": {
           content: '""',
           position: "absolute",
           inset: 4,
-          border: "1px solid rgba(27, 27, 27, 0.25)",
+          border: `1px solid ${semanticColors.neutralStripe}`,
           pointerEvents: "none",
         },
       }}
@@ -58,8 +74,8 @@ export default function OverlayPanel({
       <Box
         sx={{
           position: "relative",
-          border: "2px solid #1B1B1B",
-          backgroundColor: "var(--panel)",
+          border: `2px solid ${semanticColors.ink}`,
+          backgroundColor: semanticColors.panel,
           px: 1.5,
           py: 0.75,
           "&::before": {
@@ -75,7 +91,7 @@ export default function OverlayPanel({
             content: '""',
             position: "absolute",
             inset: 3,
-            border: "1px solid rgba(27, 27, 27, 0.25)",
+            border: `1px solid ${semanticColors.neutralStripe}`,
             pointerEvents: "none",
           },
         }}
@@ -86,9 +102,14 @@ export default function OverlayPanel({
           alignItems="center"
           justifyContent="space-between"
         >
-          <Typography variant="caption" fontWeight={800}>
-            {title}
-          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="caption" fontWeight={800}>
+              {title}
+            </Typography>
+            {showFocus ? (
+              <StatusCapsule label="FOCUS" value="ON" tone="yellow" compact />
+            ) : null}
+          </Stack>
           {rightActions ? <Box>{rightActions}</Box> : null}
         </Stack>
       </Box>

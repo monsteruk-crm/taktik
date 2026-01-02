@@ -6,9 +6,10 @@
   --font-geist-sans: "Geist", "IBM Plex Sans", "DIN", "Inter", sans-serif;
   --font-geist-mono: "Geist Mono", "IBM Plex Mono", "SFMono-Regular", monospace;
   --surface: #E6E6E2;
+  --surface2: #EFEFEA;
   --panel: #DEDED8;
-  --action-panel: #DADAD4;
-  --board-surface: #EDEDE8;
+  --action-panel: #D2D2CB;
+  --board-surface: #EFEFEA;
 }
 
 @theme inline {

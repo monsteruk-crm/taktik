@@ -180,3 +180,37 @@ The UI must communicate meaning through **semantic color**, not just text.
 - gradients, glow, blur
 - transparency that reveals the board under panels
 - “soft” shadows to create hierarchy
+
+## Contrast and Legibility Rules (HARD GATE)
+
+The UI must be readable instantly by non-expert users. Structure alone is not enough.
+
+### CL-1 Text contrast is mandatory
+- Text must maintain strong contrast against its background.
+- Yellow surfaces MUST use dark text (ink). White-on-yellow is forbidden.
+- For any filled accent state, text color must be chosen by background luminance:
+  - light backgrounds → ink text
+  - dark backgrounds → surface text
+
+### CL-2 Active state must be a filled semantic block
+- ACTIVE controls (mode keys, selected tab, confirm/select buttons) MUST use a filled semantic color.
+- INACTIVE controls MUST use neutral fill + accent stripe (not filled).
+- DISABLED controls must look depowered (neutral darker fill + 0.35 opacity + no hover).
+
+### CL-3 Every major panel must have a Band Header
+To guide scanning:
+- Console header and section headers MUST use a bold “BandHeader” pattern:
+  - ink background
+  - high-contrast text
+  - optional semantic stripe for meaning
+
+### CL-4 Zone tinting is required
+Major regions must be visually separated using flat opaque fills:
+- Command header
+- Board surface frame
+- Ops console
+- Internal console panels
+
+### CL-5 Focus mode must be unmistakable
+Targeting/selection overlays MUST use an opaque “FOCUS” tone and a yellow rail.
+Transparency over the board is forbidden.
