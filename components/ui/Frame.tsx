@@ -27,20 +27,29 @@ export default function Frame({
       sx={{
         position: "relative",
         border: "2px solid #1B1B1B",
-        p: 0.75,
+        p: 0,
         backgroundColor: "transparent",
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          inset: 4,
+          border: "1px solid rgba(27, 27, 27, 0.25)",
+          pointerEvents: "none",
+        },
         ...sx,
       }}
     >
       <Box
         sx={{
-          border: "2px solid #1B1B1B",
           p: 1.5,
           height: "100%",
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
           gap: 1.5,
+          position: "relative",
+          zIndex: 1,
+          backgroundColor: "var(--panel)",
           ...contentSx,
         }}
       >

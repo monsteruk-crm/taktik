@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
-import type { SxProps, Theme } from "@mui/material/styles";
+import type { BoxProps } from "@mui/material/Box";
 
 type PlateProps = {
   children: ReactNode;
   accentColor?: string;
-  sx?: SxProps<Theme>;
-};
+} & BoxProps;
 
-export default function Plate({ children, accentColor, sx }: PlateProps) {
+export default function Plate({ children, accentColor, sx, ...rest }: PlateProps) {
   return (
     <Box
+      {...rest}
       sx={{
         position: "relative",
         border: "2px solid #1B1B1B",

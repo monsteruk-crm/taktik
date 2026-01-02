@@ -195,6 +195,8 @@ If unsure → do NOT write to MCP.
 
 - Use MUI components for every UI element when possible.
 - The index of all MUI components is in `docs/mui_index.md`.
+- UI structure, hierarchy, motion, and framing are governed by §15 and `/docs/design/UI_GLOBAL_RULES.md`
+
 
 ### Use the mui-mcp server to answer any MUI questions
 - call the "useMuiDocs" tool to fetch the docs of the package relevant in the question
@@ -225,3 +227,65 @@ When making **any** UI or styling changes, Codex MUST follow the design system a
 Failure to follow these design docs is a HARD FAIL for any UI-related task.
 
 Codex MUST self-check against this file before responding.
+
+---
+
+## 15. UI Command Console Rules (HARD GATE)
+
+These rules apply to **ALL UI work** in Taktik.
+They are non-negotiable and exist to prevent regression into generic “web app” UI.
+
+Codex MUST read and comply with:
+- `/docs/ui/UI_GLOBAL_RULES.md`
+
+Failure to comply with these rules is a HARD FAIL for any UI-related task.
+
+### 15.1 Core UI Doctrine
+- The UI is a **military command console**, not a dashboard.
+- Flat, hard-edged, manufactured visuals only.
+- No gradients, glow, blur, glass, soft shadows, or rounded corners.
+- Borders, frames, plates, and inset lines define hierarchy — not effects.
+
+### 15.2 Board-First Rule
+- The board is the primary surface.
+- UI elements must support the board, never compete with it.
+- Panels appear contextually; no permanent dashboards on small screens.
+
+### 15.3 Frame Hierarchy Rule (CRITICAL)
+Every UI container must belong to exactly ONE of these semantic types:
+- SURFACE
+- FRAME
+- PANEL
+- FOCUS PANEL
+
+Rules:
+- Only ONE outer border (2px) per region.
+- Nested components may use dividers or header plates, NOT additional frames.
+- “Double box” layouts are forbidden.
+
+### 15.4 Color & Opacity Rule
+- All panels must be **fully opaque**.
+- Transparency over the board is forbidden.
+- Hierarchy must be expressed via approved flat fills, not opacity or shadows.
+
+### 15.5 Interaction Primitives (MANDATORY)
+Codex MUST use existing UI primitives:
+- `ObliqueKey` for primary actions
+- `ObliqueTabBar` for console tabs
+- `StatusCapsule` + `ChevronDivider` for state display
+- `OverlayPanel` for targeting / critical directives
+
+No ad-hoc buttons or panels are allowed.
+
+### 15.6 Motion Discipline
+- Motion must follow defined animation roles (phase advance, intent, panel reveal).
+- No animation may move the board or cause layout shift.
+- Reduced-motion must be respected.
+- Dev-only UI (LOG) must not animate.
+
+### 15.7 Mobile Rule (HARD)
+- NO horizontal scrolling at mobile widths.
+- Ops Console becomes a bottom sheet on narrow screens.
+- Command bar wraps; it must never scroll horizontally.
+
+Codex MUST self-check UI changes against these rules before responding.

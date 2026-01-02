@@ -1,18 +1,17 @@
 import type {ReactNode, RefObject} from "react";
 import {useEffect, useMemo, useState} from "react";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import ButtonBase from "@mui/material/ButtonBase";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import type {CardDefinition, ReactionWindow, TargetingSpec} from "@/lib/engine/gameState";
 import CardArt from "@/lib/ui/CardArt";
 import Frame from "@/components/ui/Frame";
 import Plate from "@/components/ui/Plate";
+import ObliqueKey from "@/components/ui/ObliqueKey";
+import ObliqueTabBar from "@/components/ui/ObliqueTabBar";
+import {DUR, EASE, useReducedMotion} from "@/lib/ui/motion";
 
 type OpsConsoleProps = {
     commonDeckCount: number;
@@ -37,6 +36,11 @@ type OpsConsoleProps = {
     logRef?: RefObject<HTMLDivElement | null>;
     logRowHeight?: number;
     fillHeight?: boolean;
+    scrollMode?: "panel" | "body";
+    activeTab?: "cards" | "tactics" | "log";
+    onTabChange?: (tab: "cards" | "tactics" | "log") => void;
+    showHeader?: boolean;
+    showTabs?: boolean;
     onStoreBonus: () => void;
     onDrawCard: () => void;
     onStartPendingTargeting: () => void;
@@ -62,32 +66,34 @@ const windowLabels: Record<ReactionWindow, string> = {
     afterMove: "AFTER MOVE",
     beforeAttackRoll: "BEFORE ATTACK ROLL",
     afterAttackRoll: "AFTER ATTACK ROLL",
-    beforeDamage: "BEFORE DAMAGE",
+  beforeDamage: "BEFORE DAMAGE",
 };
 
+const SHOW_DEV_LOGS = process.env.NEXT_PUBLIC_SHOW_DEV_LOGS === "true";
+
 function TabPanel({
-                      children,
-                      active,
-                      index,
-                  }: {
+    children,
+    activeId,
+    id,
+}: {
     children: ReactNode;
-    active: number;
-    index: number;
+    activeId: string;
+    id: string;
 }) {
-    return (
-        <Box
-            role="tabpanel"
-            hidden={active !== index}
-            sx={{
-                flex: 1,
-                minHeight: 0,
-                display: active === index ? "flex" : "none",
-                flexDirection: "column",
-            }}
-        >
-            {active === index ? children : null}
-        </Box>
-    );
+  return (
+    <Box
+      role="tabpanel"
+      hidden={activeId !== id}
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        display: activeId === id ? "flex" : "none",
+        flexDirection: "column",
+      }}
+    >
+      {activeId === id ? children : null}
+    </Box>
+  );
 }
 
 export default function OpsConsole({
@@ -113,6 +119,11 @@ export default function OpsConsole({
                                        logRef,
                                        logRowHeight = 18,
                                        fillHeight = true,
+                                       scrollMode = "panel",
+                                       activeTab,
+                                       onTabChange,
+                                       showHeader = true,
+                                       showTabs = true,
                                        onStoreBonus,
                                        onDrawCard,
                                        onStartPendingTargeting,
@@ -123,9 +134,13 @@ export default function OpsConsole({
                                        onConfirmTacticTargets,
                                        onCancelTargeting,
                                        onClearQueuedTactic,
-                                   }: OpsConsoleProps) {
-    const [tabIndex, setTabIndex] = useState(0);
+}: OpsConsoleProps) {
+    const [internalTab, setInternalTab] = useState<"cards" | "tactics" | "log">("cards");
+    const resolvedTab = activeTab ?? internalTab;
+    const setTab = onTabChange ?? setInternalTab;
     const [expandedBonusId, setExpandedBonusId] = useState<string | null>(null);
+    const reducedMotion = useReducedMotion();
+    const useBodyScroll = scrollMode === "body";
     const pendingTargetingLabel =
         pendingTargetingSpec?.type === "unit"
             ? `TARGET: ${pendingTargetingSpec.count} ${
@@ -134,12 +149,18 @@ export default function OpsConsole({
             : "TARGET: NONE";
     const disablePendingTargeting = isTacticTargeting;
     const disableTacticControls = isPendingTargeting;
-    const groupedTactics = useMemo(() => {
-        return WINDOW_ORDER.map((window) => ({
-            window,
-            cards: tactics.filter((card) => card.reactionWindow === window),
-        })).filter((group) => group.cards.length > 0);
-    }, [tactics]);
+  const groupedTactics = useMemo(() => {
+    return WINDOW_ORDER.map((window) => ({
+      window,
+      cards: tactics.filter((card) => card.reactionWindow === window),
+    })).filter((group) => group.cards.length > 0);
+  }, [tactics]);
+
+  useEffect(() => {
+    if (!SHOW_DEV_LOGS && resolvedTab === "log") {
+      setTab("cards");
+    }
+  }, [resolvedTab, setTab]);
 
     useEffect(() => {
         function handleKeyDown(event: KeyboardEvent) {
@@ -158,123 +179,100 @@ export default function OpsConsole({
         return undefined;
     }, [isPendingTargeting, isTacticTargeting, onCancelTargeting]);
 
-    useEffect(() => {
-        if (tabIndex === 2 && logRef?.current) {
-            logRef.current.scrollTop = logRef.current.scrollHeight;
-        }
-    }, [logEntries.length, logRef, tabIndex]);
+  useEffect(() => {
+    if (!useBodyScroll && resolvedTab === "log" && logRef?.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [resolvedTab, logEntries.length, logRef, useBodyScroll]);
 
     return (
-        <Box
-            sx={{
+            <Box
+                sx={{
                 height: fillHeight ? "100%" : "auto",
                 display: "flex",
                 flexDirection: "column",
                 minHeight: fillHeight ? 0 : "auto",
                 flex: fillHeight ? 1 : "0 0 auto",
-                bgcolor: "background.default",
+                bgcolor: "var(--panel)",
                 overflowX: "hidden",
             }}
         >
-            <Box sx={{px: 2, pt: 2, pb: 1}}>
-                <Plate accentColor="#1F4E79" sx={{width: "100%", px: 2, py: 1}}>
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            width: "100%",
-                        }}
-                    >
-                        <Typography variant="caption" fontWeight={700}>
-                            TAKTIK COMMAND
-                        </Typography>
-                        <Typography variant="caption">
-                            PLAYER: {activePlayer} • TURN: {turn}
-                        </Typography>
-                    </Box>
-                </Plate>
-            </Box>
-
-            <Box sx={{px: 2, pb: 1}}>
-                <Tabs
-                    value={tabIndex}
-                    onChange={(_, value) => setTabIndex(value)}
-                    variant="fullWidth"
-                    slotProps={{
-                        indicator: {
-                            sx: {display: "none"}
-                        }
-                    }}
-                    sx={{
-                        minHeight: 44,
-                        gap: 1,
-                    }}
-                >
-                    {["CARDS", "TACTICS", "LOG"].map((label) => (
-                        <Tab
-                            key={label}
-                            label={label}
+            {showHeader ? (
+                <Box sx={{px: 2, pt: 2, pb: 1}}>
+                    <Plate accentColor="#1F4E79" sx={{width: "100%", px: 2, py: 1}}>
+                        <Box
                             sx={{
-                                border: "2px solid #1B1B1B",
-                                minHeight: 44,
-                                backgroundColor: "#E6E6E2",
-                                color: "#1B1B1B",
-                                letterSpacing: "0.08em",
-                                fontWeight: 700,
-                                "&.Mui-selected": {
-                                    backgroundColor: "#1B1B1B",
-                                    color: "#E6E6E2",
-                                },
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                width: "100%",
                             }}
-                        />
-                    ))}
-                </Tabs>
-            </Box>
+                        >
+                            <Typography variant="caption" fontWeight={700}>
+                                TAKTIK COMMAND
+                            </Typography>
+                            <Typography variant="caption">
+                                PLAYER: {activePlayer} • TURN: {turn}
+                            </Typography>
+                        </Box>
+                    </Plate>
+                </Box>
+            ) : null}
+
+            {showTabs ? (
+                <Box sx={{px: 2, pb: 1}}>
+                    <ObliqueTabBar
+                        tabs={[
+                            {id: "cards", label: "CARDS"},
+                            {id: "tactics", label: "TACTICS"},
+                            {id: "log", label: "LOG", hidden: !SHOW_DEV_LOGS},
+                        ]}
+                        activeId={resolvedTab}
+                        onChange={(id) => setTab(id as "cards" | "tactics" | "log")}
+                        size="md"
+                    />
+                    <Box sx={{borderBottom: "2px solid #1B1B1B", mt: 0.5}}/>
+                </Box>
+            ) : null}
 
             <Box
                 sx={{
                     flex: 1,
                     minHeight: 0,
-                    overflow: "hidden",
-                    px: 2,
-                    pb: 2,
+                    overflow: useBodyScroll ? "visible" : "hidden",
+                    px: useBodyScroll ? 0 : 2,
+                    pb: useBodyScroll ? 1.5 : 2,
                     display: "flex",
                     flexDirection: "column",
                 }}
             >
-                <TabPanel active={tabIndex} index={0}>
-                    <Box sx={{flex: 1, minHeight: 0, overflow: "auto"}}>
+                <TabPanel activeId={resolvedTab} id="cards">
+                    <Box
+                        sx={{
+                            flex: useBodyScroll ? "0 0 auto" : 1,
+                            minHeight: useBodyScroll ? "auto" : 0,
+                            overflow: useBodyScroll ? "visible" : "auto",
+                        }}
+                    >
                         <Stack spacing={2}>
                             <Plate sx={{justifyContent: "space-between", width: "100%"}}>
                                 <Typography variant="caption" fontWeight={700}>
                                     COMMON DECK: {commonDeckCount}
                                 </Typography>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
+                                <ObliqueKey
+                                    label="DRAW"
                                     onClick={onDrawCard}
                                     disabled={!canDrawCard}
-                                    sx={{
-                                        border: "2px solid #1B1B1B",
-                                        backgroundColor: "#E6E6E2",
-                                        color: "#1B1B1B",
-                                        "&:hover": {
-                                            backgroundColor: "#1B1B1B",
-                                            color: "#E6E6E2",
-                                        },
-                                        "&.Mui-disabled": {
-                                            opacity: 0.35,
-                                            backgroundColor: "#E6E6E2",
-                                            color: "#1B1B1B",
-                                        },
-                                    }}
-                                >
-                                    DRAW
-                                </Button>
+                                    tone="neutral"
+                                    size="sm"
+                                />
                             </Plate>
 
-                            <Frame titleLeft="PENDING CARD DIRECTIVE" accentColor="#1F4E79">
+                            <Frame
+                                titleLeft="PENDING CARD DIRECTIVE"
+                                accentColor="#1F4E79"
+                                contentSx={{backgroundColor: "var(--action-panel)"}}
+                            >
                                 {pendingCard ? (
                                     <Box
                                         sx={{
@@ -335,64 +333,60 @@ export default function OpsConsole({
                                                         : selectedTargetUnitIds.join(", ")}
                                                 </Typography>
                                             ) : null}
-                                            <Box
-                                                sx={{
-                                                    mt: "auto",
-                                                    display: "flex",
-                                                    flexWrap: "wrap",
-                                                    gap: 1,
-                                                    justifyContent: "flex-end",
-                                                }}
-                                            >
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    onClick={
-                                                        pendingTargetingSpec?.type === "unit"
-                                                            ? onStartPendingTargeting
-                                                            : onPlayPendingCard
-                                                    }
-                                                    disabled={
-                                                        !canPlayCard ||
-                                                        disablePendingTargeting ||
-                                                        (pendingTargetingSpec?.type === "unit" && isPendingTargeting)
-                                                    }
-                                                >
-                                                    {pendingTargetingSpec?.type === "unit" ? "SELECT TARGETS" : "PLAY"}
-                                                </Button>
-                                                {pendingTargetingSpec?.type === "unit" ? (
-                                                    <>
-                                                        <Button
-                                                            variant="outlined"
-                                                            size="small"
-                                                            onClick={onConfirmPendingTargets}
-                                                            disabled={
-                                                                !canPlayCard ||
-                                                                !isPendingTargeting ||
-                                                                selectedTargetUnitIds.length !== pendingTargetingSpec.count
-                                                            }
-                                                        >
-                                                            CONFIRM
-                                                        </Button>
-                                                        <Button
-                                                            variant="outlined"
-                                                            size="small"
-                                                            onClick={onCancelTargeting}
-                                                            disabled={!isPendingTargeting}
-                                                        >
-                                                            CANCEL
-                                                        </Button>
-                                                    </>
-                                                ) : null}
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    onClick={onStoreBonus}
-                                                    disabled={!canStoreBonus}
-                                                >
-                                                    STORE
-                                                </Button>
-                                            </Box>
+                        <Box
+                            sx={{
+                                mt: "auto",
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 1,
+                                justifyContent: "flex-end",
+                            }}
+                        >
+                            <ObliqueKey
+                                label={pendingTargetingSpec?.type === "unit" ? "SELECT TARGETS" : "PLAY"}
+                                onClick={
+                                    pendingTargetingSpec?.type === "unit"
+                                        ? onStartPendingTargeting
+                                        : onPlayPendingCard
+                                }
+                                disabled={
+                                    !canPlayCard ||
+                                    disablePendingTargeting ||
+                                    (pendingTargetingSpec?.type === "unit" && isPendingTargeting)
+                                }
+                                tone="neutral"
+                                size="sm"
+                            />
+                            {pendingTargetingSpec?.type === "unit" ? (
+                                <>
+                                    <ObliqueKey
+                                        label="CONFIRM"
+                                        onClick={onConfirmPendingTargets}
+                                        disabled={
+                                            !canPlayCard ||
+                                            !isPendingTargeting ||
+                                            selectedTargetUnitIds.length !== pendingTargetingSpec.count
+                                        }
+                                        tone="yellow"
+                                        size="sm"
+                                    />
+                                    <ObliqueKey
+                                        label="CANCEL"
+                                        onClick={onCancelTargeting}
+                                        disabled={!isPendingTargeting}
+                                        tone="neutral"
+                                        size="sm"
+                                    />
+                                </>
+                            ) : null}
+                            <ObliqueKey
+                                label="STORE"
+                                onClick={onStoreBonus}
+                                disabled={!canStoreBonus}
+                                tone="neutral"
+                                size="sm"
+                            />
+                        </Box>
                                         </Box>
                                     </Box>
                                 ) : (
@@ -404,6 +398,7 @@ export default function OpsConsole({
                                 titleLeft="STORED BONUSES"
                                 titleRight={`${storedBonuses.length}/6`}
                                 accentColor="#8A8F94"
+                                contentSx={{backgroundColor: "var(--action-panel)"}}
                             >
                                 {storedBonuses.length === 0 ? (
                                     <Typography variant="caption">NONE</Typography>
@@ -411,32 +406,44 @@ export default function OpsConsole({
                                     <Box
                                         sx={{
                                             display: "grid",
-                                            gridAutoFlow: {xs: "column", md: "row"},
-                                            gridTemplateColumns: {md: "repeat(2, minmax(0, 1fr))"},
-                                            gridAutoColumns: {xs: "minmax(160px, 1fr)", md: "auto"},
+                                            gridTemplateColumns: {
+                                                xs: "minmax(0, 1fr)",
+                                                sm: "repeat(2, minmax(0, 1fr))",
+                                            },
                                             gap: 1,
-                                            overflowX: {xs: "auto", md: "visible"},
-                                            scrollSnapType: {xs: "x mandatory", md: "none"},
-                                            pb: 0.5,
                                         }}
                                     >
                                         {storedBonuses.map((card) => {
                                             const isExpanded = expandedBonusId === card.id;
                                             return (
-                                                <Box key={card.id} sx={{scrollSnapAlign: "start"}}>
-                                                    <ButtonBase
+                                                <Box key={card.id}>
+                                                    <Plate
+                                                        component="button"
                                                         onClick={() =>
                                                             setExpandedBonusId(isExpanded ? null : card.id)
                                                         }
                                                         sx={{
                                                             width: "100%",
-                                                            border: "2px solid #1B1B1B",
-                                                            backgroundColor: "#E6E6E2",
-                                                            p: 1,
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            gap: 1,
+                                                            justifyContent: "flex-start",
                                                             textAlign: "left",
+                                                            gap: 1,
+                                                            px: 1,
+                                                            py: 0.75,
+                                                            cursor: "pointer",
+                                                            textTransform: "none",
+                                                            letterSpacing: "0.04em",
+                                                            "&:active": {
+                                                                transform: "translateY(1px)",
+                                                            },
+                                                            "&:focus-visible": {
+                                                                outline: "2px solid #1F4E79",
+                                                                outlineOffset: 2,
+                                                            },
+                                                            "@media (prefers-reduced-motion: reduce)": {
+                                                                "&:active": {
+                                                                    transform: "none",
+                                                                },
+                                                            },
                                                         }}
                                                     >
                                                         <Box sx={{width: 56, flexShrink: 0}}>
@@ -458,13 +465,18 @@ export default function OpsConsole({
                                                         >
                                                             {card.name}
                                                         </Typography>
-                                                    </ButtonBase>
-                                                    <Collapse in={isExpanded} timeout={150}>
+                                                    </Plate>
+                        <Collapse
+                          in={isExpanded}
+                          timeout={reducedMotion ? 0 : DUR.standard}
+                          easing={EASE.stiff}
+                        >
                                                         <Box
                                                             sx={{
-                                                                border: "2px solid #1B1B1B",
+                                                                border: "1px solid rgba(27, 27, 27, 0.35)",
                                                                 borderTop: 0,
                                                                 p: 1,
+                                                                backgroundColor: "var(--panel)",
                                                             }}
                                                         >
                                                             <Typography variant="caption">
@@ -482,8 +494,14 @@ export default function OpsConsole({
                     </Box>
                 </TabPanel>
 
-                <TabPanel active={tabIndex} index={1}>
-                    <Box sx={{flex: 1, minHeight: 0, overflow: "auto"}}>
+                <TabPanel activeId={resolvedTab} id="tactics">
+                    <Box
+                        sx={{
+                            flex: useBodyScroll ? "0 0 auto" : 1,
+                            minHeight: useBodyScroll ? "auto" : 0,
+                            overflow: useBodyScroll ? "visible" : "auto",
+                        }}
+                    >
                         <Stack spacing={2}>
                             <Plate sx={{flexDirection: "column", alignItems: "flex-start", gap: 1}}>
                                 <Typography variant="caption" fontWeight={700}>
@@ -525,28 +543,23 @@ export default function OpsConsole({
                                         <Typography variant="caption" fontWeight={700}>
                                             ARMED: {queuedTacticCard.name} ({queuedTactic?.window})
                                         </Typography>
-                                        <Button
-                                            variant="outlined"
-                                            size="small"
-                                            onClick={onClearQueuedTactic}
-                                            sx={{
-                                                borderColor: "#E6E6E2",
-                                                color: "#E6E6E2",
-                                                "&:hover": {
-                                                    backgroundColor: "#E6E6E2",
-                                                    color: "#1F4E79",
-                                                    borderColor: "#E6E6E2",
-                                                },
-                                            }}
-                                        >
-                                            CLEAR
-                                        </Button>
+                    <ObliqueKey
+                      label="CLEAR"
+                      onClick={onClearQueuedTactic}
+                      tone="black"
+                      size="sm"
+                      accentColor="#E6E6E2"
+                    />
                                     </Box>
                                 </Plate>
                             ) : null}
 
                             {isTacticTargeting && tacticTargetingCard ? (
-                                <Frame titleLeft="TACTIC TARGETING" accentColor="#F2B705">
+                                <Frame
+                                    titleLeft="TACTIC TARGETING"
+                                    accentColor="#F2B705"
+                                    contentSx={{backgroundColor: "var(--action-panel)"}}
+                                >
                                     <Stack spacing={0.5}>
                                         <Typography variant="caption" fontWeight={700}>
                                             {tacticTargetingCard.name}
@@ -568,6 +581,7 @@ export default function OpsConsole({
                                         key={group.window}
                                         titleLeft={`WINDOW: ${windowLabels[group.window]}`}
                                         accentColor="#8A8F94"
+                                        contentSx={{backgroundColor: "var(--action-panel)"}}
                                     >
                                         <Stack spacing={1}>
                                             {group.cards.map((card) => {
@@ -616,55 +630,51 @@ export default function OpsConsole({
                                                                     isTargetingThis ? (
                                                                         <Stack direction="row" spacing={1}
                                                                                flexWrap="wrap">
-                                                                            <Button
-                                                                                variant="outlined"
-                                                                                size="small"
-                                                                                onClick={onConfirmTacticTargets}
-                                                                                disabled={
-                                                                                    !tacticTargetingSpec ||
-                                                                                    (tacticTargetingSpec.type === "unit" &&
-                                                                                        selectedTargetUnitIds.length !==
-                                                                                        tacticTargetingSpec.count)
-                                                                                }
-                                                                            >
-                                                                                CONFIRM
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="outlined"
-                                                                                size="small"
-                                                                                onClick={onCancelTargeting}
-                                                                            >
-                                                                                CANCEL
-                                                                            </Button>
-                                                                        </Stack>
-                                                                    ) : (
-                                                                        <Button
-                                                                            variant="outlined"
-                                                                            size="small"
-                                                                            onClick={() => {
-                                                                                if (!card.reactionWindow) {
-                                                                                    return;
-                                                                                }
-                                                                                onStartTacticTargeting(card.id, card.reactionWindow);
-                                                                            }}
-                                                                            disabled={!canInteract || isTargetingThis}
-                                                                        >
-                                                                            SELECT TARGETS
-                                                                        </Button>
-                                                                    )
-                                                                ) : (
-                                                                    <Button
-                                                                        variant="outlined"
-                                                                        size="small"
-                                                                        onClick={() =>
-                                                                            card.reactionWindow &&
-                                                                            onQueueTactic(card.id, card.reactionWindow)
-                                                                        }
-                                                                        disabled={!canInteract || isQueued}
-                                                                    >
-                                                                        {isQueued ? "ARMED" : "ARM"}
-                                                                    </Button>
-                                                                )}
+                                      <ObliqueKey
+                                        label="CONFIRM"
+                                        onClick={onConfirmTacticTargets}
+                                        disabled={
+                                          !tacticTargetingSpec ||
+                                          (tacticTargetingSpec.type === "unit" &&
+                                            selectedTargetUnitIds.length !==
+                                              tacticTargetingSpec.count)
+                                        }
+                                        tone="yellow"
+                                        size="sm"
+                                      />
+                                      <ObliqueKey
+                                        label="CANCEL"
+                                        onClick={onCancelTargeting}
+                                        tone="neutral"
+                                        size="sm"
+                                      />
+                                    </Stack>
+                                  ) : (
+                                    <ObliqueKey
+                                      label="SELECT TARGETS"
+                                      onClick={() => {
+                                        if (!card.reactionWindow) {
+                                          return;
+                                        }
+                                        onStartTacticTargeting(card.id, card.reactionWindow);
+                                      }}
+                                      disabled={!canInteract || isTargetingThis}
+                                      tone="neutral"
+                                      size="sm"
+                                    />
+                                  )
+                                ) : (
+                                  <ObliqueKey
+                                    label={isQueued ? "ARMED" : "ARM"}
+                                    onClick={() =>
+                                      card.reactionWindow &&
+                                      onQueueTactic(card.id, card.reactionWindow)
+                                    }
+                                    disabled={!canInteract || isQueued}
+                                    tone="neutral"
+                                    size="sm"
+                                  />
+                                )}
                                                             </Stack>
                                                         </Stack>
                                                     </Box>
@@ -678,42 +688,44 @@ export default function OpsConsole({
                     </Box>
                 </TabPanel>
 
-                <TabPanel active={tabIndex} index={2}>
-                    <Frame
-                        titleLeft="LOG"
-                        accentColor="#1B1B1B"
-                        contentSx={{gap: 1}}
-                        sx={{flex: 1, minHeight: 0}}
-                    >
-                        <Box
-                            ref={logRef}
-                            sx={{
-                                flex: 1,
-                                minHeight: 0,
-                                overflowY: "auto",
-                                fontFamily: "var(--font-geist-mono)",
-                            }}
+                {SHOW_DEV_LOGS ? (
+                    <TabPanel activeId={resolvedTab} id="log">
+                        <Frame
+                            titleLeft="LOG"
+                            accentColor="#1B1B1B"
+                            contentSx={{gap: 1, backgroundColor: "var(--action-panel)"}}
+                            sx={{flex: 1, minHeight: 0}}
                         >
-                            {logEntries.length === 0 ? (
-                                <Typography variant="caption">NO LOG ENTRIES.</Typography>
-                            ) : (
-                                logEntries.map((entry, index) => (
-                                    <Box
-                                        key={`${entry}-${index}`}
-                                        sx={{
-                                            minHeight: `${logRowHeight}px`,
-                                            lineHeight: `${logRowHeight}px`,
-                                            borderBottom: "2px solid rgba(27, 27, 27, 0.25)",
-                                            px: 0.5,
-                                        }}
-                                    >
-                                        <Typography variant="caption">{entry || " "}</Typography>
-                                    </Box>
-                                ))
-                            )}
-                        </Box>
-                    </Frame>
-                </TabPanel>
+                            <Box
+                                ref={logRef}
+                                sx={{
+                                    flex: 1,
+                                    minHeight: 0,
+                                    overflowY: useBodyScroll ? "visible" : "auto",
+                                    fontFamily: "var(--font-geist-mono)",
+                                }}
+                            >
+                                {logEntries.length === 0 ? (
+                                    <Typography variant="caption">NO LOG ENTRIES.</Typography>
+                                ) : (
+                                    logEntries.map((entry, index) => (
+                                        <Box
+                                            key={`${entry}-${index}`}
+                                            sx={{
+                                                minHeight: `${logRowHeight}px`,
+                                                lineHeight: `${logRowHeight}px`,
+                                                borderBottom: "2px solid rgba(27, 27, 27, 0.25)",
+                                                px: 0.5,
+                                            }}
+                                        >
+                                            <Typography variant="caption">{entry || " "}</Typography>
+                                        </Box>
+                                    ))
+                                )}
+                            </Box>
+                        </Frame>
+                    </TabPanel>
+                ) : null}
             </Box>
         </Box>
     );

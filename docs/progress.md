@@ -1367,3 +1367,185 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/OpsConsole.tsx`, `app/page.tsx`
 - Docs: `docs/progress.md`
+
+## 2026-01-02 — Oblique command keys
+
+### BEFORE
+- Command bar actions used rectangular plates; no oblique/parallelogram styling.
+
+### NOW
+- Added `components/ui/ObliqueKey.tsx` and replaced command bar actions with oblique, clipped keys (flat, no gradients) including focus, hover inversion, and pressed state.
+- Ensured command keys wrap (no horizontal scroll) and preserved all action enable/disable logic.
+
+### NEXT
+- Verify keyboard focus and activation for all command keys.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueKey.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`
+
+## 2026-01-02 — Oblique tab strip + status capsules
+
+### BEFORE
+- Ops Console tabs were rectangular plates with spacing and the log tab was always visible.
+- Command plate stats used plain plates without iconography or chevron separators.
+
+### NOW
+- Added oblique, joined tab strip via `ObliqueTabBar`, with LOG gated behind `NEXT_PUBLIC_SHOW_DEV_LOGS=true`.
+- Introduced micro UI primitives (StatusCapsule, ChevronDivider, MicroIcon) and rebuilt command plate stats into capsule groups with icons and chevrons.
+- Updated the manual UI smoke checks to note the dev-only log tab.
+
+### NEXT
+- Validate tab keyboard navigation (arrow keys + Enter/Space) across desktop and mobile.
+
+### Known limitations / TODOs
+- The oblique tab strip allows horizontal scroll only if tabs cannot fit; prefer adjusting labels if it becomes common.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`, `components/ui/StatusCapsule.tsx`, `components/ui/ChevronDivider.tsx`, `components/ui/MicroIcon.tsx`, `components/OpsConsole.tsx`, `app/page.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+## 2026-01-02 — Phase ruler + motion tokens
+
+### BEFORE
+- The command bar had no phase progress indicator and UI motion was implicit.
+
+### NOW
+- Added `PhaseRuler` under the command bar with segmented progression, ticks, and active marker.
+- Added motion tokens in `lib/ui/motion.ts` and applied them to phase transitions, oblique keys, tabs, and collapsible panels with reduced-motion support.
+- Updated UI smoke checks to include the phase ruler.
+
+### NEXT
+- Verify reduced-motion behavior on systems with motion reduction enabled.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/PhaseRuler.tsx`, `lib/ui/motion.ts`, `components/ui/ObliqueKey.tsx`, `components/ui/ObliqueTabBar.tsx`, `components/OpsConsole.tsx`, `app/page.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+
+## 2026-01-02 — Targeting overlay frame hierarchy
+
+### BEFORE
+- The bottom targeting panel looked semi-transparent and visually bled into the board, with multiple nested frames creating double borders.
+
+### NOW
+- Added an opaque `OverlayPanel` primitive with a single outer border, inset line, and header plate.
+- Rebuilt the targeting overlay using the new panel, added a top rail divider, and aligned it to the play surface for a solid, anchored feel.
+- Introduced explicit surface color tokens for surface/panel/action/board backgrounds.
+
+### NEXT
+- Validate targeting overlay clarity across phases (pending card vs tactic) and on narrow screens.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/OverlayPanel.tsx`, `app/page.tsx`, `app/globals.css`
+- Docs: `docs/manual-e2e-test.md`, `docs/progress.md`
+---
+
+## 2026-01-02 — Clarify UI global rules formatting
+
+### BEFORE
+- The UI global rules document leaned heavily on bold and scattered formatting, so it was harder to scan the console doctrine and verify hierarchy/interaction rules.
+
+### NOW
+- Rewrote `docs/design/UI_GLOBAL_RULES.md` with plain text paragraphs and grouped sections so similar constraints live together, keeping only the needed emphasis for semantic terms.
+- Made lists, font, color, motion, and responsiveness rules easier to parse while preserving the full set of command-console constraints.
+
+### NEXT
+- Review any other design/style docs that reference the console rules and ensure their formatting matches the cleaned-up tone.
+
+### Known limitations / TODOs
+- No automated checks cover formatting changes, so future edits must follow the same plain-markup approach manually.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/design/UI_GLOBAL_RULES.md`
+---
+## 2026-01-02 — Apply command console global rules
+
+### BEFORE
+- The command console frames still used double 2px borders, some actions relied on ad-hoc button styling, and the tab bar/bonus list allowed horizontal scrolling on small widths.
+- Several UI accents used semi-transparent fills instead of the opaque palette defined in the global rules.
+
+### NOW
+- Simplified `Frame` to a single outer border with an inset line, and aligned console panels to the `--action-panel` fill for hierarchy.
+- Reworked stored bonus tiles into clickable Plates with a thin inset summary border and removed horizontal scrolling from the bonus list and tab bar.
+- Swapped key/capsule tone fills to opaque palette values and made phase completion segments use the panel tone.
+
+### NEXT
+- Scan any remaining UI surfaces for ad-hoc interactive elements or overflow behavior and align them to the same command-console rules.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/Frame.tsx`, `components/ui/Plate.tsx`, `components/ui/ObliqueKey.tsx`, `components/ui/StatusCapsule.tsx`, `components/ui/PhaseRuler.tsx`, `components/ui/ObliqueTabBar.tsx`, `components/OpsConsole.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Mobile console drawer rebuild
+
+### BEFORE
+- The mobile console used a modal drawer that trapped focus, locked scroll, and rendered as a thin, awkward slice over the board.
+- The command bar could be effectively blocked by the modal behavior, and the console height snapping was unreliable on narrow screens.
+
+### NOW
+- Replaced the modal drawer with a fixed, non-modal `MobileConsoleDrawer` that uses explicit height snaps and a 44px handle rail.
+- Split OpsConsole layout controls so mobile renders header/tabs in the drawer shell and uses body scrolling instead of internal panels.
+- Capped full height against the command bar height to keep the top controls reachable and kept the board interactive above the drawer.
+
+### NEXT
+- Verify touch ergonomics on a real device and decide whether drag-to-resize is needed beyond tap-to-cycle.
+
+### Known limitations / TODOs
+- Drag-resize is not implemented; tap-to-cycle controls height for now.
+
+### Files touched
+- UI: `components/MobileConsoleDrawer.tsx`, `components/OpsConsole.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Mobile console drag resize
+
+### BEFORE
+- The mobile drawer only allowed tap-to-cycle sizes, so users could not directly drag the console height.
+
+### NOW
+- Added pointer-driven drag resizing on the handle (`drawer-drag-handle`) with live height updates and snap-to-size on release.
+- Disabled height transitions during drag and prevented touch scrolling while resizing.
+
+### NEXT
+- Validate drag snapping feel across devices and ensure the command bar remains reachable at full height.
+
+### Known limitations / TODOs
+- Drag snapping is vertical only (no inertia), by design.
+
+### Files touched
+- UI: `components/MobileConsoleDrawer.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Mobile command header tiers
+
+### BEFORE
+- The top command area mixed plates, keys, and readouts in a single wrap band, causing unpredictable ordering and unreadable stacking on mobile.
+- MODE/STATUS readouts appeared in multiple places and there was no deterministic tiering or collapse behavior.
+
+### NOW
+- Added `CommandHeader` with a strict three-tier layout: identity row, two-row command grid, and a collapsed secondary rail with a More toggle.
+- Implemented deterministic label shortening and truncation helpers plus shared layout tokens for consistent spacing.
+- Removed duplicate readouts from the top bar and kept PhaseRuler anchored below the header frame.
+
+### NEXT
+- Validate key density at 360–420px widths and tune overflow priorities if any commands feel buried.
+
+### Known limitations / TODOs
+- Turn-start remains available only through the main flow controls and is not surfaced in the tiered header.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`, `components/ui/PhaseRuler.tsx`, `app/page.tsx`
+- UI tokens: `lib/ui/headerFormat.ts`, `lib/ui/layoutTokens.ts`
+- Docs: `docs/progress.md`

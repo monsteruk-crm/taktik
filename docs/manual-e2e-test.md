@@ -38,8 +38,10 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 1. Verify the screen shows:
    - Top command plate with player strip + VP/TURN/PHASE capsules
    - Command keys wrap (no horizontal scrolling)
-   - Desktop: double-framed board surface + right “Ops Console” dock with “TAKTIK COMMAND” header and `CARDS / TACTICS / LOG` plates
+   - Phase progress ruler visible under the command bar
+   - Desktop: double-framed board surface + right “Ops Console” dock with “TAKTIK COMMAND” header and oblique tab plates (`LOG` only when `NEXT_PUBLIC_SHOW_DEV_LOGS=true`)
    - Mobile: `CONSOLE` button toggles a bottom sheet with a grab handle and 3 sizes (peek/half/full); no horizontal page scroll
+   - Targeting overlay: opaque focus panel with a single clear outer frame (no double borders)
 2. Verify the isometric board renders with ground tiles and units.
 3. Verify the board can be panned (drag) and zoomed (wheel).
 4. Verify the log area auto-scrolls to show newest entries in the `LOG` tab.
