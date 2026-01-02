@@ -1,5 +1,7 @@
 import Box from "@mui/material/Box";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
+import { semanticColors } from "@/lib/ui/semanticColors";
 
 type PhaseRulerProps = {
   phase: string;
@@ -7,119 +9,132 @@ type PhaseRulerProps = {
   hideTopBorder?: boolean;
 };
 
-const SEGMENT_COUNT = 8;
 const PHASE_ORDER = ["TURN_START", "DRAW", "MOVE", "ATTACK", "DICE", "END"];
 
 function getPhaseIndex(phase: string) {
   const normalized = phase.toUpperCase();
-  if (normalized.includes("TURN_START") || normalized.includes("START")) {
-    return 0;
-  }
-  if (normalized.includes("DRAW") || normalized.includes("CARD")) {
-    return 1;
-  }
-  if (normalized.includes("MOVE")) {
-    return 2;
-  }
-  if (normalized.includes("ATTACK")) {
-    return 3;
-  }
-  if (normalized.includes("DICE")) {
-    return 4;
-  }
-  if (normalized.includes("END")) {
-    return 5;
-  }
+  if (normalized.includes("TURN_START") || normalized.includes("START")) return 0;
+  if (normalized.includes("DRAW") || normalized.includes("CARD")) return 1;
+  if (normalized.includes("MOVE")) return 2;
+  if (normalized.includes("ATTACK")) return 3;
+  if (normalized.includes("DICE")) return 4;
+  if (normalized.includes("END")) return 5;
   return 0;
 }
 
+type SegmentPath = {
+  d: string;
+  key: string;
+};
+
 export default function PhaseRuler({ phase, compact, hideTopBorder }: PhaseRulerProps) {
   const reducedMotion = useReducedMotion();
-  const phaseIndex = getPhaseIndex(phase);
-  const activeSegment = Math.round(
-    (phaseIndex * (SEGMENT_COUNT - 1)) / (PHASE_ORDER.length - 1)
-  );
-  const height = compact ? 9 : 12;
-  const tickPositions = [0.25, 0.5, 0.75];
-  const markerLeft = ((activeSegment + 0.5) / SEGMENT_COUNT) * 100;
+  const activeIndex = getPhaseIndex(phase);
+  const height = compact ? 10 : 12; // spec: 8–10 mobile, 10–12 desktop
+  const ref = useRef<SVGSVGElement | null>(null);
+  const [width, setWidth] = useState(600);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry?.contentRect?.width) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const segments: SegmentPath[] = useMemo(() => {
+    const n = PHASE_ORDER.length;
+    const tooth = height / 2; // toothWidth = H/2 per spec
+    const step = width / n;
+
+    // Geometry: each segment is a modified chevron.
+    // The right tooth extends into the next segment's left notch.
+    // Notch and tooth share identical geometry (isosceles triangle with base = H).
+    return PHASE_ORDER.map((label, index) => {
+      const x0 = step * index;
+      const isFirst = index === 0;
+      const isLast = index === n - 1;
+
+      const leftOuter = x0;
+      const notchTip = isFirst ? x0 : x0 + tooth;
+      const bodyRight = x0 + step;
+      const rightShoulder = isLast ? bodyRight : bodyRight;
+      const rightTip = isLast ? bodyRight : bodyRight + tooth;
+
+      const d = [
+        `M ${leftOuter} 0`,
+        `L ${rightShoulder} 0`,
+        `L ${rightTip} ${height / 2}`,
+        `L ${rightShoulder} ${height}`,
+        `L ${leftOuter} ${height}`,
+        `L ${notchTip} ${height / 2}`,
+        "Z",
+      ].join(" ");
+
+      return { d, key: `${label}-${index}` };
+    });
+  }, [height, width]);
 
   return (
     <Box
       sx={{
         position: "relative",
-        borderTop: hideTopBorder ? "none" : "2px solid #1B1B1B",
-        borderBottom: "2px solid #1B1B1B",
+        borderTop: hideTopBorder ? "none" : `2px solid ${semanticColors.ink}`,
+        borderBottom: `2px solid ${semanticColors.ink}`,
         height,
         width: "100%",
-        backgroundColor: "#E6E6E2",
-        display: "grid",
-        gridTemplateColumns: `repeat(${SEGMENT_COUNT}, 1fr)`,
-        gap: 2,
-        alignItems: "stretch",
-        px: 1,
+        backgroundColor: semanticColors.surface,
         overflow: "hidden",
         "@keyframes phasePulse": {
           "0%": { transform: "scaleY(1)" },
-          "50%": { transform: "scaleY(1.15)" },
+          "50%": { transform: "scaleY(1.12)" },
           "100%": { transform: "scaleY(1)" },
         },
       }}
     >
-      {tickPositions.map((pos) => (
-        <Box
-          key={`tick-${pos}`}
-          sx={{
-            position: "absolute",
-            left: `${pos * 100}%`,
-            top: 0,
-            bottom: 0,
-            width: 0,
-            borderLeft: "2px solid #1B1B1B",
-            pointerEvents: "none",
-          }}
-        />
-      ))}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          left: `calc(${markerLeft}% - 6px)`,
-          width: 12,
-          height: 6,
-          backgroundColor: "#1B1B1B",
-          clipPath: "polygon(50% 0, 100% 100%, 0 100%)",
-          pointerEvents: "none",
-        }}
-      />
-      {Array.from({ length: SEGMENT_COUNT }).map((_, index) => {
-        const isActive = index === activeSegment;
-        const isComplete = index < activeSegment;
-        return (
-          <Box
-            key={`segment-${index}-${activeSegment}`}
-            sx={{
-              border: "1px solid #1B1B1B",
-              backgroundColor: isActive
-                ? "#1B1B1B"
-                : isComplete
-                  ? "var(--action-panel)"
-                  : "#E6E6E2",
-              transition: reducedMotion
-                ? "none"
-                : `background-color ${DUR.fast}ms ${EASE.stiff}`,
-              transformOrigin: "center",
-              animation:
-                isActive && !reducedMotion
-                  ? `phasePulse ${DUR.fast}ms ${EASE.stiff}`
-                  : "none",
-              "@media (prefers-reduced-motion: reduce)": {
-                transition: "none",
-                animation: "none",
-              },
-            }}
-          />
-        );
-      })}
+      <svg
+        ref={ref}
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="presentation"
+        shapeRendering="crispEdges"
+      >
+        {segments.map((seg, index) => {
+          const isActive = index === activeIndex;
+          const isComplete = index < activeIndex;
+          const fill = isActive
+            ? semanticColors.ink
+            : isComplete
+              ? semanticColors.panel2
+              : semanticColors.surface;
+
+          return (
+            <path
+              key={`${seg.key}-${activeIndex}`}
+              d={seg.d}
+              fill={fill}
+              stroke={semanticColors.ink}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+              strokeLinejoin="miter"
+              style={{
+                transition: reducedMotion
+                  ? "none"
+                  : `fill ${DUR.fast}ms ${EASE.stiff}, transform ${DUR.fast}ms ${EASE.stiff}`,
+                transformOrigin: "center",
+                transform:
+                  isActive && !reducedMotion ? "scaleY(1.08)" : "scaleY(1)",
+              }}
+            />
+          );
+        })}
+      </svg>
     </Box>
   );
 }

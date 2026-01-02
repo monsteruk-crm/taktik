@@ -1765,3 +1765,22 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `lib/ui/semanticColors.ts`, `components/ui/BandHeader.tsx`, `components/ui/Frame.tsx`, `components/ui/ObliqueKey.tsx`, `components/ui/ObliqueTabBar.tsx`, `components/ui/StatusCapsule.tsx`, `components/OpsConsole.tsx`, `components/CommandHeader.tsx`, `app/page.tsx`, `app/globals.css`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — PhaseRuler interlocking chevrons
+
+### BEFORE
+- PhaseRuler used clipped box segments that overlapped visually and did not interlock cleanly.
+
+### NOW
+- Rebuilt PhaseRuler with SVG chevron segments that have matching left notches and right teeth, using H/2 tooth geometry and zero-gap tiling.
+- Preserved phase mapping and active pulse while switching to interlocking manufactured shapes.
+
+### NEXT
+- Verify the chevron joins at the narrowest viewport widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/PhaseRuler.tsx`
+- Docs: `docs/progress.md`
