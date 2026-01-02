@@ -153,3 +153,30 @@ Reject UI changes if any of the following appear:
 * duplicate outer borders (double frames) in the same region.
 * “centered modal blob” layouts (content must be docked and structured).
 * new UI state that duplicates engine state for gameplay decisions.
+
+## Color Roles for Clarity (MANDATORY)
+
+The UI must communicate meaning through **semantic color**, not just text.
+
+### Non-negotiable rules
+- Primary actions MUST be color-coded:
+  - MOVE = blue
+  - ATTACK = red
+  - DICE = yellow
+  - END TURN / CONFIRM = black
+- Current MODE must be visually dominant (filled accent, inverted text).
+- Targeting / selection states MUST trigger a FOCUS treatment (opaque pale yellow panels + focus rail).
+- Player identity must be reinforced via stripes on:
+  - player plate
+  - console header
+  - active/focus modules
+
+### Allowed (and recommended)
+- Bold flat fills (opaque) for active states
+- Accent stripes for inactive states
+- Inverted text on filled keys
+
+### Still forbidden
+- gradients, glow, blur
+- transparency that reveals the board under panels
+- “soft” shadows to create hierarchy
