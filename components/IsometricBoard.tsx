@@ -87,6 +87,7 @@ export default function IsometricBoard({
           pointerEvents: "none",
           userSelect: "none",
           WebkitUserDrag: "none",
+          clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
         }}
       />
     );
