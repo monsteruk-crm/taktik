@@ -991,6 +991,170 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-02 — Fix move ownership and context overlap
+
+### BEFORE
+- Move mode allowed selecting enemy units as the mover.
+- The right-side context drawer overlapped the command bar.
+
+### NOW
+- Move selection only activates for the active player’s units.
+- Desktop context drawer is pushed below the command bar and constrained to the remaining viewport height.
+
+### NEXT
+- Consider adding a clearer “enemy unit” hover state to reinforce ownership.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Anchor context panel below command bar
+
+### BEFORE
+- The context drawer still rendered at the top-right, overlapping the command bar.
+
+### NOW
+- Desktop context panel is explicitly positioned below the command bar using a fixed `top` offset and viewport height calc.
+
+### NEXT
+- If the command bar height changes, keep the CSS variable in sync.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Offset context drawer below header
+
+### BEFORE
+- The context panel still sat flush to the top-right in some layouts.
+
+### NOW
+- Added an explicit vertical offset to the drawer paper and reduced its height to account for the command bar gap.
+- Lowered the drawer z-index so the command bar stays on top.
+
+### NEXT
+- If the header height changes again, update the offset variable and retest on mobile.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Force context drawer margin via PaperProps
+
+### BEFORE
+- Drawer offsets defined in slot props were not applied, leaving the context panel at the top.
+
+### NOW
+- Applied the vertical offset and max height directly on `PaperProps` so the drawer is pushed below the command bar.
+
+### NEXT
+- Verify the margin persists across breakpoints and browsers.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Use fixed pixel offset for context drawer
+
+### BEFORE
+- CSS variable-based offsets were not reflected in the inspector, so the context panel still sat at the top.
+
+### NOW
+- Applied a fixed 120px top margin and height clamp on the context drawer to keep it below the command bar.
+
+### NEXT
+- Replace the fixed offset with a measured header height once the command bar is finalized.
+
+### Known limitations / TODOs
+- The offset is hardcoded; update if the command bar height changes.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Force context drawer position with fixed top offset
+
+### BEFORE
+- The context drawer still appeared at the top-right, because padding was not a positional offset.
+
+### NOW
+- Applied `position: fixed` with an explicit `top: 120px` and `right: 0` on the drawer paper to guarantee the Y offset.
+
+### NEXT
+- Replace the fixed top offset with a measured value once the header height is locked.
+
+### Known limitations / TODOs
+- The top offset is hardcoded to 120px.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Replace desktop context drawer with fixed overlay box
+
+### BEFORE
+- Drawer positioning styles were ignored, leaving the context panel pinned to the top-right.
+
+### NOW
+- Desktop context panel is rendered as a fixed-position box with an explicit pixel offset below the command bar.
+- Mobile still uses the bottom-sheet drawer.
+
+### NEXT
+- Measure the command bar height and replace the 120px offset if the bar changes.
+
+### Known limitations / TODOs
+- The desktop offset is hardcoded to 120px.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-02 — Use fixed mobile bottom sheet for context
+
+### BEFORE
+- Mobile context used a Drawer that risked focus capture and inconsistent positioning.
+
+### NOW
+- Mobile context is a fixed bottom sheet with explicit peek/half/full heights, keeping the map interactive outside the sheet.
+
+### NEXT
+- Add a drag handle if we want swipe-to-resize.
+
+### Known limitations / TODOs
+- No swipe gesture; size is controlled by buttons only.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
 ## 2026-01-01 — Align E2E steps with targeting bar flow
 
 ### BEFORE

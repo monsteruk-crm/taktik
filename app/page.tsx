@@ -205,6 +205,10 @@ export default function Home() {
         return;
       }
       if (unitId) {
+        const unit = state.units.find((item) => item.id === unitId);
+        if (!unit || unit.owner !== state.activePlayer) {
+          return;
+        }
         setSelectedUnitId(unitId);
         return;
       }
@@ -378,6 +382,114 @@ export default function Home() {
     />
   );
 
+  const contextContent = (
+    <Stack spacing={2}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Typography variant="subtitle1" fontWeight={700}>
+          Context
+        </Typography>
+        {isMobile ? (
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setContextSheetSize("peek")}
+            >
+              Peek
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setContextSheetSize("half")}
+            >
+              Half
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setContextSheetSize("full")}
+            >
+              Full
+            </Button>
+          </Stack>
+        ) : null}
+      </Stack>
+
+      <Divider sx={{ borderColor: "#000" }} />
+
+      <Stack spacing={1}>
+        {selectedUnit ? (
+          <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
+            <Stack spacing={0.5}>
+              <Typography variant="caption" fontWeight={600}>
+                Selected Unit
+              </Typography>
+              <Typography variant="caption">ID: {selectedUnit.id}</Typography>
+              <Typography variant="caption">Owner: {selectedUnit.owner}</Typography>
+              <Typography variant="caption">Type: {selectedUnit.type}</Typography>
+              <Typography variant="caption">
+                Position: ({selectedUnit.position.x}, {selectedUnit.position.y})
+              </Typography>
+            </Stack>
+          </Paper>
+        ) : (
+          <Typography variant="caption">No unit selected.</Typography>
+        )}
+
+        {state.pendingAttack ? (
+          <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
+            <Stack spacing={0.5}>
+              <Typography variant="caption" fontWeight={600}>
+                Pending Attack
+              </Typography>
+              <Typography variant="caption">
+                {state.pendingAttack.attackerId} → {state.pendingAttack.targetId}
+              </Typography>
+            </Stack>
+          </Paper>
+        ) : null}
+
+        {state.pendingCard ? (
+          <Typography variant="caption">Pending card ready to resolve.</Typography>
+        ) : null}
+      </Stack>
+
+      <Stack direction="row" spacing={1} flexWrap="wrap">
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => setIsCardsOverlayOpen(true)}
+          disabled={
+            !state.pendingCard &&
+            state.storedBonuses.length === 0 &&
+            openReactionWindows.length === 0
+          }
+        >
+          Cards & Tactics
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => setIsLogOverlayOpen(true)}
+          disabled={state.log.length === 0}
+        >
+          Log
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => {
+            setSelectedUnitId(null);
+            setSelectedAttackerId(null);
+          }}
+          disabled={!selectedUnitId && !selectedAttackerId}
+        >
+          Clear Selection
+        </Button>
+      </Stack>
+    </Stack>
+  );
+
   return (
     <Box
       sx={{
@@ -513,150 +625,46 @@ export default function Home() {
       </BoardViewport>
 
       {contextOpen ? (
-        <Drawer
-          anchor={isMobile ? "bottom" : "right"}
-          open={contextOpen}
-          onClose={() => {
-            if (isMobile) {
-              setContextSheetSize("peek");
-            }
-          }}
-          ModalProps={{
-            hideBackdrop: true,
-            disableAutoFocus: true,
-            disableEnforceFocus: true,
-            disableRestoreFocus: true,
-          }}
-          slotProps={{
-            root: {
-              sx: {
-                pointerEvents: "none",
-              },
-            },
-            paper: {
-              sx: {
-                pointerEvents: "auto",
-                width: isMobile ? "100%" : 360,
-                height: isMobile
-                    ? contextSheetSize === "full"
-                        ? "80dvh"
-                        : contextSheetSize === "half"
-                            ? "45dvh"
-                            : "20dvh"
-                    : "auto",
-                borderTop: isMobile ? "2px solid #000" : "none",
-                borderLeft: !isMobile ? "2px solid #000" : "none",
-                p: 2,
-              },
-            },
-          }}
-        >
-          <Stack spacing={2}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="subtitle1" fontWeight={700}>
-                Context
-              </Typography>
-              {isMobile ? (
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setContextSheetSize("peek")}
-                  >
-                    Peek
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setContextSheetSize("half")}
-                  >
-                    Half
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setContextSheetSize("full")}
-                  >
-                    Full
-                  </Button>
-                </Stack>
-              ) : null}
-            </Stack>
-
-            <Divider sx={{ borderColor: "#000" }} />
-
-            <Stack spacing={1}>
-              {selectedUnit ? (
-                <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" fontWeight={600}>
-                      Selected Unit
-                    </Typography>
-                    <Typography variant="caption">ID: {selectedUnit.id}</Typography>
-                    <Typography variant="caption">Owner: {selectedUnit.owner}</Typography>
-                    <Typography variant="caption">Type: {selectedUnit.type}</Typography>
-                    <Typography variant="caption">
-                      Position: ({selectedUnit.position.x}, {selectedUnit.position.y})
-                    </Typography>
-                  </Stack>
-                </Paper>
-              ) : (
-                <Typography variant="caption">No unit selected.</Typography>
-              )}
-
-              {state.pendingAttack ? (
-                <Paper variant="outlined" sx={{ p: 1.5, borderColor: "#000" }}>
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" fontWeight={600}>
-                      Pending Attack
-                    </Typography>
-                    <Typography variant="caption">
-                      {state.pendingAttack.attackerId} → {state.pendingAttack.targetId}
-                    </Typography>
-                  </Stack>
-                </Paper>
-              ) : null}
-
-              {state.pendingCard ? (
-                <Typography variant="caption">Pending card ready to resolve.</Typography>
-              ) : null}
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setIsCardsOverlayOpen(true)}
-                disabled={
-                  !state.pendingCard &&
-                  state.storedBonuses.length === 0 &&
-                  openReactionWindows.length === 0
-                }
-              >
-                Cards & Tactics
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setIsLogOverlayOpen(true)}
-                disabled={state.log.length === 0}
-              >
-                Log
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => {
-                  setSelectedUnitId(null);
-                  setSelectedAttackerId(null);
-                }}
-                disabled={!selectedUnitId && !selectedAttackerId}
-              >
-                Clear Selection
-              </Button>
-            </Stack>
-          </Stack>
-        </Drawer>
+        isMobile ? (
+          <Box
+            sx={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height:
+                contextSheetSize === "full"
+                  ? "80dvh"
+                  : contextSheetSize === "half"
+                    ? "45dvh"
+                    : "20dvh",
+              bgcolor: "#fff",
+              borderTop: "2px solid #000",
+              p: 2,
+              overflowY: "auto",
+              zIndex: 20,
+            }}
+          >
+            {contextContent}
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              position: "fixed",
+              top: 120,
+              right: 16,
+              width: 360,
+              maxHeight: "calc(100dvh - 140px)",
+              overflowY: "auto",
+              border: "2px solid #000",
+              bgcolor: "#fff",
+              p: 2,
+              zIndex: 20,
+            }}
+          >
+            {contextContent}
+          </Box>
+        )
       ) : null}
 
       {cardsOverlayOpen ? (
