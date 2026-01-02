@@ -34,8 +34,6 @@ import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
 import { semanticColors } from "@/lib/ui/semanticColors";
-import SkewedButton from "@/components/ui/SkewedButton";
-import SkewedTabsConditional from "@/components/ui/SkewedTabsConditional";
 
 export default function Home() {
   type TargetingContext =
@@ -762,7 +760,7 @@ export default function Home() {
         color: "text.primary",
         overflow: "hidden",
       }}
-    ><SkewedTabsConditional />
+    >
       <Box
         component="header"
         ref={headerRef}

@@ -2026,3 +2026,22 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/ui/SkewedTabsConditional.tsx`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — ObliqueTabBar simplified overlap
+
+### BEFORE
+- Tabs used complex slants/stripes that still left seams and inconsistent edges.
+
+### NOW
+- Simplified ObliqueTabBar to the same clip-path + negative overlap method used in SkewedTabsConditional.
+- Tabs now interlock via a single slant width, keeping first/last straight edges and eliminating gaps.
+
+### NEXT
+- If a seam persists, adjust SLANT by 1–2px.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/ObliqueTabBar.tsx`
+- Docs: `docs/progress.md`

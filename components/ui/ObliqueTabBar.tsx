@@ -19,7 +19,7 @@ type ObliqueTabBarProps = {
   rightContent?: ReactNode;
 };
 
-const SLANT = 14;
+const SLANT = 20;
 
 const TAB_STRIPE: Record<string, string> = {
   cards: semanticColors.dice,
@@ -93,14 +93,13 @@ export default function ObliqueTabBar({
           const stripeColor = TAB_STRIPE[tab.id] ?? semanticColors.neutralStripe;
           const fillColor = isActive ? stripeColor : semanticColors.panel;
           const hoverFill = isActive ? stripeColor : semanticColors.panel2;
-          const showStripe = !isActive;
           const isFirst = index === 0;
           const isLast = index === visibleTabs.length - 1;
           const clipPath = isFirst
-            ? `polygon(0% 0%, 100% 0%, calc(100% - ${SLANT}px) 100%, 0% 100%)`
+            ? `polygon(0 0, 100% 0, calc(100% - ${SLANT}px) 100%, 0 100%)`
             : isLast
-              ? `polygon(${SLANT}px 0%, 100% 0%, 100% 100%, 0% 100%)`
-              : `polygon(${SLANT}px 0%, 100% 0%, calc(100% - ${SLANT}px) 100%, 0% 100%)`;
+              ? `polygon(${SLANT}px 0, 100% 0, 100% 100%, 0 100%)`
+              : `polygon(${SLANT}px 0, 100% 0, calc(100% - ${SLANT}px) 100%, 0 100%)`;
           return (
             <ButtonBase
               key={tab.id}
@@ -127,7 +126,7 @@ export default function ObliqueTabBar({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 justifyContent: "center",
-                marginLeft: index === 0 ? 0 : -2,
+                marginLeft: index === 0 ? 0 : `-${SLANT}px`,
                 clipPath,
                 zIndex: isActive ? 3 : 1,
                 transition: `background-color ${DUR.micro}ms ${EASE.snap}, color ${DUR.micro}ms ${EASE.snap}`,
@@ -141,21 +140,6 @@ export default function ObliqueTabBar({
                   clipPath,
                   pointerEvents: "none",
                 },
-                ...(showStripe
-                  ? {
-                      "&::before": {
-                        content: '""',
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: 6,
-                        backgroundColor: stripeColor,
-                        clipPath,
-                        pointerEvents: "none",
-                      },
-                    }
-                  : null),
                 "&:hover": {
                   backgroundColor: hoverFill,
                   color: isActive ? textOn(fillColor) : semanticColors.ink,
