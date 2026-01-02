@@ -34,6 +34,7 @@ import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
 import { semanticColors } from "@/lib/ui/semanticColors";
+import SkewedButton from "@/components/ui/SkewedButton";
 
 export default function Home() {
   type TargetingContext =
@@ -51,6 +52,7 @@ export default function Home() {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
+  const targetingContextRef = useRef<TargetingContext | null>(null);
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
   const [queuedTactic, setQueuedTactic] = useState<QueuedTactic | null>(null);
   const isNarrow = useMediaQuery("(max-width:1100px)");
@@ -154,6 +156,10 @@ export default function Home() {
     resolvedTargetingContext?.source === "tactic"
       ? tacticById.get(resolvedTargetingContext.cardId) ?? null
       : null;
+
+  useEffect(() => {
+    targetingContextRef.current = targetingContext;
+  }, [targetingContext]);
 
   useEffect(() => {
     if (!headerRef.current) {
@@ -310,14 +316,20 @@ export default function Home() {
     }
   }, [consoleOpen]);
 
+  const prevPendingCardIdRef = useRef<string | null>(null);
+
   useEffect(() => {
+    if (prevPendingCardIdRef.current === state.pendingCard?.id) {
+      return;
+    }
+    prevPendingCardIdRef.current = state.pendingCard?.id ?? null;
     startTransition(() => {
-      if (targetingContext?.source === "pending") {
+      if (targetingContextRef.current?.source === "pending") {
         setTargetingContext(null);
       }
       setSelectedTargetUnitIds([]);
     });
-  }, [state.pendingCard?.id, targetingContext?.source]);
+  }, [state.pendingCard?.id]);
 
 
   function handleTileClick(position: { x: number; y: number }) {
@@ -749,7 +761,7 @@ export default function Home() {
         color: "text.primary",
         overflow: "hidden",
       }}
-    >
+    ><SkewedButton />
       <Box
         component="header"
         ref={headerRef}

@@ -1784,3 +1784,40 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/ui/PhaseRuler.tsx`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — Targeting overlay persistence fix
+
+### BEFORE
+- Starting pending-card targeting caused the bottom overlay to flash and close immediately.
+
+### NOW
+- Targeting resets only when the pending card changes, preventing premature overlay dismissal.
+- Targeting state is read from a ref to avoid effect re-triggers on context updates.
+
+### NEXT
+- Validate targeting flow for tactics and pending cards across turns.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `app/page.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — SkewedButton typed
+
+### BEFORE
+- `components/ui/SkewedButton.jsx` was a JS-only component with fixed label.
+
+### NOW
+- Rewritten as `components/ui/SkewedButton.tsx` with proper props typing, optional label/children, and retain the skew effect.
+
+### NEXT
+- Ensure any new skewed controls reuse this typed primitive.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/ui/SkewedButton.tsx`
+- Docs: `docs/progress.md`
