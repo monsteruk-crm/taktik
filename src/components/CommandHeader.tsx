@@ -21,6 +21,7 @@ type KeyConfig = {
   tone?: "neutral" | "blue" | "red" | "yellow" | "black";
   active?: boolean;
   accentColor?: string;
+  cutout?: "move" | "attack";
 };
 
 type CommandHeaderProps = {
@@ -116,6 +117,7 @@ export default function CommandHeader({
       disabled: isGameOver || !isActionPhase,
       tone: "blue",
       active: isActionPhase && mode === "MOVE",
+      cutout: "move",
     },
     {
       id: "attack",
@@ -124,6 +126,7 @@ export default function CommandHeader({
       disabled: isGameOver || !isActionPhase,
       tone: "red",
       active: isActionPhase && mode === "ATTACK",
+      cutout: "attack",
     },
   ];
 
@@ -354,8 +357,20 @@ export default function CommandHeader({
                 gap: `${GAP_SM}px`,
               }}
             >
-              <ObliqueKey label="MOVE" onClick={onMove} tone="blue" size="sm" />
-              <ObliqueKey label="ATTACK" onClick={onAttack} tone="red" size="sm" />
+              <ObliqueKey
+                label="MOVE"
+                onClick={onMove}
+                tone="blue"
+                size="sm"
+                cutout="move"
+              />
+              <ObliqueKey
+                label="ATTACK"
+                onClick={onAttack}
+                tone="red"
+                size="sm"
+                cutout="attack"
+              />
               <ObliqueKey
                 label="END"
                 onClick={onEndTurn}
@@ -460,6 +475,7 @@ export default function CommandHeader({
               tone={key.tone}
               active={key.active}
               accentColor={key.accentColor}
+              cutout={key.cutout}
               size={keySize}
             />
           ))}
@@ -484,6 +500,7 @@ export default function CommandHeader({
                 tone={key.tone}
                 active={key.active}
                 accentColor={key.accentColor}
+                cutout={key.cutout}
                 size={keySize}
               />
             ))

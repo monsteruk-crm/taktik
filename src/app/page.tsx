@@ -464,6 +464,7 @@ export default function Home() {
         disabled: isGameOver,
         tone: "blue" as const,
         active: mode === "MOVE",
+        cutout: "move" as const,
       },
       {
         id: "attack",
@@ -475,6 +476,7 @@ export default function Home() {
         disabled: isGameOver,
         tone: "red" as const,
         active: mode === "ATTACK",
+        cutout: "attack" as const,
       },
       {
         id: "end",
@@ -578,6 +580,7 @@ export default function Home() {
               tone={key.tone}
               active={key.active}
               accentColor={key.accentColor}
+              cutout={key.cutout}
               size="sm"
             />
           ))}

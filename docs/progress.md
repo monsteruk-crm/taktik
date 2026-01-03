@@ -2229,3 +2229,118 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/app/globals.css`
 - Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Move/Attack constructivist cutouts
+
+### BEFORE
+- MOVE and ATTACK keys were flat fills only, with no constructivist cut-out geometry to reinforce their roles.
+
+### NOW
+- Added optional cut-out SVG backgrounds to ObliqueKey and applied them to MOVE/ATTACK across the command header and dock, keeping the labels dominant and the fills flat.
+- Cut-out colors follow the required inactive/active semantics (neutral when inactive, semantic family when active) and remain clipped behind the text.
+
+### NEXT
+- Validate the cut-out balance on the smallest button sizes to ensure the symbols stay subtle and readable.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`, `src/components/CommandHeader.tsx`, `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Cutout visibility tuning
+
+### BEFORE
+- The MOVE/ATTACK cut-outs were too low-contrast to read against the filled keys on desktop.
+
+### NOW
+- Shifted the cut-out tint toward the surface/panel tones and increased opacity so the geometry reads without overpowering the label text.
+
+### NEXT
+- Confirm visibility on both sm/md key sizes and adjust only if the symbol starts to compete with the label.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Cutout contrast boost
+
+### BEFORE
+- The MOVE/ATTACK cut-out layer was still too faint to read on both active and inactive states.
+
+### NOW
+- Increased the cut-out contrast by mixing the active fill toward surface tones and the inactive fill toward ink, with higher opacity so the shapes read while staying behind the label.
+
+### NEXT
+- Validate the cut-outs on mobile sizes to ensure they remain visible without overpowering the text.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Cutout visibility hardening
+
+### BEFORE
+- The cut-out SVGs were still effectively invisible on the MOVE/ATTACK keys due to low contrast and opacity.
+
+### NOW
+- Removed opacity-based fading and instead use higher-contrast, flat mixed fills for the cut-outs, plus a larger SVG scale so the geometry reads clearly behind the labels.
+
+### NEXT
+- Confirm the cut-outs remain visible on the smallest key size without overpowering the text.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Cutout scale + right alignment
+
+### BEFORE
+- The constructivist cut-outs were still tiny and centered under the label.
+
+### NOW
+- Doubled the cut-out SVG scale and aligned it to the right side of the key so the geometry reads clearly across the button surface.
+
+### NEXT
+- Confirm the right-aligned cut-outs don’t interfere with icon/label spacing on small keys.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Cutout edge alignment
+
+### BEFORE
+- The enlarged cut-outs still sat too close to the center, leaving them partially hidden by the label.
+
+### NOW
+- Anchored the cut-out container to the right edge so the geometry hugs the border and reads outside the label area.
+
+### NEXT
+- Re-check label overlap on narrow keys and adjust the left cut-off if needed.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
