@@ -97,6 +97,11 @@ export default function CommandHeader({
   const playerStripe =
     player === "PLAYER_A" ? semanticColors.playerA : semanticColors.playerB;
   const playerTone = player === "PLAYER_A" ? "blue" : "red";
+  const normalizedPhase = phase.toUpperCase();
+  const isActionPhase =
+    normalizedPhase.includes("MOVE") || normalizedPhase.includes("ATTACK");
+  const isDrawPhase = normalizedPhase.includes("DRAW");
+  const isDicePhase = normalizedPhase.includes("DICE");
 
   const shortLabel = useCallback(
     (label: string) => (isTiny ? shortKey(label) : label),
@@ -108,62 +113,48 @@ export default function CommandHeader({
       id: "move",
       label: shortLabel("MOVE"),
       onClick: onMove,
-      disabled: isGameOver,
+      disabled: isGameOver || !isActionPhase,
       tone: "blue",
-      active: mode === "MOVE",
+      active: isActionPhase && mode === "MOVE",
     },
     {
       id: "attack",
       label: shortLabel("ATTACK"),
       onClick: onAttack,
-      disabled: isGameOver,
+      disabled: isGameOver || !isActionPhase,
       tone: "red",
-      active: mode === "ATTACK",
-    },
-    {
-      id: "end",
-      label: shortLabel("END TURN"),
-      onClick: onEndTurn,
-      disabled: isGameOver,
-      tone: "black",
-      accentColor: semanticColors.attack,
-      active: !isGameOver,
+      active: isActionPhase && mode === "ATTACK",
     },
   ];
 
-  const rowBBase = useMemo(() => {
-    const list: KeyConfig[] = [
-      {
+  const actionKeys = useMemo(() => {
+    const list: KeyConfig[] = [];
+    if (canDrawCard && isDrawPhase) {
+      list.push({
         id: "draw",
         label: shortLabel("DRAW CARD"),
         onClick: onDrawCard,
-        disabled: !canDrawCard,
         tone: "neutral",
-      },
-      {
-        id: "next",
-        label: shortLabel("NEXT PHASE"),
-        onClick: onNextPhase,
-        disabled: isGameOver,
-        tone: "neutral",
-      },
-      {
+      });
+    }
+    if (canRollDice && isDicePhase) {
+      list.push({
         id: "roll",
         label: shortLabel("ROLL DICE"),
         onClick: onRollDice,
-        disabled: !canRollDice,
         tone: "yellow",
-        active: canRollDice,
-      },
-      {
+        active: true,
+      });
+    }
+    if (canResolveAttack && isDicePhase) {
+      list.push({
         id: "resolve",
         label: shortLabel("RESOLVE ATTACK"),
         onClick: onResolveAttack,
-        disabled: !canResolveAttack,
         tone: "neutral",
-      },
-    ];
-    if (hasSelection) {
+      });
+    }
+    if (hasSelection && isActionPhase) {
       list.push({
         id: "clear",
         label: shortLabel("CLEAR SELECTION"),
@@ -177,44 +168,25 @@ export default function CommandHeader({
     canResolveAttack,
     canRollDice,
     hasSelection,
-    isGameOver,
+    isActionPhase,
+    isDicePhase,
+    isDrawPhase,
     onClearSelection,
     onDrawCard,
-    onNextPhase,
     onResolveAttack,
     onRollDice,
     shortLabel,
   ]);
 
   const { rowB, overflow } = useMemo(() => {
-    const keys = [...rowBBase];
+    const keys = [...actionKeys];
     const overflowed: KeyConfig[] = [];
-    const maxRowB = isTiny ? 3 : 4;
-    const removeById = (id: string) => {
-      const index = keys.findIndex((item) => item.id === id);
-      if (index >= 0) {
-        overflowed.push(...keys.splice(index, 1));
-      }
-    };
-
-    if (keys.length > maxRowB) {
-      removeById("clear");
-    }
-    if (keys.length > maxRowB) {
-      removeById("resolve");
-    }
-    if (keys.length > maxRowB && !canDrawCard) {
-      removeById("draw");
-    }
-    if (keys.length > maxRowB && !canRollDice) {
-      removeById("roll");
-    }
+    const maxRowB = isTiny ? 2 : 4;
     while (keys.length > maxRowB) {
       overflowed.push(keys.pop() as KeyConfig);
     }
-
     return { rowB: keys, overflow: overflowed };
-  }, [canDrawCard, canRollDice, isTiny, rowBBase]);
+  }, [actionKeys, isTiny]);
 
   const secondaryCollapsed = useMemo(() => {
     if (selectionLabel !== "None") {
@@ -466,14 +438,17 @@ export default function CommandHeader({
           px: `${PAD}px`,
           py: `${PAD}px`,
           display: "grid",
-          gap: `${GAP_SM}px`,
+          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr) max-content",
+          gap: `${GAP_MD}px`,
+          alignItems: "stretch",
         }}
       >
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
             gap: `${GAP_SM}px`,
+            alignContent: "center",
           }}
         >
           {rowA.map((key) => (
@@ -491,23 +466,65 @@ export default function CommandHeader({
         </Box>
         <Box
           sx={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${isTiny ? 3 : 4}, minmax(0, 1fr))`,
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            alignContent: "center",
             gap: `${GAP_SM}px`,
+            minHeight: keySize === "sm" ? 36 : 40,
           }}
         >
-          {rowB.map((key) => (
-            <ObliqueKey
-              key={key.id}
-              label={key.label}
-              onClick={key.onClick}
-              disabled={key.disabled}
-              tone={key.tone}
-              active={key.active}
-              accentColor={key.accentColor}
-              size={keySize}
-            />
-          ))}
+          {rowB.length > 0 ? (
+            rowB.map((key) => (
+              <ObliqueKey
+                key={key.id}
+                label={key.label}
+                onClick={key.onClick}
+                disabled={key.disabled}
+                tone={key.tone}
+                active={key.active}
+                accentColor={key.accentColor}
+                size={keySize}
+              />
+            ))
+          ) : (
+            <Box sx={{ textAlign: "center" }}>
+              <Typography variant="caption" fontWeight={700}>
+                NO ACTIONS
+              </Typography>
+            </Box>
+          )}
+        </Box>
+        <Box
+          sx={{
+            position: "relative",
+            backgroundColor: "transparent",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: `${GAP_SM}px`,
+            px: 0,
+            minWidth: isTiny ? 200 : 240,
+            alignItems: "center",
+          }}
+        >
+          <ObliqueKey
+            label={shortLabel("NEXT PHASE")}
+            onClick={onNextPhase}
+            disabled={isGameOver}
+            tone="neutral"
+            size={keySize}
+            startIcon={<Box component="span">▸</Box>}
+          />
+          <ObliqueKey
+            label={shortLabel("END TURN")}
+            onClick={onEndTurn}
+            disabled={isGameOver}
+            tone="black"
+            active
+            accentColor={semanticColors.attack}
+            size={keySize}
+            startIcon={<Box component="span">■</Box>}
+          />
         </Box>
       </Box>
 

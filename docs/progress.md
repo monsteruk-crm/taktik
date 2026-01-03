@@ -2045,3 +2045,132 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/ui/ObliqueTabBar.tsx`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — Top bar phase wireframes layout
+
+### BEFORE
+- Mode, actions, and flow controls shared the same grid, and NEXT PHASE/END TURN were not clearly grouped.
+
+### NOW
+- Split the command bar into three zones: MODE (left), ACTIONS (center, phase-valid only), FLOW (right).
+- Flow controls are always grouped in a fixed panel2 container with a 2px divider; NEXT PHASE includes a chevron and END TURN stays black with a red stripe.
+- Mode keys only activate during action phases and remain disabled otherwise.
+
+### NEXT
+- Verify spacing on narrow desktop widths and confirm action visibility in each phase.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Top bar flow icons
+
+### BEFORE
+- FlowGroup used standard oblique keys, which made NEXT PHASE / END TURN feel like regular actions.
+
+### NOW
+- FlowGroup uses two large square icon buttons: a neutral chevron for NEXT PHASE and a black stop block with red stripe for END TURN.
+- Mode group stays left (1/3) and action buttons are centered in the middle zone.
+
+### NEXT
+- Validate spacing at narrow widths and adjust icon sizing if needed.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Flow icon labels
+
+### BEFORE
+- Flow buttons were icon-only, which made intent less explicit at a glance.
+
+### NOW
+- Added small labels beneath the enlarged icons for NEXT and END while keeping the flat square buttons.
+
+### NEXT
+- Validate legibility at small widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — FlowGroup padding removal
+
+### BEFORE
+- Flow buttons were wrapped in padded containers, and the divider split the two buttons instead of the group.
+
+### NOW
+- Removed the wrapper boxes so the flow buttons fill their halves directly, and moved the divider to a single right-edge line.
+
+### NEXT
+- Check alignment at narrow widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Flow button text layout
+
+### BEFORE
+- Flow buttons stacked icon above a two-line label, which didn’t align the icon with the first line.
+
+### NOW
+- Icon sits next to the first line (“NEXT” / “END”) with the second line below, centered vertically.
+
+### NEXT
+- Verify readability at smallest sizes.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Flow buttons match oblique keys
+
+### BEFORE
+- Flow controls used custom square ButtonBase styles that diverged from MOVE/ATTACK sizing.
+
+### NOW
+- Replaced flow buttons with standard ObliqueKey buttons (same size as MOVE/ATTACK), keeping the existing color scheme and adding icons before labels.
+
+### NEXT
+- Check spacing balance between action and flow groups.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Flow group border removal
+
+### BEFORE
+- Flow controls were wrapped in a bordered container, adding an extra frame around NEXT PHASE / END TURN.
+
+### NOW
+- Removed the outer border and background from the FlowGroup container so the two buttons sit directly in the bar.
+
+### NEXT
+- Confirm alignment with the action group on narrow widths.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
