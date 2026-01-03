@@ -2174,3 +2174,58 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `components/CommandHeader.tsx`
 - Docs: `docs/progress.md`
+---
+## 2026-01-02 — Align tsconfig with src layout
+
+### BEFORE
+- `@/` aliases pointed to the repository root, but source files now live under `src/`, so imports broke.
+
+### NOW
+- Set `baseUrl` to `src` and kept `@/*` pointing inside that directory so all aliases resolve again.
+
+### NEXT
+- Run the app to ensure runtime paths still work.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Config: `tsconfig.json`
+- Docs: `docs/progress.md`
+---
+## 2026-01-02 — Tailwind import fix
+
+### BEFORE
+- globals.css imported the TypeScript module from tailwind rather than the CSS layers, which broke PostCSS.
+
+### NOW
+- Switched to the standard `@import "tailwindcss/base"`, etc., so the plugin adds the styles without syntax errors.
+
+### NEXT
+- Verify tailwind utilities still compile via Turbopack.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/app/globals.css`
+- Docs: `docs/progress.md`
+---
+## 2026-01-03 — Tailwind layer statements for Turbopack
+
+### BEFORE
+- `globals.css` still referenced `@import "tailwindcss/base"`/`components`/`utilities`, which Turbopack rejected because those paths aren't exported under the `style` condition.
+
+### NOW
+- Replaced the imports with `@tailwind base`, `@tailwind components`, and `@tailwind utilities` so the Tailwind PostCSS plugin runs successfully through Next’s build.
+- `npm run build` now succeeds.
+
+### NEXT
+- Keep the Tailwind layer statements in sync with any future PostCSS migrations.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/app/globals.css`
+- Docs: `docs/progress.md`
