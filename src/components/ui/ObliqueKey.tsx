@@ -49,9 +49,17 @@ const MOVE_CUTOUT = (
 );
 
 const ATTACK_CUTOUT = (
-  <svg viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <svg
+    viewBox="160 60 30 30"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
     <g fill="currentColor">
-      <polygon points="50,6 54,18 66,14 58,22 70,26 56,26 60,38 50,28 40,38 44,26 30,26 42,22 34,14 46,18" />
+      <path d="m 169.37726,80.234896 0.70383,-0.822689 -2.30528,0.822689 z" />
+      <path d="m 179.55958,80.234896 -0.063,-0.0088 0.0119,0.0088 z" />
+      <path d="m 178.19687,80.234896 v -8.255827 l -0.72036,0.428914 0.72036,-5.852356 v -0.05374 l -2.62051,5.295284 -1.05316,-5.176945 -1.14619,5.472017 -3.22667,-4.876188 1.28622,5.081861 -7.04298,-2.873727 4.57285,4.188375 -6.95978,-2.421041 6.38876,3.417363 -8.05223,0.01499 8.50956,1.985408 -7.90132,1.254704 7.84396,0.574125 -3.01842,1.79679 h 1.99885 l 2.30528,-0.822689 -0.70383,0.822689 z" />
+      <path d="m 178.19687,66.555627 0.009,-0.07131 -0.009,0.01757 z" />
+      <path d="m 178.19687,71.979069 v -5.423442 l -0.72036,5.852356 z" />
     </g>
   </svg>
 );
@@ -120,10 +128,10 @@ export default function ObliqueKey({
     : null;
   const symbolColor = symbolBase
     ? disabled
-      ? mixHex(semanticColors.panel2, semanticColors.ink, 0.18)
+      ? mixHex(semanticColors.panel2, semanticColors.ink, 0.2)
       : active
-        ? mixHex(symbolBase, semanticColors.surface, 0.45)
-        : mixHex(semanticColors.panel, semanticColors.ink, 0.35)
+        ? mixHex(symbolBase, semanticColors.ink, 0.6)
+        : mixHex(semanticColors.panel, semanticColors.ink, 0.55)
     : undefined;
 
   return (
@@ -167,14 +175,21 @@ export default function ObliqueKey({
                 top: 4,
                 bottom: 4,
                 right: 4,
-                left: "45%",
+                left: "50%",
                 color: symbolColor,
                 zIndex: 0,
                 pointerEvents: "none",
               },
+              "& > .ObliqueKey-cutout[data-cutout='attack']": {
+                alignItems: "flex-end",
+                left: "56%",
+                right: 2,
+                bottom: 2,
+                top: "45%",
+              },
               "& > .ObliqueKey-cutout svg": {
-                width: "200%",
-                height: "120%",
+                width: "240%",
+                height: "150%",
               },
             }
           : null),
@@ -233,7 +248,7 @@ export default function ObliqueKey({
       {...rest}
     >
       {cutout ? (
-        <Box className="ObliqueKey-cutout" aria-hidden="true">
+        <Box className="ObliqueKey-cutout" data-cutout={cutout} aria-hidden="true">
           {CUTOUT_SVGS[cutout]}
         </Box>
       ) : null}

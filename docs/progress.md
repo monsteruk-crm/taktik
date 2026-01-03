@@ -2344,3 +2344,222 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/components/ui/ObliqueKey.tsx`
 - Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Attack cutout swap + bottom-right anchor
+
+### BEFORE
+- The ATTACK cut-out used the placeholder starburst SVG and sat mid-right rather than anchoring to the bottom-right corner.
+
+### NOW
+- Replaced the ATTACK cut-out with the provided `temp/two.svg` geometry (rendered via `currentColor`) and anchored it to the bottom-right of the key.
+
+### NEXT
+- Confirm the new cut-out remains legible on small keys without colliding with labels.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Cutout visibility hard fix
+
+### BEFORE
+- The MOVE/ATTACK cut-outs still read as invisible because the ATTACK SVG viewBox was too large and the tint sat too close to the panel tones.
+
+### NOW
+- Cropped the ATTACK cut-out viewBox to its actual geometry, increased the cut-out scale, and moved both cut-outs to the right edge.
+- Boosted cut-out contrast by mixing toward ink for active and inactive states while keeping the symbols behind the text.
+
+### NEXT
+- Re-check small keys and confirm the right-edge cut-outs stay readable without colliding with labels.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Attack cutout corner anchor
+
+### BEFORE
+- The ATTACK cut-out was still floating slightly above the lower-right corner instead of expanding from the corner.
+
+### NOW
+- Re-anchored the ATTACK cut-out container so the SVG’s lower-right aligns with the button’s lower-right edge.
+
+### NEXT
+- Verify the corner alignment at both sm and md key sizes.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Generate terrain prompt templates
+
+### BEFORE
+- Designers only had `docs/design/generation/base_prompt.md` and `terrain_types.md`, so every terrain prompt had to be assembled manually and risked omitting the required exclusions from `negative_prompt.md`.
+- There was no single source of truth for terrain-specific prompts, so versioning and tooling integrations were inconsistent.
+
+### NOW
+- Produced 14 per-terrain prompt files under `docs/design/generation/output/` that combine the base prompt’s constraints, the matching terrain entry from `terrain_types.md`, and the shared `negative_prompt.md`.
+- Each file follows the base structure (instruction first line → terrain description → remaining base rules → global negative prompt) so the command console aesthetic and negative constraints stay intact for every terrain.
+
+### NEXT
+- Hook these prompt files into the art-generation workflow (scripted export, generator input manifest, etc.) so each terrain can be rendered deterministically without hand-editing; consider adding metadata tracking or `terrains.json` for automation.
+
+### Known limitations / TODOs
+- Files are static markdown and still need manual copy/paste into the generation tool.
+- No automated validation exists yet to ensure new terrain entries (if added later) automatically spawn prompts and stay in sync.
+
+### Files touched
+- Docs: `docs/progress.md`
+- Docs: `docs/design/generation/output/terrain-01-plain.md`
+- Docs: `docs/design/generation/output/terrain-02-rough.md`
+- Docs: `docs/design/generation/output/terrain-03-forest.md`
+- Docs: `docs/design/generation/output/terrain-04-urban.md`
+- Docs: `docs/design/generation/output/terrain-05-hill.md`
+- Docs: `docs/design/generation/output/terrain-06-water.md`
+- Docs: `docs/design/generation/output/terrain-07-road.md`
+- Docs: `docs/design/generation/output/terrain-08-bridge.md`
+- Docs: `docs/design/generation/output/terrain-09-trench.md`
+- Docs: `docs/design/generation/output/terrain-10-industrial.md`
+- Docs: `docs/design/generation/output/terrain-11-rubble-optional-second-wave.md`
+- Docs: `docs/design/generation/output/terrain-12-swamp-optional-second-wave.md`
+- Docs: `docs/design/generation/output/terrain-13-fortification-later.md`
+- Docs: `docs/design/generation/output/terrain-14-checkpoint-later.md`
+
+---
+## 2026-01-03 — Regenerate terrain prompt set
+
+### BEFORE
+- The per-terrain prompt files existed but needed regeneration to ensure they match the latest `base_prompt.md`, `terrain_types.md`, and `negative_prompt.md` without manual drift.
+
+### NOW
+- Rebuilt all 14 terrain prompt files in `docs/design/generation/output/`, inserting each terrain block directly after the base prompt’s first line and appending the global negative prompt to every file, guaranteeing synchronized content.
+
+### NEXT
+- Automate this regeneration (e.g., npm script) and add a checksum/manifest so future edits to any source file trigger prompt rebuilds automatically.
+
+### Known limitations / TODOs
+- Still requires a generation pipeline to convert prompts into PNGs; prompts remain static markdown.
+
+### Files touched
+- Docs: `docs/progress.md`
+- Docs: `docs/design/generation/output/terrain-01-plain.md`
+- Docs: `docs/design/generation/output/terrain-02-rough.md`
+- Docs: `docs/design/generation/output/terrain-03-forest.md`
+- Docs: `docs/design/generation/output/terrain-04-urban.md`
+- Docs: `docs/design/generation/output/terrain-05-hill.md`
+- Docs: `docs/design/generation/output/terrain-06-water.md`
+- Docs: `docs/design/generation/output/terrain-07-road.md`
+- Docs: `docs/design/generation/output/terrain-08-bridge.md`
+- Docs: `docs/design/generation/output/terrain-09-trench.md`
+- Docs: `docs/design/generation/output/terrain-10-industrial.md`
+- Docs: `docs/design/generation/output/terrain-11-rubble-optional-second-wave.md`
+- Docs: `docs/design/generation/output/terrain-12-swamp-optional-second-wave.md`
+- Docs: `docs/design/generation/output/terrain-13-fortification-later.md`
+- Docs: `docs/design/generation/output/terrain-14-checkpoint-later.md`
+
+---
+## 2026-01-03 — Procedural terrain tile (PLAIN) PNG
+
+### BEFORE
+- The repo only had placeholder tile art (`ground.png`, `highlight_move.png`) and prompt templates, but no actual terrain tile PNG matching the generation spec for `01 — PLAIN`.
+
+### NOW
+- Added a deterministic, script-generated isometric slab tile for `01 — PLAIN` with a neutral top face, slightly darker side faces, flat fills (no lighting), and minimal inset markings per the prompt.
+- Output is a transparent 1024×1024 PNG at `public/assets/tiles/terrain-01-plain.png`.
+
+### NEXT
+- Extend the generator to produce the remaining terrain tiles (ROUGH/FOREST/URBAN/…) using the same geometric language and flat-fill constraints.
+- Optionally wire the script to read `docs/design/generation/output/terrain-*.md` and emit a complete tile set in one command.
+
+### Known limitations / TODOs
+- The current script only generates `01 — PLAIN`; other terrain types still need implementation.
+- The tile generator is procedural and does not use an AI model; results are intentionally abstract and may need manual tuning to match the final art direction.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-01-plain.png`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Procedural terrain tile (ROUGH) PNG
+
+### BEFORE
+- Only `01 — PLAIN` had a generated terrain tile PNG; `02 — ROUGH` existed as a prompt template only.
+
+### NOW
+- Extended the deterministic tile generator to output `02 — ROUGH` as abstract “broken pattern logic”: rectangular fragments, small offsets, and gaps/misalignments on the top face (no texture, no lighting, no rubble illustration).
+- Output is a transparent 1024×1024 PNG at `public/assets/tiles/terrain-02-rough.png`.
+
+### NEXT
+- Implement the remaining terrain generators (FOREST/URBAN/HILL/…) so `docs/design/generation/output/terrain-*.md` has a matching PNG under `public/assets/tiles/`.
+
+### Known limitations / TODOs
+- Fragment layout is procedural; we may need to tune density and fragment sizes to better match the intended “rough traversal disruption” read across the full tile set.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-02-rough.png`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Procedural terrain tiles (FOREST / URBAN / HILL / WATER) PNGs
+
+### BEFORE
+- Only `01 — PLAIN` and `02 — ROUGH` had generated terrain PNGs; `03 — FOREST`, `04 — URBAN`, `05 — HILL`, and `06 — WATER` existed as prompt templates only.
+
+### NOW
+- Added deterministic, script-generated terrain tiles for:
+  - `03 — FOREST`: dense tall-thin rectangle repetition with staggered rows and a couple clear lanes (no organic shapes).
+  - `04 — URBAN`: orthogonal “footprint” blocks arranged in cells with crisp straight corridor bars (diagrammatic streets).
+  - `05 — HILL`: 5 nested diamond contour plates (discrete terraces, no gradients).
+  - `06 — WATER`: calm parallel banding with slight angular variation (no curves, no wave art).
+- Outputs are transparent 1024×1024 PNGs:
+  - `public/assets/tiles/terrain-03-forest.png`
+  - `public/assets/tiles/terrain-04-urban.png`
+  - `public/assets/tiles/terrain-05-hill.png`
+  - `public/assets/tiles/terrain-06-water.png`
+
+### NEXT
+- Generate the remaining terrain set (ROAD/BRIDGE/TRENCH/INDUSTRIAL/…) so every prompt in `docs/design/generation/output/` has a matching tile asset.
+- Once the full set exists, tune the neutral palette and density so the entire family reads as one coherent board system.
+
+### Known limitations / TODOs
+- These are procedural approximations of the prompt language (no AI model involved); geometry density and spacing may need iterative tuning against the desired art direction.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-03-forest.png`, `public/assets/tiles/terrain-04-urban.png`, `public/assets/tiles/terrain-05-hill.png`, `public/assets/tiles/terrain-06-water.png`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Raster terrain tile (ROAD) PNG
+
+### BEFORE
+- `07 — ROAD` existed only as a prompt template (`docs/design/generation/output/terrain-07-road.md`) and had no corresponding tile PNG.
+
+### NOW
+- Generated a transparent 1024×1024 isometric slab tile with a single strong linear corridor band crossing the top face edge-to-edge, plus a thin parallel lane marking (strict geometry, flat fills, no lighting).
+- Output is `public/assets/tiles/terrain-07-road.png`.
+
+### NEXT
+- Generate `08 — BRIDGE` with a narrower traversal spine + symmetric supports to keep the ROAD/BRIDGE pair readable as a set.
+
+### Known limitations / TODOs
+- This is a procedural raster interpretation of the prompt; corridor thickness/placement may need tuning once the full tile family is generated.
+
+### Files touched
+- Assets: `public/assets/tiles/terrain-07-road.png`
+- Docs: `docs/progress.md`

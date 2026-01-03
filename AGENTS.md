@@ -31,7 +31,7 @@ If documentation is not written, the task is INCOMPLETE.
 
 ## 2. Project Structure & Module Organization
 
-- `app/` contains the Next.js App Router source (pages, layouts, route handlers).
+- `src/app/` contains the Next.js App Router source (pages, layouts, route handlers).
 - `public/` hosts static, publicly served files.
 - `assets/` holds project assets that are not served directly.
 - `docs/` is reserved for internal project documentation.

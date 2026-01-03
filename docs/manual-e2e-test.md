@@ -7,17 +7,19 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 1. Run `npm run dev`.
 2. Open `http://localhost:3000`.
 
-## Quick Tactics Smoke Test
+## Quick Smoke Test (Includes Tactics)
 
-1. Advance to `MOVEMENT` and open the Ops Console (right dock on desktop or `CONSOLE` button on mobile).
-2. Switch to the `TACTICS` tab; find `Suppressive Fire` (or any `beforeMove` tactic).
-3. Click `Select Targets`, confirm the bottom targeting bar appears, select an enemy unit on the board, then `Confirm`; verify the card arms.
-4. Move a unit; confirm the tactic is consumed.
-5. Select an attacker/target, advance to `DICE_RESOLUTION`, and open the Ops Console `TACTICS` tab.
-6. Arm `Precision Shot`, click `Roll Dice`, then confirm `afterAttackRoll/beforeDamage` tactics are available in the `TACTICS` tab.
-7. Arm `Commander's Luck`, click `Resolve Attack`, and confirm a reroll log entry.
+1. From `TURN_START`, click `Next Phase` until `MOVEMENT`.
+2. Open the Ops Console `TACTICS` tab (right dock on desktop or `CONSOLE` button on mobile).
+3. Arm a `beforeMove` tactic (e.g., `Suppressive Fire`):
+   - Click `Select Targets`, select an enemy unit, then `Confirm`.
+   - Verify the tactic arms and the bottom targeting bar clears.
+4. Move any unit and confirm the tactic is consumed (log entry present).
+5. Select an attacker/target, advance to `DICE_RESOLUTION`, and return to the `TACTICS` tab.
+6. Arm a `beforeAttackRoll` tactic (e.g., `Precision Shot`), then click `Roll Dice`.
+7. Arm an `afterAttackRoll/beforeDamage` tactic (e.g., `Commander's Luck`), click `Resolve Attack`, and confirm a reroll log entry.
 
-## Combined Cards + Tactics Walkthrough (Short Regression Pass)
+## Full Flow Regression (Cards + Tactics)
 
 1. From `TURN_START`, click `Next Phase` to reach `CARD_DRAW`.
 2. Click `Draw Card`:
@@ -32,6 +34,7 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 7. Open the Ops Console `TACTICS` tab and arm a `beforeAttackRoll` tactic, then click `Roll Dice`.
 8. Open the Ops Console `TACTICS` tab and arm `Commander's Luck` (or any `afterAttackRoll/beforeDamage` tactic), then click `Resolve Attack`.
 9. Verify the log contains entries for the card play, movement, attack roll, and tactic resolution.
+10. Optional: In `ATTACK`, verify tactics outside the current reaction window remain disabled.
 
 ## UI / Layout Smoke Checks
 
