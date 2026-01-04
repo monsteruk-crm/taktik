@@ -16,6 +16,7 @@
 - Topology recipes must be deterministic and tileable; each edge combination has a distinct layout.
 - Network density is controlled by `GameState.terrain.params` and generated from `GameState.rngSeed`.
 - Density values greater than `1` are interpreted as percentages (e.g. `4` → `0.04`).
+- The optional `GameState.terrain.params.maxBridges` value caps how many river-crossing road tiles (bridges) the generator will place, so overlays should never render more bridged cells than this configured limit.
 
 ## Edge cases
 - Single-tile networks render as a centered join plate (no arms).

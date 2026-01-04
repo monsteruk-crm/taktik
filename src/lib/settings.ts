@@ -1,6 +1,13 @@
-export const initialTerrainParams = {
-  roadDensity: 0.3,
-  riverDensity: 0.2,
+export type TerrainParams = {
+  roadDensity: number;
+  riverDensity: number;
+  maxBridges?: number;
+};
+
+export const initialTerrainParams: TerrainParams = {
+  roadDensity: 0.8,
+  riverDensity: 0.6,
+  maxBridges: 10,
 };
 
 export function getInitialRngSeed(): number {

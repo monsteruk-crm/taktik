@@ -1,3 +1,5 @@
+import type { TerrainParams } from "@/lib/settings";
+
 export type GamePhase =
     | "TURN_START"
     | "CARD_DRAW"
@@ -120,10 +122,7 @@ export type GameState = {
     terrain: {
         road: BoardCell[];
         river: BoardCell[];
-        params: {
-            roadDensity: number;
-            riverDensity: number;
-        };
+        params: TerrainParams;
         seed: number;
     };
     commonDeck: CardDefinition[];

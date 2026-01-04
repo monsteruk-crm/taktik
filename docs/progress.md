@@ -214,6 +214,25 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-04 — Tie bridge budget to terrain params
+
+### BEFORE
+- `generateTerrainNetworks()` gained a `maxBridges` option but no caller provided a value, so TypeScript flagged the new argument and the docs never explained how to tune bridge counts.
+
+### NOW
+- `initialTerrainParams` exposes a typed `maxBridges` knob and the reducer forwards it into `generateTerrainNetworks()`, so terrain generation can be configured from one place and the TypeScript errors disappear.
+
+### NEXT
+- Document acceptable ranges or UI controls for `maxBridges`, and consider adding warnings when budget limits are incompatible with board size.
+
+### Known limitations / TODOs
+- Very low budgets still rely on the random bridge selector working quickly; we may want to fall back to a deterministic bridge if a positive budget is provided but no candidate is found after a bounded number of tries.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`, `docs/roads-rivers.md`
+- Engine: `src/lib/engine/terrain.ts`, `src/lib/engine/reducer.ts`, `src/lib/engine/gameState.ts`, `src/lib/settings.ts`
+
+
 ## 2025-12-27 — Adjust unit centering on tiles
 
 ### BEFORE

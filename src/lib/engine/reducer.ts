@@ -69,6 +69,7 @@ function createInitialGameState(seed: number): GameState {
     seed: initialTacticalDeck.nextSeed,
     roadDensity: initialTerrainParams.roadDensity,
     riverDensity: initialTerrainParams.riverDensity,
+    maxBridges:initialTerrainParams.maxBridges
   });
 
   return {

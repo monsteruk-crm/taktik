@@ -51,7 +51,7 @@ Defined in `lib/engine/gameState.ts`:
 - `movesThisTurn`: capped by the engine at 5 (see `maxMovesPerTurn`).
 - Terrain:
   - `terrain.road` / `terrain.river`: arrays of `{x,y}` cells generated at game start.
-  - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) that control how many cells are generated.
+  - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus an optional `maxBridges` cap that limits how many river crossings/bridges are allowed; this comes from `initialTerrainParams`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
   - Initial terrain params are defined in `src/lib/settings.ts`.
 - Decks/cards:

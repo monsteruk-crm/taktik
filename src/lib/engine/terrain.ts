@@ -473,6 +473,7 @@ function generateRoadCells(args: {
   height: number;
   density: number;
   river: Set<string>;
+  maxBridges?: number;
 }): Set<string> {
   const { rng, width, height, river } = args;
 
@@ -484,25 +485,40 @@ function generateRoadCells(args: {
   const riverHardBlocked = new Set<string>(river);
   const riverBuffered = buffered(river, width, height, 1);
 
-  // --- BRIDGES (GUARANTEED) ---
-  // We guarantee at least 1 bridge if any river exists,
-  // and we choose a bridge that actually connects two land components when possible.
+  // --- BRIDGES (PARAMETRIZABLE) ---
+  // Default behavior (when maxBridges is undefined) remains the same as before:
+  // guarantee 1 bridge if possible; sometimes add a 2nd at higher road density.
+  // If maxBridges is provided, we place up to that many distinct bridges (0 allowed).
   const bridges = new Set<string>();
-  const bridgeKey = pickBridgeThatConnectsComponents({
-    rng,
-    river,
-    width,
-    height,
-  });
+  let primaryBridge: string | null = null;
 
-  if (bridgeKey) bridges.add(bridgeKey);
+  const want = args.maxBridges;
+    if (want !== undefined) {
+      const budget = Math.max(0, Math.floor(want));
+      if (budget > 0) {
+        const attempts = Math.max(8, budget * 12);
+        for (let t = 0; t < attempts && bridges.size < budget; t++) {
+          const k = pickBridgeThatConnectsComponents({ rng, river, width, height });
+          if (k) {
+            bridges.add(k);
+            primaryBridge = primaryBridge ?? k;
+          }
+        }
+      }
+    } else {
+      // Legacy behavior
+      const bridgeKey = pickBridgeThatConnectsComponents({ rng, river, width, height });
+      if (bridgeKey) {
+        bridges.add(bridgeKey);
+        primaryBridge = bridgeKey;
+      }
 
-  // Bridge budget: allow a second one at higher densities
-  if (bridgeKey && density > 0.38 && rng.float() < 0.55) {
-    // attempt a second different bridge
-    const bridgeKey2 = pickBridgeThatConnectsComponents({ rng, river, width, height });
-    if (bridgeKey2 && bridgeKey2 !== bridgeKey) bridges.add(bridgeKey2);
-  }
+      // Bridge budget: allow a second one at higher densities
+      if (bridgeKey && density > 0.38 && rng.float() < 0.55) {
+        const bridgeKey2 = pickBridgeThatConnectsComponents({ rng, river, width, height });
+        if (bridgeKey2 && bridgeKey2 !== bridgeKey) bridges.add(bridgeKey2);
+      }
+    }
 
   const isRiverPassableForRoad = (k: string) => !riverHardBlocked.has(k) || bridges.has(k);
 
@@ -553,12 +569,12 @@ function generateRoadCells(args: {
   };
 
   // --- FORCE ONE ARTERIAL THAT USES THE BRIDGE ---
-  if (bridgeKey) {
+  if (primaryBridge) {
     const blockedRiver = new Set<string>(riverHardBlocked);
     // treat river as blocked for component logic
     const { compId } = floodFillComponents({ width, height, blocked: blockedRiver });
 
-    const b = parseKey(bridgeKey);
+    const b = parseKey(primaryBridge);
 
     // Find two neighbor land components around the bridge
     const sideCells = neighbors(b, width, height)
@@ -693,8 +709,8 @@ function generateRoadCells(args: {
   // HARD guarantee: never return empty roads
   if (road.size === 0) {
     // create a tiny road around the bridge or an edge
-    if (bridgeKey) {
-      const b = parseKey(bridgeKey);
+    if (primaryBridge) {
+      const b = parseKey(primaryBridge);
       road.add(keyOf(b)); // overlap guaranteed
       for (const { cell } of neighbors(b, width, height)) {
         if (!riverHardBlocked.has(keyOf(cell))) {
@@ -710,6 +726,7 @@ function generateRoadCells(args: {
       if (ns[0]) road.add(keyOf(ns[0].cell));
     }
   }
+  //return road
   return pruneDeadArmsAtIntersections(road, width, height);
 }
 
@@ -854,6 +871,7 @@ export function generateTerrainNetworks(args: {
   seed: number;
   roadDensity: number;
   riverDensity: number;
+  maxBridges?: number;
 }): { road: BoardCell[]; river: BoardCell[]; nextSeed: number } {
   const rng = makeRng(args.seed);
 
@@ -872,6 +890,7 @@ export function generateTerrainNetworks(args: {
     height: args.height,
     density: args.roadDensity,
     river: riverSet,
+    maxBridges: args.maxBridges,
   });
 
   const river = Array.from(riverSet).map((k) => parseKey(k));
