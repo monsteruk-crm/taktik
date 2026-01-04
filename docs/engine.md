@@ -53,6 +53,7 @@ Defined in `lib/engine/gameState.ts`:
   - `terrain.road` / `terrain.river`: arrays of `{x,y}` cells generated at game start.
   - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus an optional `maxBridges` cap that limits how many river crossings/bridges are allowed; this comes from `initialTerrainParams`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
+- Initial unit placement is adjusted after terrain generation: each unit’s preferred spawn is shifted to the nearest non-road, non-river tile (and cannot overlap another unit), using a deterministic Manhattan-radius scan from its starting coordinate.
   - Initial terrain params are defined in `src/lib/settings.ts`.
 - Decks/cards:
   - `commonDeck`: the draw pile for the turn card.

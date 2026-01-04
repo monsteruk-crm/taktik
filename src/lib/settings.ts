@@ -6,7 +6,7 @@ export type TerrainParams = {
 
 export const initialTerrainParams: TerrainParams = {
   roadDensity: 0.8,
-  riverDensity: 0.6,
+  riverDensity: 0.2,
   maxBridges: 10,
 };
 

@@ -57,6 +57,46 @@ const phaseOrder: GamePhase[] = [
 const boardWidth = 20;
 const boardHeight = 30;
 const maxMovesPerTurn = 5;
+
+function buildTerrainBlockSet(terrain: { road: { x: number; y: number }[]; river: { x: number; y: number }[] }) {
+  const blocked = new Set<string>();
+  for (const cell of terrain.road) blocked.add(`${cell.x},${cell.y}`);
+  for (const cell of terrain.river) blocked.add(`${cell.x},${cell.y}`);
+  return blocked;
+}
+
+function findNearestClearCell(args: {
+  start: { x: number; y: number };
+  width: number;
+  height: number;
+  blocked: Set<string>;
+  occupied: Set<string>;
+}): { x: number; y: number } {
+  const { start, width, height, blocked, occupied } = args;
+  const key = `${start.x},${start.y}`;
+  if (!blocked.has(key) && !occupied.has(key)) return start;
+
+  const maxRadius = Math.max(width, height);
+  for (let r = 1; r <= maxRadius; r += 1) {
+    for (let dy = -r; dy <= r; dy += 1) {
+      const dx = r - Math.abs(dy);
+      const candidates = [
+        { x: start.x + dx, y: start.y + dy },
+        { x: start.x - dx, y: start.y + dy },
+      ];
+      for (const candidate of candidates) {
+        if (candidate.x < 0 || candidate.x >= width || candidate.y < 0 || candidate.y >= height) {
+          continue;
+        }
+        const candidateKey = `${candidate.x},${candidate.y}`;
+        if (blocked.has(candidateKey) || occupied.has(candidateKey)) continue;
+        return candidate;
+      }
+    }
+  }
+
+  return start;
+}
 function createInitialGameState(seed: number): GameState {
   const initialCommonDeck = shuffleWithSeed(commonDeckCards, seed);
   const initialTacticalDeck = shuffleWithSeed(
@@ -72,6 +112,31 @@ function createInitialGameState(seed: number): GameState {
     maxBridges:initialTerrainParams.maxBridges
   });
 
+  const terrainBlocked = buildTerrainBlockSet(initialTerrain);
+  const occupied = new Set<string>();
+  const spawnA = [
+    { id: "A1", x: 2, y: 2 },
+    { id: "A2", x: 4, y: 2 },
+    { id: "A3", x: 6, y: 2 },
+  ];
+  const spawnB = [
+    { id: "B1", x: 2, y: 6 },
+    { id: "B2", x: 4, y: 6 },
+    { id: "B3", x: 6, y: 6 },
+  ];
+  const spawnPositions = new Map<string, { x: number; y: number }>();
+  for (const spawn of [...spawnA, ...spawnB]) {
+    const position = findNearestClearCell({
+      start: { x: spawn.x, y: spawn.y },
+      width: boardWidth,
+      height: boardHeight,
+      blocked: terrainBlocked,
+      occupied,
+    });
+    spawnPositions.set(spawn.id, position);
+    occupied.add(`${position.x},${position.y}`);
+  }
+
   return {
     phase: "TURN_START",
     activePlayer: "PLAYER_A",
@@ -83,7 +148,7 @@ function createInitialGameState(seed: number): GameState {
         id: "A1",
         owner: "PLAYER_A",
         type: "INFANTRY",
-        position: { x: 2, y: 2 },
+        position: spawnPositions.get("A1") ?? { x: 2, y: 2 },
         movement: 3,
         attack: 1,
         hasMoved: false,
@@ -92,7 +157,7 @@ function createInitialGameState(seed: number): GameState {
         id: "A2",
         owner: "PLAYER_A",
         type: "VEHICLE",
-        position: { x: 4, y: 2 },
+        position: spawnPositions.get("A2") ?? { x: 4, y: 2 },
         movement: 2,
         attack: 2,
         hasMoved: false,
@@ -101,7 +166,7 @@ function createInitialGameState(seed: number): GameState {
         id: "A3",
         owner: "PLAYER_A",
         type: "SPECIAL",
-        position: { x: 6, y: 2 },
+        position: spawnPositions.get("A3") ?? { x: 6, y: 2 },
         movement: 2,
         attack: 3,
         hasMoved: false,
@@ -110,7 +175,7 @@ function createInitialGameState(seed: number): GameState {
         id: "B1",
         owner: "PLAYER_B",
         type: "INFANTRY",
-        position: { x: 2, y: 6 },
+        position: spawnPositions.get("B1") ?? { x: 2, y: 6 },
         movement: 3,
         attack: 1,
         hasMoved: false,
@@ -119,7 +184,7 @@ function createInitialGameState(seed: number): GameState {
         id: "B2",
         owner: "PLAYER_B",
         type: "VEHICLE",
-        position: { x: 4, y: 6 },
+        position: spawnPositions.get("B2") ?? { x: 4, y: 6 },
         movement: 2,
         attack: 2,
         hasMoved: false,
@@ -128,7 +193,7 @@ function createInitialGameState(seed: number): GameState {
         id: "B3",
         owner: "PLAYER_B",
         type: "SPECIAL",
-        position: { x: 6, y: 6 },
+        position: spawnPositions.get("B3") ?? { x: 6, y: 6 },
         movement: 2,
         attack: 3,
         hasMoved: false,

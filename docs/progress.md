@@ -3110,6 +3110,26 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-04 — Deterministic spawn adjustment off roads/rivers
+
+### BEFORE
+- Initial unit placements were hard-coded grid coordinates, so generated road/river cells could spawn units directly on top of terrain networks.
+
+### NOW
+- Initial placement runs a deterministic nearest-clear-cell scan from each preferred spawn, ensuring units never start on a road/river tile or overlap another unit.
+
+### NEXT
+- Add explicit “spawn zone” definitions (e.g., top/bottom bands) so future scenarios can tune where the nearest-clear search is allowed to look.
+
+### Known limitations / TODOs
+- The scan uses Manhattan-radius expansion without faction-specific zones, so on extreme maps a unit could shift further than intended if the local area is fully blocked.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/reducer.ts`
+
+---
+
 ## 2026-01-04 — Guard road sampling against empty sets
 
 ### BEFORE
