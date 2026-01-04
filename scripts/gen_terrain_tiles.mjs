@@ -1,9 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { PNG } from "pngjs";
 
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, "public", "assets", "tiles");
+const TEMP_DIR = path.join(ROOT, "temp");
+const SCALE = 3;
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -12,6 +15,27 @@ function ensureDir(dir) {
 function writePng(filePath, png) {
   const buffer = PNG.sync.write(png);
   fs.writeFileSync(filePath, buffer);
+}
+
+function cropTileWithImagemagick(inputPath, outputPath) {
+  execFileSync(
+    "convert",
+    [
+      inputPath,
+      "-alpha",
+      "set",
+      "-background",
+      "none",
+      "-trim",
+      "+repage",
+      "-gravity",
+      "North",
+      "-extent",
+      "1918x1190",
+      outputPath,
+    ],
+    { stdio: "inherit" }
+  );
 }
 
 function setPixel(png, x, y, color) {
@@ -56,15 +80,15 @@ function fillPolygon(png, points, color) {
 }
 
 function makeTilePlain1024() {
-  const size = 1024;
+  const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
 
   const cx = size / 2;
-  const cy = 430;
+  const cy = 430 * SCALE;
 
-  const tileW = 640;
-  const tileH = 320;
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
   const top = { x: cx, y: cy - tileH / 2 };
@@ -131,15 +155,15 @@ function makeRng(seed) {
 }
 
 function makeTileRough1024() {
-  const size = 1024;
+  const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
 
   const cx = size / 2;
-  const cy = 430;
+  const cy = 430 * SCALE;
 
-  const tileW = 640;
-  const tileH = 320;
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
   const top = { x: cx, y: cy - tileH / 2 };
@@ -233,15 +257,15 @@ function makeTileRough1024() {
 }
 
 function makeTileForest1024() {
-  const size = 1024;
+  const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
 
   const cx = size / 2;
-  const cy = 430;
+  const cy = 430 * SCALE;
 
-  const tileW = 640;
-  const tileH = 320;
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
   const top = { x: cx, y: cy - tileH / 2 };
@@ -324,15 +348,15 @@ function makeTileForest1024() {
 }
 
 function makeTileUrban1024() {
-  const size = 1024;
+  const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
 
   const cx = size / 2;
-  const cy = 430;
+  const cy = 430 * SCALE;
 
-  const tileW = 640;
-  const tileH = 320;
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
   const top = { x: cx, y: cy - tileH / 2 };
@@ -428,15 +452,15 @@ function makeTileUrban1024() {
 }
 
 function makeTileHill1024() {
-  const size = 1024;
+  const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
 
   const cx = size / 2;
-  const cy = 430;
+  const cy = 430 * SCALE;
 
-  const tileW = 640;
-  const tileH = 320;
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
   const top = { x: cx, y: cy - tileH / 2 };
@@ -476,15 +500,15 @@ function makeTileHill1024() {
 }
 
 function makeTileWater1024() {
-  const size = 1024;
+  const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
 
   const cx = size / 2;
-  const cy = 430;
+  const cy = 430 * SCALE;
 
-  const tileW = 640;
-  const tileH = 320;
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
   const top = { x: cx, y: cy - tileH / 2 };
@@ -549,26 +573,379 @@ function makeTileWater1024() {
   return png;
 }
 
+function makeTileIndustrial1024() {
+  const size = 1024 * SCALE;
+  const png = new PNG({ width: size, height: size });
+  png.data.fill(0);
+
+  const cx = size / 2;
+  const cy = 430 * SCALE;
+
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
+  const thickness = Math.round(tileW * 0.12);
+
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const bottom = { x: cx, y: cy + tileH / 2 };
+  const left = { x: cx - tileW / 2, y: cy };
+
+  const down = { x: 0, y: thickness };
+  const right2 = { x: right.x + down.x, y: right.y + down.y };
+  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
+  const left2 = { x: left.x + down.x, y: left.y + down.y };
+
+  const topFill = [232, 232, 228, 255];
+  const sideFillRight = [210, 210, 206, 255];
+  const sideFillLeft = [204, 204, 200, 255];
+
+  const padA = [220, 220, 216, 255];
+  const padB = [214, 214, 210, 255];
+  const padC = [206, 206, 202, 255];
+  const channel = [200, 200, 196, 255];
+
+  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
+  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
+  fillPolygon(png, [top, right, bottom, left], topFill);
+
+  // INDUSTRIAL: heavy asymmetric machinery footprint logic:
+  // chunky rectangles, offsets, dense clusters + a few small “service channel” lines.
+  const a = { x: right.x - top.x, y: right.y - top.y };
+  const b = { x: left.x - top.x, y: left.y - top.y };
+
+  function rectOnTopFace(s0, s1, t0, t1) {
+    return [
+      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
+      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
+      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
+      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
+    ];
+  }
+
+  const rng = makeRng(0x494e4455); // "INDU"
+  const palette = [padA, padB, padC];
+
+  // Main dense cluster biased toward one quadrant to read asymmetric.
+  const cluster = { s0: 0.16, s1: 0.78, t0: 0.18, t1: 0.76 };
+  const chunkyCount = 18;
+  for (let i = 0; i < chunkyCount; i += 1) {
+    const w = rng.range(0.08, 0.22);
+    const h = rng.range(0.06, 0.16);
+    let s0 = rng.range(cluster.s0, Math.max(cluster.s0, cluster.s1 - w));
+    let t0 = rng.range(cluster.t0, Math.max(cluster.t0, cluster.t1 - h));
+
+    // Offset logic: snap-ish to a coarse grid, then nudge.
+    const snap = 0.02;
+    s0 = Math.round(s0 / snap) * snap + rng.pick([-0.01, 0, 0.01]);
+    t0 = Math.round(t0 / snap) * snap + rng.pick([-0.01, 0, 0.01]);
+    s0 = Math.max(0.10, Math.min(0.86 - w, s0));
+    t0 = Math.max(0.10, Math.min(0.86 - h, t0));
+
+    const s1 = s0 + w;
+    const t1 = t0 + h;
+    fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), rng.pick(palette));
+
+    // Occasional “baseplate” underlay: slightly larger faint pad behind a block.
+    if (rng.float() < 0.22) {
+      const pad = rng.range(0.008, 0.016);
+      fillPolygon(
+        png,
+        rectOnTopFace(Math.max(0.08, s0 - pad), Math.min(0.92, s1 + pad), Math.max(0.08, t0 - pad), Math.min(0.92, t1 + pad)),
+        padC,
+      );
+      fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), rng.pick(palette));
+    }
+  }
+
+  // Secondary sparse blocks to imply equipment sprawl beyond the main cluster.
+  const sparseCount = 7;
+  for (let i = 0; i < sparseCount; i += 1) {
+    const w = rng.range(0.06, 0.14);
+    const h = rng.range(0.05, 0.12);
+    const s0 = rng.range(0.10, 0.86 - w);
+    const t0 = rng.range(0.10, 0.86 - h);
+    if (s0 > cluster.s0 && s0 < cluster.s1 && t0 > cluster.t0 && t0 < cluster.t1) continue;
+    fillPolygon(png, rectOnTopFace(s0, s0 + w, t0, t0 + h), rng.pick(palette));
+  }
+
+  // Service channel lines: thin, hard-edged, short runs.
+  const channelCount = 5;
+  for (let i = 0; i < channelCount; i += 1) {
+    const isHorizontal = rng.float() < 0.5;
+    const thicknessT = rng.range(0.010, 0.016);
+    if (isHorizontal) {
+      const t0 = rng.range(0.18, 0.80);
+      const s0 = rng.range(0.16, 0.70);
+      const s1 = Math.min(0.90, s0 + rng.range(0.14, 0.26));
+      fillPolygon(png, rectOnTopFace(s0, s1, t0, t0 + thicknessT), channel);
+    } else {
+      const s0 = rng.range(0.18, 0.80);
+      const t0 = rng.range(0.16, 0.70);
+      const t1 = Math.min(0.90, t0 + rng.range(0.14, 0.24));
+      fillPolygon(png, rectOnTopFace(s0, s0 + thicknessT, t0, t1), channel);
+    }
+  }
+
+  // One heavier diagonal spine (still orthogonal in param space, reads oblique on tile).
+  fillPolygon(png, rectOnTopFace(0.22, 0.78, 0.44, 0.50), padB);
+
+  return png;
+}
+
+function makeMainGroundTile() {
+  const size = 1024 * SCALE;
+  const png = new PNG({ width: size, height: size });
+  png.data.fill(0);
+
+  const cx = size / 2;
+  const cy = 430 * SCALE;
+
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
+  const thickness = Math.round(tileW * 0.12);
+
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const bottom = { x: cx, y: cy + tileH / 2 };
+  const left = { x: cx - tileW / 2, y: cy };
+
+  const down = { x: 0, y: thickness };
+  const right2 = { x: right.x + down.x, y: right.y + down.y };
+  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
+  const left2 = { x: left.x + down.x, y: left.y + down.y };
+
+  // TERRAIN: FLAT GROUND — top face completely empty, neutral slab tones.
+  const topFill = [232, 232, 228, 255];
+  const sideFillRight = [210, 210, 206, 255];
+  const sideFillLeft = [204, 204, 200, 255];
+
+  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
+  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
+  fillPolygon(png, [top, right, bottom, left], topFill);
+
+  return png;
+}
+
+function makeMainHighlightTile() {
+  const size = 1024 * SCALE;
+  const png = new PNG({ width: size, height: size });
+  png.data.fill(0);
+
+  const cx = size / 2;
+  const cy = 430 * SCALE;
+
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
+
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const bottom = { x: cx, y: cy + tileH / 2 };
+  const left = { x: cx - tileW / 2, y: cy };
+
+  // TILE HILIGHT: affects ONLY the top face; flat, desaturated cyan; no gradients/glow.
+  const hiFill = [86, 165, 176, 170]; // pale blue-green, medium-light, low saturation
+  const border = [86, 165, 176, 220];
+
+  fillPolygon(png, [top, right, bottom, left], hiFill);
+
+  // Optional thin inset border on top face only (hard-edged).
+  const inset = 0.10;
+  const pTop = { x: top.x + (right.x - top.x) * inset, y: top.y + (right.y - top.y) * inset };
+  const pRight = {
+    x: right.x + (bottom.x - right.x) * inset,
+    y: right.y + (bottom.y - right.y) * inset,
+  };
+  const pBottom = {
+    x: bottom.x + (left.x - bottom.x) * inset,
+    y: bottom.y + (left.y - bottom.y) * inset,
+  };
+  const pLeft = { x: left.x + (top.x - left.x) * inset, y: left.y + (top.y - left.y) * inset };
+  fillPolygon(png, [pTop, pRight, pBottom, pLeft], border);
+
+  // Punch out the center so the border reads as an inset line, not a second fill layer.
+  const inset2 = inset + 0.03;
+  const iTop = { x: top.x + (right.x - top.x) * inset2, y: top.y + (right.y - top.y) * inset2 };
+  const iRight = {
+    x: right.x + (bottom.x - right.x) * inset2,
+    y: right.y + (bottom.y - right.y) * inset2,
+  };
+  const iBottom = {
+    x: bottom.x + (left.x - bottom.x) * inset2,
+    y: bottom.y + (left.y - bottom.y) * inset2,
+  };
+  const iLeft = { x: left.x + (top.x - left.x) * inset2, y: left.y + (top.y - left.y) * inset2 };
+
+  // Fill the inner region back with the base highlight fill.
+  fillPolygon(png, [iTop, iRight, iBottom, iLeft], hiFill);
+
+  return png;
+}
+
+function makeHighlightTileTopFace({ fill, border, banding, segmentation }) {
+  const size = 1024 * SCALE;
+  const png = new PNG({ width: size, height: size });
+  png.data.fill(0);
+
+  const cx = size / 2;
+  const cy = 430 * SCALE;
+
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
+
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const bottom = { x: cx, y: cy + tileH / 2 };
+  const left = { x: cx - tileW / 2, y: cy };
+
+  if (segmentation === "diagonal-split") {
+    const leftTint = fill;
+    const rightTint = [fill[0], fill[1], fill[2], Math.min(255, fill[3] + 24)];
+    fillPolygon(png, [top, right, bottom], rightTint);
+    fillPolygon(png, [top, bottom, left], leftTint);
+  } else if (segmentation === "radial-4") {
+    const tintA = fill;
+    const tintB = [fill[0], fill[1], fill[2], Math.min(255, fill[3] + 18)];
+    fillPolygon(png, [top, right, { x: cx, y: cy }], tintB);
+    fillPolygon(png, [right, bottom, { x: cx, y: cy }], tintA);
+    fillPolygon(png, [bottom, left, { x: cx, y: cy }], tintB);
+    fillPolygon(png, [left, top, { x: cx, y: cy }], tintA);
+  } else {
+    fillPolygon(png, [top, right, bottom, left], fill);
+  }
+
+  if (banding === "subtle") {
+    // Thin, hard-edged bands aligned to the isometric axes (no arrows, no gradients).
+    const a = { x: right.x - top.x, y: right.y - top.y };
+    const b = { x: left.x - top.x, y: left.y - top.y };
+    const bandFill = [fill[0], fill[1], fill[2], Math.min(255, fill[3] + 22)];
+    const bands = [
+      { t0: 0.34, t1: 0.36 },
+      { t0: 0.49, t1: 0.51 },
+      { t0: 0.64, t1: 0.66 },
+    ];
+    for (const band of bands) {
+      const poly = [
+        { x: top.x + a.x * 0.08 + b.x * band.t0, y: top.y + a.y * 0.08 + b.y * band.t0 },
+        { x: top.x + a.x * 0.92 + b.x * band.t0, y: top.y + a.y * 0.92 + b.y * band.t0 },
+        { x: top.x + a.x * 0.92 + b.x * band.t1, y: top.y + a.y * 0.92 + b.y * band.t1 },
+        { x: top.x + a.x * 0.08 + b.x * band.t1, y: top.y + a.y * 0.08 + b.y * band.t1 },
+      ];
+      fillPolygon(png, poly, bandFill);
+    }
+  }
+
+  if (border) {
+    // Inset border plate (top-face only).
+    const inset = 0.10;
+    const pTop = { x: top.x + (right.x - top.x) * inset, y: top.y + (right.y - top.y) * inset };
+    const pRight = {
+      x: right.x + (bottom.x - right.x) * inset,
+      y: right.y + (bottom.y - right.y) * inset,
+    };
+    const pBottom = {
+      x: bottom.x + (left.x - bottom.x) * inset,
+      y: bottom.y + (left.y - bottom.y) * inset,
+    };
+    const pLeft = { x: left.x + (top.x - left.x) * inset, y: left.y + (top.y - left.y) * inset };
+    fillPolygon(png, [pTop, pRight, pBottom, pLeft], border);
+
+    const inset2 = inset + 0.03;
+    const iTop = {
+      x: top.x + (right.x - top.x) * inset2,
+      y: top.y + (right.y - top.y) * inset2,
+    };
+    const iRight = {
+      x: right.x + (bottom.x - right.x) * inset2,
+      y: right.y + (bottom.y - right.y) * inset2,
+    };
+    const iBottom = {
+      x: bottom.x + (left.x - bottom.x) * inset2,
+      y: bottom.y + (left.y - bottom.y) * inset2,
+    };
+    const iLeft = {
+      x: left.x + (top.x - left.x) * inset2,
+      y: left.y + (top.y - left.y) * inset2,
+    };
+    fillPolygon(png, [iTop, iRight, iBottom, iLeft], fill);
+  }
+
+  return png;
+}
+
 ensureDir(OUT_DIR);
+ensureDir(TEMP_DIR);
+const generatedFiles = [];
 
 const plain = makeTilePlain1024();
-writePng(path.join(OUT_DIR, "terrain-01-plain.png"), plain);
+generatedFiles.push("terrain-01-plain.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), plain);
 
 const rough = makeTileRough1024();
-writePng(path.join(OUT_DIR, "terrain-02-rough.png"), rough);
+generatedFiles.push("terrain-02-rough.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), rough);
 
 const forest = makeTileForest1024();
-writePng(path.join(OUT_DIR, "terrain-03-forest.png"), forest);
+generatedFiles.push("terrain-03-forest.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), forest);
 
 const urban = makeTileUrban1024();
-writePng(path.join(OUT_DIR, "terrain-04-urban.png"), urban);
+generatedFiles.push("terrain-04-urban.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), urban);
 
 const hill = makeTileHill1024();
-writePng(path.join(OUT_DIR, "terrain-05-hill.png"), hill);
+generatedFiles.push("terrain-05-hill.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), hill);
 
 const water = makeTileWater1024();
-writePng(path.join(OUT_DIR, "terrain-06-water.png"), water);
+generatedFiles.push("terrain-06-water.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), water);
+
+const industrial = makeTileIndustrial1024();
+generatedFiles.push("terrain-10-industrial.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), industrial);
+
+// Main in-game tiles (overwrites legacy placeholders).
+const groundMain = makeMainGroundTile();
+generatedFiles.push("ground.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), groundMain);
+
+const highlightMain = makeMainHighlightTile();
+generatedFiles.push("highlight_move.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), highlightMain);
+
+// Advanced overlays (not wired into runtime yet).
+const attackHighlight = makeHighlightTileTopFace({
+  fill: [126, 58, 47, 190], // muted rust red
+  border: [126, 58, 47, 230],
+  segmentation: "radial-4",
+});
+generatedFiles.push("highlight_attack.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), attackHighlight);
+
+const moveHighlightAdvanced = makeHighlightTileTopFace({
+  fill: [66, 135, 168, 190], // desaturated cold blue
+  border: [66, 135, 168, 230],
+  banding: "subtle",
+});
+generatedFiles.push("highlight_move_adv.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), moveHighlightAdvanced);
+
+const targetConfirmHighlight = makeHighlightTileTopFace({
+  fill: [164, 154, 96, 200], // pale khaki
+  border: [164, 154, 96, 235],
+  segmentation: "diagonal-split",
+});
+generatedFiles.push("highlight_target_confirm.png");
+writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), targetConfirmHighlight);
+
+for (const fileName of generatedFiles) {
+  cropTileWithImagemagick(
+    path.join(TEMP_DIR, fileName),
+    path.join(OUT_DIR, fileName)
+  );
+}
 
 console.log(
-  "Generated terrain tiles: terrain-01-plain.png, terrain-02-rough.png, terrain-03-forest.png, terrain-04-urban.png, terrain-05-hill.png, terrain-06-water.png",
+  "Generated terrain tiles: terrain-01-plain.png, terrain-02-rough.png, terrain-03-forest.png, terrain-04-urban.png, terrain-05-hill.png, terrain-06-water.png, terrain-10-industrial.png, ground.png, highlight_move.png, highlight_attack.png, highlight_move_adv.png, highlight_target_confirm.png",
 );
+console.log("Cropped tiles with ImageMagick: convert ... -gravity North -extent 1918x1190");

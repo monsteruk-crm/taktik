@@ -1,7 +1,7 @@
 # Board Hover Feedback
 
 ## What this feature does
-- Highlights the isometric tile currently under the mouse cursor by tinting the tile on hover.
+- Highlights the isometric tile currently under the cursor by rendering the `highlight_move.png` overlay.
 
 ## Why it exists (rule source / manual reference)
 - UI affordance only. This is not a rules-engine concept and is not specified in `docs/Taktik_Manual_EN.md`.
@@ -10,7 +10,7 @@
 - Purely visual; must not mutate game state or engine data.
 - Must respect the current pan/zoom transform applied by the viewport.
 - Must not interfere with existing tile highlights or unit rendering order.
-- Hover feedback uses a CSS hover filter on each tile (no JS state).
+- Hover feedback uses pointer tracking to place a highlight overlay; the base tile is no longer tinted.
 - Tile images are explicitly non-draggable to avoid interrupting viewport panning.
 
 ## Edge cases

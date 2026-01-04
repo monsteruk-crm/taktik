@@ -2563,3 +2563,242 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - Assets: `public/assets/tiles/terrain-07-road.png`
 - Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Replace base ground + highlight tile PNGs
+
+### BEFORE
+- `public/assets/tiles/ground.png` and `public/assets/tiles/highlight_move.png` were legacy placeholder assets that did not match the slab-style “command console tile” spec and included non-neutral coloring/gradient behavior.
+
+### NOW
+- Overwrote the in-game base tile and move highlight tile to match the new prompt specs:
+  - Base tile (`terrain-99-flat-ground`): neutral isometric slab with an empty top face (no markings), and slightly darker side faces.
+  - Highlight overlay (`terrain-hilight`): top-face-only desaturated cyan flat fill with a subtle inset border (no gradients, no glow), leaving side faces unchanged via transparency.
+- Generated/overwritten outputs:
+  - `public/assets/tiles/ground.png`
+  - `public/assets/tiles/highlight_move.png`
+
+### NEXT
+- Align the UI hover effect (`IsometricBoard` hover filter) with the new neutral base tile so hover doesn’t shift the palette too aggressively.
+- Generate the remaining terrain PNGs so the board can swap tiles by terrain type instead of using a single base tile everywhere.
+
+### Known limitations / TODOs
+- The base/highlight prompts specify a 1:1 square output in docs, but the in-game assets remain 128×64 to match current board rendering (`TILE_W`/`TILE_H`), so the slab is rendered in a compact canvas.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/ground.png`, `public/assets/tiles/highlight_move.png`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Regenerate tile assets at 3× resolution
+
+### BEFORE
+- Generated terrain tiles were 1024×1024 and the in-game base/highlight tiles were 128×64, limiting downstream reuse for higher-resolution exports.
+
+### NOW
+- Updated the tile generator to render at 3× scale and re-generated all script-managed assets:
+  - Terrain tiles: `terrain-01-plain.png` … `terrain-06-water.png` are now 3072×3072.
+  - In-game base/highlight: `ground.png` and `highlight_move.png` are now 384×192.
+- Output files are still transparent PNGs with the same isometric slab geometry and flat-fill constraints, just higher resolution.
+
+### NEXT
+- If we intend to use the 3× base/highlight assets in the runtime UI, verify that downscaling in the browser doesn’t introduce edge shimmer and consider enabling image-rendering rules if needed.
+
+### Known limitations / TODOs
+- `terrain-07-road.png` is not managed by `scripts/gen_terrain_tiles.mjs` yet, so it was not scaled by this step.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-01-plain.png`, `public/assets/tiles/terrain-02-rough.png`, `public/assets/tiles/terrain-03-forest.png`, `public/assets/tiles/terrain-04-urban.png`, `public/assets/tiles/terrain-05-hill.png`, `public/assets/tiles/terrain-06-water.png`, `public/assets/tiles/ground.png`, `public/assets/tiles/highlight_move.png`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Advanced highlight overlay tiles (attack / move / confirm)
+
+### BEFORE
+- Only the basic movement highlight (`public/assets/tiles/highlight_move.png`) existed; there were no distinct overlays for attack targeting or target-confirmation states.
+- The design prompts for advanced highlights existed under `docs/design/generation/output/`, but there were no matching raster assets to drop into the game later.
+
+### NOW
+- Added three new top-face-only overlay PNGs (transparent background; flat fills; no glow/gradients; no side-face changes) matching:
+  - `docs/design/generation/output/attack-hilight-tile.md` → `public/assets/tiles/highlight_attack.png`
+  - `docs/design/generation/output/move-hilight-tile.md` → `public/assets/tiles/highlight_move_adv.png`
+  - `docs/design/generation/output/target-confirm-highlight-tile.md` → `public/assets/tiles/highlight_target_confirm.png`
+- Generation is wired into `scripts/gen_terrain_tiles.mjs` so these are reproduced deterministically alongside the other tiles.
+
+### NEXT
+- Wire these overlays into the UI state machine (attack-range preview, attackable targets, confirm step) and ensure only one overlay layer is visible per tile at a time.
+
+### Known limitations / TODOs
+- These overlays are generated but not used by the runtime UI yet.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/highlight_attack.png`, `public/assets/tiles/highlight_move_adv.png`, `public/assets/tiles/highlight_target_confirm.png`
+- Docs: `docs/progress.md`
+
+---
+## 2026-01-03 — Procedural terrain tile (INDUSTRIAL) PNG
+
+### BEFORE
+- `10 — INDUSTRIAL` existed as a prompt template (`docs/design/generation/output/terrain-10-industrial.md`) but had no corresponding generated tile asset.
+
+### NOW
+- Added a deterministic industrial tile generator that renders heavy asymmetric “equipment pad” footprint logic on the top face: chunky rectangles with offsets and dense clustering plus a few thin “service channel” lines (no icons, no texture, no lighting).
+- Output is a transparent 3× tile PNG at `public/assets/tiles/terrain-10-industrial.png` (3072×3072).
+
+### NEXT
+- Implement the remaining terrain tiles (ROAD/BRIDGE/TRENCH/…) in the same flat-fill geometric language so every prompt in `docs/design/generation/output/` has a matching PNG.
+
+### Known limitations / TODOs
+- The industrial layout is procedural and may need density/placement tuning once it’s viewed alongside the full tile family.
+
+### Files touched
+- Tools: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-10-industrial.png`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Light Infantry unit token PNGs (assets/)
+
+### BEFORE
+- The project had player-specific Light Infantry sprites under `public/assets/units/`, but there was no unit-token output under `/assets` and no deterministic way to reproduce the Light Infantry token art there.
+
+### NOW
+- Added a deterministic generator for Light Infantry unit tokens and generated two transparent 1024×1024 PNGs into `/assets`:
+  - `assets/units/light_a.png` — neutral variant (no accent stripe)
+  - `assets/units/light_b.png` — single accent stripe (Operational Blue `#1F4E79`; no red accents)
+- Documented the output and regeneration command in `docs/design/generation/output/unit-light-infantry.md`.
+
+### NEXT
+- Decide whether `/assets/units/` becomes the canonical source for unit token art (and, if so, wire the runtime to consume it) or keep `/assets` as an export-only bundle while the app continues using `public/assets/`.
+
+### Known limitations / TODOs
+- This generator produces flat-fill geometric tokens (no outlines, no lighting); if higher-fidelity token art is desired later, the spec may need an explicit update.
+
+### Files touched
+- Tools: `scripts/gen_units_light_infantry.mjs`
+- Assets: `assets/units/light_a.png`, `assets/units/light_b.png`
+- Docs: `docs/design/generation/output/unit-light-infantry.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Align highlight overlays with ground tiles
+
+### BEFORE
+- Highlight overlays were clipped to a CSS diamond, which could mismatch the actual pixel bounds of the tile art and visually scale or offset highlights against the ground tiles.
+
+### NOW
+- Highlight overlays render without additional clip paths so the art aligns directly with the cropped PNG dimensions and `TILE_LAYOUT` sizing.
+
+### NEXT
+- Re-run the tile generator and verify highlight overlays align with the ground tile on the board at the current `TILE_LAYOUT` scale.
+
+### Known limitations / TODOs
+- If future tile art adds nontransparent edges, we may need to reintroduce explicit masking at the asset-generation stage instead of CSS clipping.
+
+### Files touched
+- UI: `src/components/IsometricBoard.tsx`, `src/app/globals.css`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Preserve alpha + keep uncropped tiles in temp
+
+### BEFORE
+- ImageMagick cropped outputs in-place from `public/assets/tiles` with no preserved pre-crop assets, and alpha was not explicitly enforced during extent.
+
+### NOW
+- Generator writes uncropped PNGs into `temp/`, then crops from `temp/` into `public/assets/tiles` with `-alpha set -background none -gravity North -extent 1918x1190` to preserve transparency.
+
+### NEXT
+- Validate the crop dimensions against the latest tile layout and adjust the extent if the board alignment shifts again.
+
+### Known limitations / TODOs
+- Requires ImageMagick (`convert`) installed and accessible on PATH.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Auto-crop generated tiles with ImageMagick
+
+### BEFORE
+- Tile generator wrote PNGs at the raw render size with no guaranteed crop/extent normalization.
+
+### NOW
+- Generator runs ImageMagick `convert` after writing each tile to apply a consistent `1918x1190` North-anchored extent.
+
+### NEXT
+- If tile dimensions change again, update the extent size in `scripts/gen_terrain_tiles.mjs` and regenerate assets.
+
+### Known limitations / TODOs
+- Requires ImageMagick (`convert`) to be available on PATH when running the script.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Map highlight tiles to move/target/attack states
+
+### BEFORE
+- Hover feedback tinted ground tiles with CSS, and move range highlights used a single `highlight_move.png` asset.
+
+### NOW
+- Hover uses the `highlight_move.png` overlay, move range uses `highlight_move_adv.png`, targeting uses `highlight_target_confirm.png`, and attackable tiles reuse `highlight_move_adv.png` with a fallback to `highlight_move.png` if a specific asset is missing.
+
+### NEXT
+- Add explicit target/attack reach visualization rules once line-of-sight or range modifiers are finalized.
+
+### Known limitations / TODOs
+- Attackable tiles are computed from current unit range and active effects only; no additional line-of-sight constraints exist yet.
+
+### Files touched
+- UI: `src/components/BoardViewport.tsx`, `src/components/IsometricBoard.tsx`, `src/app/page.tsx`
+- Docs: `docs/board-hover.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Centralize tile layout constants for map positioning
+
+### BEFORE
+- Tile sizing and alignment used scattered constants (`TILE_W`, `TILE_H`, and origin offsets) without a single shared property group to adjust map positioning consistently.
+
+### NOW
+- Introduced `TILE_LAYOUT` in `src/lib/ui/iso.ts` to centralize tile width/height and origin Y offset, and wired `IsometricBoard` to read sizing from that shared group.
+
+### NEXT
+- If additional positioning tweaks are needed (e.g., origin offsets or scale adjustments), update `TILE_LAYOUT` once and verify board alignment.
+
+### Known limitations / TODOs
+- Only the Y origin offset is grouped so far; other per-board offsets remain in component-local calculations.
+
+### Files touched
+- UI: `src/lib/ui/iso.ts`, `src/components/IsometricBoard.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Add tile row overlap for tighter stacking
+
+### BEFORE
+- Tile rows used a fixed `TILE_H / 2` vertical step, so lower tiles did not overlap enough to cover the upper row edges.
+
+### NOW
+- Added `rowOverlap` to `TILE_LAYOUT` and applied it to board sizing and grid projection so row spacing can be tightened centrally.
+
+### NEXT
+- Tune `TILE_LAYOUT.rowOverlap` based on the cropped tile images until the overlap matches the board art.
+
+### Known limitations / TODOs
+- Overlap only affects vertical spacing; horizontal spacing remains fixed.
+
+### Files touched
+- UI: `src/lib/ui/iso.ts`
+- Docs: `docs/progress.md`

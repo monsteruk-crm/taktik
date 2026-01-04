@@ -1,6 +1,5 @@
 `Generate a single isometric tactical terrain TILE for a deterministic, turn-based, grid-based military board game.
 
-01 — PLAIN
 TERRAIN: FLAT GOUND
 Top face is completely empty
 - no features, no geometry, no markings

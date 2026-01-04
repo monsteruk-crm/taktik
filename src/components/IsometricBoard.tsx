@@ -1,24 +1,33 @@
 import Box from "@mui/material/Box";
 import type { GameState } from "@/lib/engine/gameState";
 import { posKey } from "@/lib/engine/selectors";
-import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_H, TILE_W } from "@/lib/ui/iso";
+import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_LAYOUT } from "@/lib/ui/iso";
 
 type IsometricBoardProps = {
   state: GameState;
   selectedUnitId: string | null;
+  hoveredTile: { x: number; y: number } | null;
   moveRange: { x: number; y: number }[];
+  targetableTiles: { x: number; y: number }[];
+  attackableTiles: { x: number; y: number }[];
 };
 
 export default function IsometricBoard({
   state,
   selectedUnitId,
+  hoveredTile,
   moveRange,
+  targetableTiles,
+  attackableTiles,
 }: IsometricBoardProps) {
   const width = state.boardWidth;
   const height = state.boardHeight;
   const { originX, originY } = getBoardOrigin(width, height);
   const { boardPixelWidth, boardPixelHeight } = getBoardPixelSize(width, height);
   const moveRangeKeys = new Set(moveRange.map(posKey));
+  const targetableKeys = new Set(targetableTiles.map(posKey));
+  const attackableKeys = new Set(attackableTiles.map(posKey));
+  const { width: TILE_W, height: TILE_H } = TILE_LAYOUT;
   const UNIT_BASE_SIZE = TILE_W * 0.52;
   const UNIT_SCALE_BY_TYPE = {
     INFANTRY: 0.95,
@@ -54,17 +63,13 @@ export default function IsometricBoard({
             zIndex: x + y,
             userSelect: "none",
             WebkitUserDrag: "none",
-            transition: "filter 120ms ease",
-            "&:hover": {
-              filter: "brightness(1.15) saturate(1.4) hue-rotate(-20deg)",
-            },
           }}
         />
       );
     }
   }
 
-  const highlights = moveRange.map((pos) => {
+  const moveHighlights = moveRange.map((pos) => {
     const { sx, sy } = gridToScreen(pos);
     const left = originX + sx - TILE_W / 2;
     const top = originY + sy - TILE_H / 2;
@@ -75,8 +80,11 @@ export default function IsometricBoard({
         component="img"
         draggable={false}
         alt="Move highlight"
-        src="/assets/tiles/highlight_move.png"
+        src="/assets/tiles/highlight_move_adv.png"
         className="moveHighlight"
+        onError={(event) => {
+          event.currentTarget.src = "/assets/tiles/highlight_move.png";
+        }}
         sx={{
           position: "absolute",
           left,
@@ -87,11 +95,105 @@ export default function IsometricBoard({
           pointerEvents: "none",
           userSelect: "none",
           WebkitUserDrag: "none",
-          clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
         }}
       />
     );
   });
+
+  const targetHighlights = targetableTiles.map((pos) => {
+    const { sx, sy } = gridToScreen(pos);
+    const left = originX + sx - TILE_W / 2;
+    const top = originY + sy - TILE_H / 2;
+    const zIndex = pos.x + pos.y + 2;
+    return (
+      <Box
+        key={`target-highlight-${posKey(pos)}`}
+        component="img"
+        draggable={false}
+        alt="Target highlight"
+        src="/assets/tiles/highlight_target_confirm.png"
+        className="moveHighlight"
+        onError={(event) => {
+          event.currentTarget.src = "/assets/tiles/highlight_move.png";
+        }}
+        sx={{
+          position: "absolute",
+          left,
+          top,
+          width: TILE_W,
+          height: TILE_H,
+          zIndex,
+          pointerEvents: "none",
+          userSelect: "none",
+          WebkitUserDrag: "none",
+        }}
+      />
+    );
+  });
+
+  const attackHighlights = attackableTiles.map((pos) => {
+    const { sx, sy } = gridToScreen(pos);
+    const left = originX + sx - TILE_W / 2;
+    const top = originY + sy - TILE_H / 2;
+    const zIndex = pos.x + pos.y + 2;
+    return (
+      <Box
+        key={`attack-highlight-${posKey(pos)}`}
+        component="img"
+        draggable={false}
+        alt="Attack highlight"
+        src="/assets/tiles/highlight_move_adv.png"
+        className="moveHighlight"
+        onError={(event) => {
+          event.currentTarget.src = "/assets/tiles/highlight_move.png";
+        }}
+        sx={{
+          position: "absolute",
+          left,
+          top,
+          width: TILE_W,
+          height: TILE_H,
+          zIndex,
+          pointerEvents: "none",
+          userSelect: "none",
+          WebkitUserDrag: "none",
+        }}
+      />
+    );
+  });
+
+  const hoverHighlight = hoveredTile
+    ? (() => {
+        const { sx, sy } = gridToScreen(hoveredTile);
+        const left = originX + sx - TILE_W / 2;
+        const top = originY + sy - TILE_H / 2;
+        const zIndex = hoveredTile.x + hoveredTile.y + 3;
+        return (
+          <Box
+            key={`hover-highlight-${posKey(hoveredTile)}`}
+            component="img"
+            draggable={false}
+            alt="Hover highlight"
+            src="/assets/tiles/highlight_move.png"
+            className="moveHighlight"
+            onError={(event) => {
+              event.currentTarget.src = "/assets/tiles/highlight_move.png";
+            }}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex,
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      })()
+    : null;
 
   const registryTile = {
     x: Math.floor(width / 2),
@@ -152,7 +254,10 @@ export default function IsometricBoard({
       }}
     >
       {tiles}
-      {highlights}
+      {moveHighlights}
+      {targetHighlights}
+      {attackHighlights}
+      {hoverHighlight}
       <Box
         component="img"
         alt="Registry marker"

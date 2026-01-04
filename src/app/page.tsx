@@ -34,6 +34,7 @@ import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
 import { semanticColors } from "@/lib/ui/semanticColors";
+import { buildContext } from "@/lib/engine/effects";
 
 export default function Home() {
   type TargetingContext =
@@ -50,6 +51,7 @@ export default function Home() {
   const [mode, setMode] = useState<"MOVE" | "ATTACK">("MOVE");
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
+  const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
   const targetingContextRef = useRef<TargetingContext | null>(null);
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
@@ -155,6 +157,47 @@ export default function Home() {
     resolvedTargetingContext?.source === "tactic"
       ? tacticById.get(resolvedTargetingContext.cardId) ?? null
       : null;
+  const targetableTiles = useMemo(() => {
+    if (!isTargeting || targetingSpec?.type !== "unit") {
+      return [];
+    }
+    const targetOwner =
+      targetingSpec.owner === "self"
+        ? state.activePlayer
+        : state.activePlayer === "PLAYER_A"
+          ? "PLAYER_B"
+          : "PLAYER_A";
+    return state.units
+      .filter((unit) => unit.owner === targetOwner)
+      .map((unit) => unit.position);
+  }, [isTargeting, targetingSpec, state.activePlayer, state.units]);
+  const attackableTiles = useMemo(() => {
+    if (mode !== "ATTACK" || !selectedAttackerId || !canAttack) {
+      return [];
+    }
+    const attacker = state.units.find((unit) => unit.id === selectedAttackerId);
+    if (!attacker) {
+      return [];
+    }
+    const opponent = attacker.owner === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
+    return state.units
+      .filter((unit) => {
+        if (unit.owner !== opponent) {
+          return false;
+        }
+        const distance =
+          Math.abs(attacker.position.x - unit.position.x) +
+          Math.abs(attacker.position.y - unit.position.y);
+        if (distance === 0 || distance > attacker.attack) {
+          return false;
+        }
+        return state.activeEffects.every((effect) => {
+          const ctx = buildContext(state, effect);
+          return effect.hooks.canAttack?.(ctx, attacker.id, unit.id) ?? true;
+        });
+      })
+      .map((unit) => unit.position);
+  }, [canAttack, mode, selectedAttackerId, state]);
 
   useEffect(() => {
     targetingContextRef.current = targetingContext;
@@ -437,6 +480,41 @@ export default function Home() {
     }
     handleTileClick({ x, y });
   }
+
+  const handleViewportHover = useCallback(
+    (args: {
+      clientX: number;
+      clientY: number;
+      panX: number;
+      panY: number;
+      zoom: number;
+      viewportRef: RefObject<HTMLDivElement | null>;
+      isPanning: boolean;
+    }) => {
+      if (!args.viewportRef.current) {
+        return;
+      }
+      if (args.isPanning) {
+        setHoveredTile((current) => (current ? null : current));
+        return;
+      }
+      const rect = args.viewportRef.current.getBoundingClientRect();
+      const localX = (args.clientX - rect.left - args.panX) / args.zoom;
+      const localY = (args.clientY - rect.top - args.panY) / args.zoom;
+      const { x, y } = screenToGrid(localX - originX, localY - originY);
+      if (x < 0 || x >= state.boardWidth || y < 0 || y >= state.boardHeight) {
+        setHoveredTile((current) => (current ? null : current));
+        return;
+      }
+      setHoveredTile((current) => {
+        if (current && current.x === x && current.y === y) {
+          return current;
+        }
+        return { x, y };
+      });
+    },
+    [originX, originY, state.boardHeight, state.boardWidth]
+  );
 
 
 
@@ -877,6 +955,8 @@ export default function Home() {
           <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
             <BoardViewport
               onClick={handleViewportClick}
+              onHover={handleViewportHover}
+              onHoverEnd={() => setHoveredTile(null)}
               sx={{ height: "100%" }}
               initialPan={initialPan}
             >
@@ -884,7 +964,10 @@ export default function Home() {
                 <IsometricBoard
                   state={state}
                   selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
+                  hoveredTile={hoveredTile}
                   moveRange={moveRange}
+                  targetableTiles={targetableTiles}
+                  attackableTiles={attackableTiles}
                 />
               )}
             </BoardViewport>

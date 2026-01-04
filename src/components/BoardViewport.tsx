@@ -20,6 +20,16 @@ type BoardViewportProps = {
     zoom: number;
     viewportRef: RefObject<HTMLDivElement | null>;
   }) => void;
+  onHover?: (args: {
+    clientX: number;
+    clientY: number;
+    panX: number;
+    panY: number;
+    zoom: number;
+    viewportRef: RefObject<HTMLDivElement | null>;
+    isPanning: boolean;
+  }) => void;
+  onHoverEnd?: () => void;
   children: (args: {
     panX: number;
     panY: number;
@@ -32,6 +42,8 @@ const CLICK_DRAG_THRESHOLD = 6;
 
 export default function BoardViewport({
   onClick,
+  onHover,
+  onHoverEnd,
   children,
   height = "100%",
   sx,
@@ -74,6 +86,17 @@ export default function BoardViewport({
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (onHover) {
+      onHover({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        panX: panRef.current.x,
+        panY: panRef.current.y,
+        zoom: zoomRef.current,
+        viewportRef,
+        isPanning: isPanningRef.current,
+      });
+    }
     if (!isPanningRef.current || !lastPointRef.current) {
       return;
     }
@@ -157,6 +180,13 @@ export default function BoardViewport({
       event.currentTarget.releasePointerCapture(pointerIdRef.current);
     }
     pointerIdRef.current = null;
+  }
+
+  function handlePointerLeave(event: React.PointerEvent<HTMLDivElement>) {
+    handlePointerCancel(event);
+    if (onHoverEnd) {
+      onHoverEnd();
+    }
   }
 
   useEffect(() => {
@@ -261,7 +291,7 @@ export default function BoardViewport({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerCancel}
+      onPointerLeave={handlePointerLeave}
       onPointerCancel={handlePointerCancel}
     >
       <Box
