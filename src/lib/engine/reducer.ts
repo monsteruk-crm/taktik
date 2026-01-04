@@ -15,6 +15,8 @@ import {
   validateTacticReaction,
 } from "./reactions";
 import { rollDie } from "./rng";
+import { generateTerrainNetworks } from "./terrain";
+import { getInitialRngSeed, initialTerrainParams } from "@/lib/settings";
 
 function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed: number } {
   const shuffled = [...items];
@@ -33,6 +35,7 @@ export type GameAction =
   | { type: "NEXT_PHASE" }
   | { type: "TURN_START" }
   | { type: "END_TURN" }
+  | { type: "RESET_GAME"; seed?: number }
   | { type: "DRAW_CARD" }
   | { type: "STORE_BONUS" }
   | { type: "PLAY_CARD"; cardId: string; targets?: { unitIds?: string[] } }
@@ -54,8 +57,106 @@ const phaseOrder: GamePhase[] = [
 const boardWidth = 20;
 const boardHeight = 30;
 const maxMovesPerTurn = 5;
-const initialCommonDeck = shuffleWithSeed(commonDeckCards, 1);
-const initialTacticalDeck = shuffleWithSeed(tacticalDeckCards, initialCommonDeck.nextSeed);
+function createInitialGameState(seed: number): GameState {
+  const initialCommonDeck = shuffleWithSeed(commonDeckCards, seed);
+  const initialTacticalDeck = shuffleWithSeed(
+    tacticalDeckCards,
+    initialCommonDeck.nextSeed
+  );
+  const initialTerrain = generateTerrainNetworks({
+    width: boardWidth,
+    height: boardHeight,
+    seed: initialTacticalDeck.nextSeed,
+    roadDensity: initialTerrainParams.roadDensity,
+    riverDensity: initialTerrainParams.riverDensity,
+  });
+
+  return {
+    phase: "TURN_START",
+    activePlayer: "PLAYER_A",
+    turn: 1,
+    boardWidth,
+    boardHeight,
+    units: [
+      {
+        id: "A1",
+        owner: "PLAYER_A",
+        type: "INFANTRY",
+        position: { x: 2, y: 2 },
+        movement: 3,
+        attack: 1,
+        hasMoved: false,
+      },
+      {
+        id: "A2",
+        owner: "PLAYER_A",
+        type: "VEHICLE",
+        position: { x: 4, y: 2 },
+        movement: 2,
+        attack: 2,
+        hasMoved: false,
+      },
+      {
+        id: "A3",
+        owner: "PLAYER_A",
+        type: "SPECIAL",
+        position: { x: 6, y: 2 },
+        movement: 2,
+        attack: 3,
+        hasMoved: false,
+      },
+      {
+        id: "B1",
+        owner: "PLAYER_B",
+        type: "INFANTRY",
+        position: { x: 2, y: 6 },
+        movement: 3,
+        attack: 1,
+        hasMoved: false,
+      },
+      {
+        id: "B2",
+        owner: "PLAYER_B",
+        type: "VEHICLE",
+        position: { x: 4, y: 6 },
+        movement: 2,
+        attack: 2,
+        hasMoved: false,
+      },
+      {
+        id: "B3",
+        owner: "PLAYER_B",
+        type: "SPECIAL",
+        position: { x: 6, y: 6 },
+        movement: 2,
+        attack: 3,
+        hasMoved: false,
+      },
+    ],
+    movesThisTurn: 0,
+    terrain: {
+      road: initialTerrain.road,
+      river: initialTerrain.river,
+      params: initialTerrainParams,
+      seed: initialTacticalDeck.nextSeed,
+    },
+    commonDeck: initialCommonDeck.shuffled,
+    tacticalDeck: initialTacticalDeck.shuffled,
+    selectedTacticalDeck: initialTacticalDeck.shuffled,
+    pendingCard: null,
+    pendingAttack: null,
+    storedBonuses: [],
+    activeEffects: [],
+    nextEffectId: 1,
+    rngSeed: initialTerrain.nextSeed,
+    lastRoll: null,
+    winner: null,
+    log: ["", "", "", "", ""],
+  };
+}
+
+const initialSeed = getInitialRngSeed();
+const initialGameState = createInitialGameState(initialSeed);
 
 function manhattanDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -182,6 +283,11 @@ export function getUnitMovementWithEffects(state: GameState, unitId: string) {
 export function gameReducer(state: GameState, action: GameAction): GameState {
   if (state.phase === "VICTORY") {
     return state;
+  }
+
+  if (action.type === "RESET_GAME") {
+    const seed = typeof action.seed === "number" ? action.seed : state.rngSeed;
+    return createInitialGameState(seed >>> 0);
   }
 
   if (action.type === "NEXT_PHASE") {
@@ -621,79 +727,4 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   return state;
 }
 
-export const initialGameState: GameState = {
-  phase: "TURN_START",
-  activePlayer: "PLAYER_A",
-  turn: 1,
-  boardWidth,
-  boardHeight,
-  units: [
-    {
-      id: "A1",
-      owner: "PLAYER_A",
-      type: "INFANTRY",
-      position: { x: 2, y: 2 },
-      movement: 3,
-      attack: 1,
-      hasMoved: false,
-    },
-    {
-      id: "A2",
-      owner: "PLAYER_A",
-      type: "VEHICLE",
-      position: { x: 4, y: 2 },
-      movement: 2,
-      attack: 2,
-      hasMoved: false,
-    },
-    {
-      id: "A3",
-      owner: "PLAYER_A",
-      type: "SPECIAL",
-      position: { x: 6, y: 2 },
-      movement: 2,
-      attack: 3,
-      hasMoved: false,
-    },
-    {
-      id: "B1",
-      owner: "PLAYER_B",
-      type: "INFANTRY",
-      position: { x: 2, y: 6 },
-      movement: 3,
-      attack: 1,
-      hasMoved: false,
-    },
-    {
-      id: "B2",
-      owner: "PLAYER_B",
-      type: "VEHICLE",
-      position: { x: 4, y: 6 },
-      movement: 2,
-      attack: 2,
-      hasMoved: false,
-    },
-    {
-      id: "B3",
-      owner: "PLAYER_B",
-      type: "SPECIAL",
-      position: { x: 6, y: 6 },
-      movement: 2,
-      attack: 3,
-      hasMoved: false,
-    },
-  ],
-  movesThisTurn: 0,
-  commonDeck: initialCommonDeck.shuffled,
-  tacticalDeck: initialTacticalDeck.shuffled,
-  selectedTacticalDeck: initialTacticalDeck.shuffled,
-  pendingCard: null,
-  pendingAttack: null,
-  storedBonuses: [],
-  activeEffects: [],
-  nextEffectId: 1,
-  rngSeed: initialTacticalDeck.nextSeed,
-  lastRoll: null,
-  winner: null,
-  log: ["", "", "", "", ""],
-};
+export { initialGameState };

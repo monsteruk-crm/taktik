@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import type { GameState } from "@/lib/engine/gameState";
 import { posKey } from "@/lib/engine/selectors";
 import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_LAYOUT } from "@/lib/ui/iso";
+import { edgeKey, mergeNetworks } from "@/lib/ui/networks";
 
 type IsometricBoardProps = {
   state: GameState;
@@ -25,9 +26,8 @@ export default function IsometricBoard({
   const { originX, originY } = getBoardOrigin(width, height);
   const { boardPixelWidth, boardPixelHeight } = getBoardPixelSize(width, height);
   const moveRangeKeys = new Set(moveRange.map(posKey));
-  const targetableKeys = new Set(targetableTiles.map(posKey));
-  const attackableKeys = new Set(attackableTiles.map(posKey));
   const { width: TILE_W, height: TILE_H } = TILE_LAYOUT;
+  const connectorsByPos = mergeNetworks(state.terrain);
   const UNIT_BASE_SIZE = TILE_W * 0.52;
   const UNIT_SCALE_BY_TYPE = {
     INFANTRY: 0.95,
@@ -44,6 +44,12 @@ export default function IsometricBoard({
       const { sx, sy } = gridToScreen({ x, y });
       const left = originX + sx - TILE_W / 2;
       const top = originY + sy - TILE_H / 2;
+      const connectors = connectorsByPos.get(`${x},${y}`);
+      const baseZ = (x + y) * 3;
+      const roadKey = edgeKey(connectors?.road);
+      const riverKey = edgeKey(connectors?.river);
+      const roadSrc = roadKey ? `/assets/tiles/networks/road_${roadKey}.png` : null;
+      const riverSrc = riverKey ? `/assets/tiles/networks/river_${riverKey}.png` : null;
       tiles.push(
         <Box
           key={`tile-${x}-${y}`}
@@ -60,12 +66,56 @@ export default function IsometricBoard({
             top,
             width: TILE_W,
             height: TILE_H,
-            zIndex: x + y,
+            zIndex: baseZ,
             userSelect: "none",
             WebkitUserDrag: "none",
           }}
         />
       );
+      if (riverSrc) {
+        tiles.push(
+          <Box
+            key={`river-${x}-${y}`}
+            component="img"
+            draggable={false}
+            alt="River overlay"
+            src={riverSrc}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex: baseZ + 1,
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      }
+      if (roadSrc) {
+        tiles.push(
+          <Box
+            key={`road-${x}-${y}`}
+            component="img"
+            draggable={false}
+            alt="Road overlay"
+            src={roadSrc}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex: baseZ + 2,
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      }
     }
   }
 
@@ -73,7 +123,7 @@ export default function IsometricBoard({
     const { sx, sy } = gridToScreen(pos);
     const left = originX + sx - TILE_W / 2;
     const top = originY + sy - TILE_H / 2;
-    const zIndex = pos.x + pos.y + 1;
+    const zIndex = (pos.x + pos.y) * 3 + 5;
     return (
       <Box
         key={`highlight-${posKey(pos)}`}
@@ -104,7 +154,7 @@ export default function IsometricBoard({
     const { sx, sy } = gridToScreen(pos);
     const left = originX + sx - TILE_W / 2;
     const top = originY + sy - TILE_H / 2;
-    const zIndex = pos.x + pos.y + 2;
+    const zIndex = (pos.x + pos.y) * 3 + 6;
     return (
       <Box
         key={`target-highlight-${posKey(pos)}`}
@@ -135,7 +185,7 @@ export default function IsometricBoard({
     const { sx, sy } = gridToScreen(pos);
     const left = originX + sx - TILE_W / 2;
     const top = originY + sy - TILE_H / 2;
-    const zIndex = pos.x + pos.y + 2;
+    const zIndex = (pos.x + pos.y) * 3 + 6;
     return (
       <Box
         key={`attack-highlight-${posKey(pos)}`}
@@ -167,7 +217,7 @@ export default function IsometricBoard({
         const { sx, sy } = gridToScreen(hoveredTile);
         const left = originX + sx - TILE_W / 2;
         const top = originY + sy - TILE_H / 2;
-        const zIndex = hoveredTile.x + hoveredTile.y + 3;
+        const zIndex = (hoveredTile.x + hoveredTile.y) * 3 + 7;
         return (
           <Box
             key={`hover-highlight-${posKey(hoveredTile)}`}

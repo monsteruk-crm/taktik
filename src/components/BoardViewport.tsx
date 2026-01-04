@@ -64,6 +64,8 @@ export default function BoardViewport({
   const hasInitializedRef = useRef(false);
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const initialPanRef = useRef(initialPan);
+  const initialZoomRef = useRef(initialZoom);
 
   function clampZoom(nextZoom: number) {
     return Math.min(3, Math.max(0.6, nextZoom));
@@ -250,17 +252,26 @@ export default function BoardViewport({
   );
 
   useEffect(() => {
+    initialPanRef.current = initialPan;
+  }, [initialPan]);
+
+  useEffect(() => {
+    initialZoomRef.current = initialZoom;
+  }, [initialZoom]);
+
+  useEffect(() => {
     const node = viewportRef.current;
     if (!node) {
       return;
     }
     const recenter = () => {
       const rect = node.getBoundingClientRect();
-      const nextZoom = initialZoom;
+      const nextZoom = initialZoomRef.current;
+      const nextPanSource = initialPanRef.current;
       const nextPan =
-        typeof initialPan === "function"
-          ? initialPan({ width: rect.width, height: rect.height })
-          : initialPan ?? { x: 0, y: 0 };
+        typeof nextPanSource === "function"
+          ? nextPanSource({ width: rect.width, height: rect.height })
+          : nextPanSource ?? { x: 0, y: 0 };
       zoomRef.current = nextZoom;
       panRef.current = nextPan;
       setZoom(nextZoom);
@@ -273,7 +284,7 @@ export default function BoardViewport({
       observer.disconnect();
       window.removeEventListener("orientationchange", recenter);
     };
-  }, [initialPan, initialZoom]);
+  }, []);
 
   return (
     <Box

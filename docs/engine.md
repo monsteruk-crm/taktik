@@ -26,6 +26,9 @@ The manual does not define RNG mechanics, but the project contract requires repr
 - Dice rolls use an LCG in `lib/engine/rng.ts`:
   - `rollDie(seed) -> { result: 1..6, nextSeed }`
 - Deck shuffling uses a deterministic Fisher–Yates shuffle that advances the same LCG constants (`shuffleWithSeed` in `lib/engine/reducer.ts`).
+- Terrain networks are generated at game start from the current `rngSeed` using `generateTerrainNetworks` (`lib/engine/terrain.ts`), and the returned `nextSeed` is stored back in `GameState.rngSeed`.
+- `generateRoadCells` returns a `Set<string>` so `generateTerrainNetworks` maps those coordinates into arrays after calling it; this guards the engine against React/SSR runtime failures caused by invalid destructuring while keeping terrain seeding deterministic.
+- `generateRoads` now seeds the road set with fallback cells before the collector/local loop, so `parseKey` never receives `undefined` from an empty `Set` (the crash triggered by destructuring `roadSet` with zero entries is gone while the deterministic RNG flow remains the same).
 - Reducer is deterministic given `(state, action)`; no `Date.now()`, no side effects, no UI coupling.
 - `Commander's Luck` rerolls reuse `rngSeed` and log the reroll result deterministically.
 
@@ -46,6 +49,11 @@ Defined in `lib/engine/gameState.ts`:
   - `movement`, `attack` (currently placeholder numeric stats),
   - `hasMoved` (reset at start of a new turn).
 - `movesThisTurn`: capped by the engine at 5 (see `maxMovesPerTurn`).
+- Terrain:
+  - `terrain.road` / `terrain.river`: arrays of `{x,y}` cells generated at game start.
+  - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) that control how many cells are generated.
+  - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
+  - Initial terrain params are defined in `src/lib/settings.ts`.
 - Decks/cards:
   - `commonDeck`: the draw pile for the turn card.
   - `tacticalDeck`: shuffled list of available tactic cards (data-only, not drawn).
@@ -182,8 +190,12 @@ Planned alignment (TODO):
 - Align “Enemy Disinformation” targeting with the manual (opponent chooses the blocked unit).
 
 ## RNG & Dice Usage
+- The initial `rngSeed` comes from `getInitialRngSeed()` in `src/lib/settings.ts` (uses `NEXT_PUBLIC_RNG_SEED` if provided, otherwise `1` for a deterministic SSR-safe default).
+- Terrain generation consumes `rngSeed` once at game start and stores the returned `nextSeed`.
 - `DRAW_CARD` consumes `rngSeed` only when refilling/shuffling an empty deck (current).
 - `ROLL_DICE` consumes `rngSeed` every time it is called.
+- Terrain path bias (the `biasStraight` parameter in `generateTerrainNetworks`) only reuses the previous direction when one exists, so the edge-case where `lastDir` is `null` no longer affects TypeScript strict mode while keeping the deterministic walk behavior intact.
+- The snapshot variables now also declare their direction type explicitly (`(typeof DIRECTIONS)[number]`), which keeps the compiler happy without altering the deterministic direction bias logic.
 
 Manual mismatch:
 - Manual says “Shuffle deck at end.” Current implementation shuffles only on refill.

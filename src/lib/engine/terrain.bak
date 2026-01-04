@@ -1,0 +1,638 @@
+import type { BoardCell } from "./gameState";
+
+const DIRECTIONS = [
+  { key: "N", dx: 0, dy: -1 },
+  { key: "E", dx: 1, dy: 0 },
+  { key: "S", dx: 0, dy: 1 },
+  { key: "W", dx: -1, dy: 0 },
+] as const;
+
+type Dir = (typeof DIRECTIONS)[number];
+
+function nextSeed(seed: number) {
+  return (seed * 1664525 + 1013904223) >>> 0;
+}
+
+function makeRng(seed: number) {
+  let state = seed >>> 0;
+  return {
+    seed() {
+      return state >>> 0;
+    },
+    float() {
+      state = nextSeed(state);
+      return state / 0xffffffff; // [0,1)
+    },
+    int(min: number, max: number) {
+      const f = this.float();
+      return min + Math.floor(f * (max - min + 1)); // inclusive
+    },
+    pick<T>(items: readonly T[]): T {
+      return items[this.int(0, items.length - 1)];
+    },
+    pickWeighted<T>(items: readonly T[], weights: readonly number[]): T {
+      let sum = 0;
+      for (const w of weights) sum += Math.max(0, w);
+      if (sum <= 0) return items[0];
+      let r = this.float() * sum;
+      for (let i = 0; i < items.length; i++) {
+        r -= Math.max(0, weights[i] ?? 0);
+        if (r <= 0) return items[i];
+      }
+      return items[items.length - 1];
+    },
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function keyOf(c: BoardCell) {
+  return `${c.x},${c.y}`;
+}
+
+function inBounds(c: BoardCell, width: number, height: number) {
+  return c.x >= 0 && c.x < width && c.y >= 0 && c.y < height;
+}
+
+function manhattan(a: BoardCell, b: BoardCell) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function neighbors(
+  c: BoardCell,
+  width: number,
+  height: number
+): Array<{ cell: BoardCell; dir: Dir }> {
+  const out: Array<{ cell: BoardCell; dir: Dir }> = [];
+  for (const dir of DIRECTIONS) {
+    const n = { x: c.x + dir.dx, y: c.y + dir.dy };
+    if (inBounds(n, width, height)) out.push({ cell: n, dir });
+  }
+  return out;
+}
+
+function randomEdgeCell(
+  rng: ReturnType<typeof makeRng>,
+  width: number,
+  height: number
+): BoardCell {
+  const side = rng.int(0, 3);
+  if (side === 0) return { x: rng.int(0, width - 1), y: 0 };
+  if (side === 1) return { x: width - 1, y: rng.int(0, height - 1) };
+  if (side === 2) return { x: rng.int(0, width - 1), y: height - 1 };
+  return { x: 0, y: rng.int(0, height - 1) };
+}
+
+function oppositeEdgeTarget(
+  rng: ReturnType<typeof makeRng>,
+  width: number,
+  height: number,
+  start: BoardCell
+): BoardCell {
+  // Prefer opposite side to force long “flow/arterial” paths.
+  if (start.y === 0) return { x: rng.int(0, width - 1), y: height - 1 };
+  if (start.y === height - 1) return { x: rng.int(0, width - 1), y: 0 };
+  if (start.x === 0) return { x: width - 1, y: rng.int(0, height - 1) };
+  return { x: 0, y: rng.int(0, height - 1) };
+}
+
+function pickFarEdgePair(
+  rng: ReturnType<typeof makeRng>,
+  width: number,
+  height: number,
+  tries: number
+): { start: BoardCell; goal: BoardCell } {
+  let best: { start: BoardCell; goal: BoardCell; dist: number } | null = null;
+  for (let i = 0; i < tries; i++) {
+    const s = randomEdgeCell(rng, width, height);
+    const g = oppositeEdgeTarget(rng, width, height, s);
+    const d = manhattan(s, g);
+    if (!best || d > best.dist) best = { start: s, goal: g, dist: d };
+  }
+  return { start: best!.start, goal: best!.goal };
+}
+
+function computeDegrees(set: Set<string>, width: number, height: number) {
+  const deg = new Map<string, number>();
+  for (const k of set) {
+    const [xs, ys] = k.split(",");
+    const c = { x: Number(xs), y: Number(ys) };
+    let d = 0;
+    for (const { cell } of neighbors(c, width, height)) {
+      if (set.has(keyOf(cell))) d++;
+    }
+    deg.set(k, d);
+  }
+  return deg;
+}
+
+function isStraightCell(cellKey: string, set: Set<string>) {
+  // degree 2 AND opposite neighbors (N+S or E+W)
+  const [xs, ys] = cellKey.split(",");
+  const x = Number(xs);
+  const y = Number(ys);
+  const hasN = set.has(`${x},${y - 1}`);
+  const hasS = set.has(`${x},${y + 1}`);
+  const hasE = set.has(`${x + 1},${y}`);
+  const hasW = set.has(`${x - 1},${y}`);
+  const deg = Number(hasN) + Number(hasS) + Number(hasE) + Number(hasW);
+  if (deg !== 2) return false;
+  return (hasN && hasS) || (hasE && hasW);
+}
+
+function buffered(set: Set<string>, width: number, height: number, radius: number) {
+  const out = new Set<string>(set);
+  if (radius <= 0) return out;
+  for (const k of set) {
+    const [xs, ys] = k.split(",");
+    const cx = Number(xs);
+    const cy = Number(ys);
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const n = { x: cx + dx, y: cy + dy };
+        if (inBounds(n, width, height)) out.add(keyOf(n));
+      }
+    }
+  }
+  return out;
+}
+
+type AStarCostFn = (args: {
+  from: BoardCell;
+  to: BoardCell;
+  dir: Dir;
+  prevDir: Dir | null;
+  g: number;
+}) => number;
+
+function aStarPath(args: {
+  width: number;
+  height: number;
+  start: BoardCell;
+  goal: BoardCell;
+  blocked: Set<string>;
+  allowGoalOnBlocked?: boolean;
+  stepCost: AStarCostFn;
+  maxExpanded?: number;
+}): BoardCell[] | null {
+  const { width, height, start, goal, blocked } = args;
+  const allowGoalOnBlocked = args.allowGoalOnBlocked ?? false;
+  const maxExpanded = args.maxExpanded ?? width * height * 40;
+
+  const startKey = `${start.x},${start.y},_`;
+
+  const gScore = new Map<string, number>();
+  const fScore = new Map<string, number>();
+  const cameFrom = new Map<string, string>();
+
+  const open: string[] = [startKey];
+  gScore.set(startKey, 0);
+  fScore.set(startKey, manhattan(start, goal));
+
+  function parseStateKey(k: string): { cell: BoardCell; prevDir: Dir | null } {
+    const [xs, ys, d] = k.split(",");
+    const cell = { x: Number(xs), y: Number(ys) };
+    const prevDir = d === "_" ? null : (DIRECTIONS.find((dd) => dd.key === d) ?? null);
+    return { cell, prevDir };
+  }
+
+  function lowestFIndex(): number {
+    let bestI = 0;
+    let bestF = Infinity;
+    for (let i = 0; i < open.length; i++) {
+      const k = open[i]!;
+      const f = fScore.get(k) ?? Infinity;
+      const tie = (gScore.get(k) ?? 0) * 0.0001;
+      const val = f + tie;
+      if (val < bestF) {
+        bestF = val;
+        bestI = i;
+      }
+    }
+    return bestI;
+  }
+
+  let expanded = 0;
+  while (open.length > 0 && expanded < maxExpanded) {
+    expanded++;
+    const idx = lowestFIndex();
+    const currentKey = open.splice(idx, 1)[0]!;
+    const { cell: current, prevDir } = parseStateKey(currentKey);
+
+    if (current.x === goal.x && current.y === goal.y) {
+      const path: BoardCell[] = [goal];
+      let cur = currentKey;
+      while (cameFrom.has(cur)) {
+        cur = cameFrom.get(cur)!;
+        const { cell } = parseStateKey(cur);
+        path.push(cell);
+      }
+      path.reverse();
+      const out: BoardCell[] = [];
+      for (const c of path) {
+        if (out.length === 0 || out[out.length - 1]!.x !== c.x || out[out.length - 1]!.y !== c.y) {
+          out.push(c);
+        }
+      }
+      return out;
+    }
+
+    for (const { cell: nxt, dir } of neighbors(current, width, height)) {
+      const nxtCellKey = keyOf(nxt);
+      if (
+        blocked.has(nxtCellKey) &&
+        !(allowGoalOnBlocked && nxt.x === goal.x && nxt.y === goal.y)
+      ) {
+        continue;
+      }
+
+      const nxtStateKey = `${nxt.x},${nxt.y},${dir.key}`;
+      const gCurrent = gScore.get(currentKey) ?? Infinity;
+
+      const step = args.stepCost({
+        from: current,
+        to: nxt,
+        dir,
+        prevDir,
+        g: gCurrent,
+      });
+
+      const tentativeG = gCurrent + step;
+      const prevBest = gScore.get(nxtStateKey);
+
+      if (prevBest === undefined || tentativeG < prevBest) {
+        cameFrom.set(nxtStateKey, currentKey);
+        gScore.set(nxtStateKey, tentativeG);
+
+        const h = manhattan(nxt, goal) + (nxt.x * 0.0002 + nxt.y * 0.0001);
+        fScore.set(nxtStateKey, tentativeG + h);
+
+        if (!open.includes(nxtStateKey)) open.push(nxtStateKey);
+      }
+    }
+  }
+
+  return null;
+}
+
+function addPath(set: Set<string>, path: BoardCell[]) {
+  for (const c of path) set.add(keyOf(c));
+}
+
+/**
+ * RIVER TOPOGRAPHY
+ * - Main trunk (edge->opposite edge)
+ * - Tributaries join trunk at straight cells (deg 2 -> deg 3), never making crosses
+ * - Penalize running parallel to the trunk to avoid “double-lane rivers”
+ */
+function generateRiverCells(args: {
+  rng: ReturnType<typeof makeRng>;
+  width: number;
+  height: number;
+  density: number;
+}): Set<string> {
+  const { rng, width, height } = args;
+
+  // If you ask for higher than this, you WILL get spaghetti.
+  const density = clamp(args.density, 0.0, 0.22);
+  const target = Math.max(0, Math.round(width * height * density));
+  if (target === 0) return new Set();
+
+  const river = new Set<string>();
+
+  // 1) Main trunk
+  const { start, goal } = pickFarEdgePair(rng, width, height, 20);
+  const trunk = aStarPath({
+    width,
+    height,
+    start,
+    goal,
+    blocked: new Set(),
+    stepCost: ({ dir, prevDir }) => {
+      const turnPenalty = prevDir && prevDir.key !== dir.key ? 0.7 : 0;
+      return 1 + turnPenalty;
+    },
+    maxExpanded: width * height * 90,
+  });
+
+  if (!trunk) {
+    river.add(keyOf(start));
+    return river;
+  }
+
+  addPath(river, trunk);
+  if (river.size >= target) return river;
+
+  // 2) Tributaries
+  let attempts = 0;
+  const attemptLimit = 90;
+
+  while (river.size < target && attempts < attemptLimit) {
+    attempts++;
+
+    const riverKeys = Array.from(river);
+    if (riverKeys.length < 6) break;
+
+    const straight = riverKeys.filter((k) => isStraightCell(k, river));
+    if (straight.length === 0) break;
+
+    const joinKey = straight[rng.int(0, straight.length - 1)]!;
+    const [jx, jy] = joinKey.split(",").map(Number);
+    const join = { x: jx, y: jy };
+
+    // Start from an edge, far enough from join so it reads as a tributary, not a wiggle.
+    let tribStart = randomEdgeCell(rng, width, height);
+    for (let i = 0; i < 12; i++) {
+      const candidate = randomEdgeCell(rng, width, height);
+      if (manhattan(candidate, join) > Math.floor((width + height) * 0.35)) {
+        tribStart = candidate;
+        break;
+      }
+    }
+
+    // Block existing river, but allow landing on join.
+    const blocked = new Set<string>(river);
+
+    const path = aStarPath({
+      width,
+      height,
+      start: tribStart,
+      goal: join,
+      blocked,
+      allowGoalOnBlocked: true,
+      stepCost: ({ to, dir, prevDir }) => {
+        const toKey = keyOf(to);
+        if (river.has(toKey) && !(to.x === join.x && to.y === join.y)) return 999;
+
+        const turnPenalty = prevDir && prevDir.key !== dir.key ? 0.9 : 0;
+
+        // Avoid “parallel river highways” except right at the merge.
+        let adjPenalty = 0;
+        const nearJoin = manhattan(to, join) <= 2;
+        if (!nearJoin) {
+          for (const { cell } of neighbors(to, width, height)) {
+            if (river.has(keyOf(cell))) adjPenalty += 0.6;
+          }
+        }
+
+        return 1 + turnPenalty + adjPenalty;
+      },
+      maxExpanded: width * height * 140,
+    });
+
+    if (!path || path.length < 3) continue;
+
+    addPath(river, path);
+    if (river.size > target + Math.floor(target * 0.08)) break;
+  }
+
+  // 3) Small end spurs if still under target (keeps it organic, but no mesh)
+  if (river.size < target) {
+    const deg = computeDegrees(river, width, height);
+    const ends = Array.from(deg.entries())
+      .filter(([, d]) => d === 1)
+      .map(([k]) => k);
+
+    let spurAttempts = 0;
+    while (river.size < target && spurAttempts < 45 && ends.length > 0) {
+      spurAttempts++;
+      const endKey = ends[rng.int(0, ends.length - 1)]!;
+      const [ex, ey] = endKey.split(",").map(Number);
+      const end = { x: ex, y: ey };
+
+      const opts = neighbors(end, width, height)
+        .map((n) => n.cell)
+        .filter((c) => !river.has(keyOf(c)));
+
+      if (opts.length === 0) continue;
+      river.add(keyOf(opts[rng.int(0, opts.length - 1)]!));
+    }
+  }
+
+  return river;
+}
+
+/**
+ * ROAD TOPOGRAPHY
+ * - Generate AFTER rivers
+ * - Rivers are hard-blocked; plus a 1-cell buffer discourages hugging
+ * - A few long arterials, then limited branches
+ * - Strong straight bias; penalties prevent “grid mesh”
+ */
+function generateRoadCells(args: {
+  rng: ReturnType<typeof makeRng>;
+  width: number;
+  height: number;
+  density: number;
+  river: Set<string>;
+}): Set<string> {
+  const { rng, width, height, river } = args;
+
+  // If you ask for higher than this, you WILL get spaghetti.
+  const density = clamp(args.density, 0.0, 0.24);
+  const target = Math.max(0, Math.round(width * height * density));
+  if (target === 0) return new Set();
+
+  const road = new Set<string>();
+
+  const riverHardBlocked = new Set<string>(river);
+  const riverBuffered = buffered(river, width, height, 1);
+
+  const roadAdjPenalty = (to: BoardCell) => {
+    let p = 0;
+    for (const { cell } of neighbors(to, width, height)) {
+      if (road.has(keyOf(cell))) p += 0.25;
+    }
+    return p;
+  };
+
+  const routeRoad = (start: BoardCell, goal: BoardCell, relax = 0) => {
+    const blocked = new Set<string>(riverHardBlocked);
+    // Block existing road to avoid running “on” itself (prevents mesh),
+    // but allow landing on goal if it is already road (connectors).
+    for (const k of road) blocked.add(k);
+
+    return aStarPath({
+      width,
+      height,
+      start,
+      goal,
+      blocked,
+      allowGoalOnBlocked: true,
+      stepCost: ({ to, dir, prevDir }) => {
+        const turnPenalty = prevDir && prevDir.key !== dir.key ? (1.35 - relax) : 0;
+
+        // Avoid rivers and also avoid hugging them everywhere.
+        const nearRiver = riverBuffered.has(keyOf(to)) ? (2.2 - relax) : 0;
+
+        // Avoid dense road adjacency to prevent “ladder/grid” patterns.
+        const nearRoad = (0.55 - relax * 0.25) * roadAdjPenalty(to);
+
+        return 1 + turnPenalty + nearRiver + nearRoad;
+      },
+      maxExpanded: width * height * 160,
+    });
+  };
+
+  // 1) Primary arterials (edge->far edge)
+  const arterialCount = clamp(Math.round(density * 6), 1, 3);
+  let arterialTries = 0;
+
+  while (road.size < target && arterialTries < arterialCount * 10) {
+    arterialTries++;
+
+    const { start, goal } = pickFarEdgePair(rng, width, height, 16);
+
+    if (riverBuffered.has(keyOf(start)) || riverBuffered.has(keyOf(goal))) continue;
+
+    let path = routeRoad(start, goal, 0);
+    if (!path) path = routeRoad(start, goal, 0.6);
+
+    if (!path || path.length < 5) continue;
+    addPath(road, path);
+
+    if (road.size >= target) break;
+  }
+
+  if (road.size >= target) return road;
+
+  // 2) Branches: limited connectors to edges or interior POIs
+  const branchLimit = clamp(Math.round(density * 10), 2, 7);
+  let branches = 0;
+  let branchAttempts = 0;
+
+  while (road.size < target && branches < branchLimit && branchAttempts < 95) {
+    branchAttempts++;
+
+    const roadKeys = Array.from(road);
+    if (roadKeys.length === 0) break;
+
+    // Pick a source not too close to the edge (reduces corner clutter)
+    let srcKey = roadKeys[rng.int(0, roadKeys.length - 1)]!;
+    for (let i = 0; i < 10; i++) {
+      const k = roadKeys[rng.int(0, roadKeys.length - 1)]!;
+      const [x, y] = k.split(",").map(Number);
+      const edgeDist = Math.min(x, y, width - 1 - x, height - 1 - y);
+      if (edgeDist >= 2) {
+        srcKey = k;
+        break;
+      }
+    }
+
+    const [sx, sy] = srcKey.split(",").map(Number);
+    const start = { x: sx, y: sy };
+
+    let goal: BoardCell;
+    if (rng.float() < 0.65) {
+      goal = randomEdgeCell(rng, width, height);
+    } else {
+      goal = { x: rng.int(1, width - 2), y: rng.int(1, height - 2) };
+    }
+
+    if (riverBuffered.has(keyOf(goal))) continue;
+    if (manhattan(start, goal) < Math.floor((width + height) * 0.2)) continue;
+
+    let path = routeRoad(start, goal, 0);
+    if (!path) path = routeRoad(start, goal, 0.7);
+
+    if (!path || path.length < 4) continue;
+
+    // Reject if this branch would create mesh-like adjacency.
+    let crowded = 0;
+    for (const c of path) {
+      const k = keyOf(c);
+      if (road.has(k)) continue;
+      if (roadAdjPenalty(c) >= 2) crowded++;
+    }
+    if (crowded > 3) continue;
+
+    addPath(road, path);
+    branches++;
+  }
+
+  // 3) Cleanup: remove accidental overlaps (should not happen), remove isolated singletons.
+  for (const k of Array.from(road)) {
+    if (riverHardBlocked.has(k)) road.delete(k);
+  }
+
+  const deg = computeDegrees(road, width, height);
+  for (const [k, d] of deg.entries()) {
+    if (d === 0) road.delete(k);
+  }
+
+  // 4) If still under target: extend some ends gently (keeps it “road-like”)
+  if (road.size < target) {
+    const deg2 = computeDegrees(road, width, height);
+    const ends = Array.from(deg2.entries())
+      .filter(([, d]) => d === 1)
+      .map(([k]) => k);
+
+    let extendAttempts = 0;
+    while (road.size < target && extendAttempts < 70 && ends.length > 0) {
+      extendAttempts++;
+
+      const endKey = ends[rng.int(0, ends.length - 1)]!;
+      const [ex, ey] = endKey.split(",").map(Number);
+      const end = { x: ex, y: ey };
+
+      const opts = neighbors(end, width, height)
+        .map((n) => n.cell)
+        .filter((c) => {
+          const k = keyOf(c);
+          return !road.has(k) && !riverHardBlocked.has(k) && !riverBuffered.has(k);
+        });
+
+      if (opts.length === 0) continue;
+
+      opts.sort((a, b) => {
+        const sa = roadAdjPenalty(a) + (riverBuffered.has(keyOf(a)) ? 10 : 0);
+        const sb = roadAdjPenalty(b) + (riverBuffered.has(keyOf(b)) ? 10 : 0);
+        return sa - sb;
+      });
+
+      road.add(keyOf(opts[0]!));
+    }
+  }
+
+  return road;
+}
+
+export function generateTerrainNetworks(args: {
+  width: number;
+  height: number;
+  seed: number;
+  roadDensity: number;
+  riverDensity: number;
+}): { road: BoardCell[]; river: BoardCell[]; nextSeed: number } {
+  const rng = makeRng(args.seed);
+
+  // Rivers first: roads must respect rivers.
+  const riverSet = generateRiverCells({
+    rng,
+    width: args.width,
+    height: args.height,
+    density: args.riverDensity,
+  });
+
+  const roadSet = generateRoadCells({
+    rng,
+    width: args.width,
+    height: args.height,
+    density: args.roadDensity,
+    river: riverSet,
+  });
+
+  const river = Array.from(riverSet).map((k) => {
+    const [x, y] = k.split(",").map(Number);
+    return { x, y };
+  });
+
+  const road = Array.from(roadSet).map((k) => {
+    const [x, y] = k.split(",").map(Number);
+    return { x, y };
+  });
+
+  return { road, river, nextSeed: rng.seed() };
+}

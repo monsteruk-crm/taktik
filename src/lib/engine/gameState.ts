@@ -12,11 +12,13 @@ export type Player = "PLAYER_A" | "PLAYER_B";
 
 export type UnitType = "INFANTRY" | "VEHICLE" | "SPECIAL";
 
+export type BoardCell = { x: number; y: number };
+
 export type Unit = {
     id: string;
     owner: Player;
     type: UnitType;
-    position: { x: number; y: number };
+    position: BoardCell;
     movement: number;
     attack: number;
     hasMoved: boolean;
@@ -115,6 +117,15 @@ export type GameState = {
     boardHeight: number;
     units: Unit[];
     movesThisTurn: number;
+    terrain: {
+        road: BoardCell[];
+        river: BoardCell[];
+        params: {
+            roadDensity: number;
+            riverDensity: number;
+        };
+        seed: number;
+    };
     commonDeck: CardDefinition[];
     tacticalDeck: CardDefinition[];
     selectedTacticalDeck: CardDefinition[];

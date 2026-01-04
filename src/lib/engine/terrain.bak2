@@ -1,0 +1,149 @@
+import type { BoardCell } from "./gameState";
+
+const DIRECTIONS = [
+  { key: "N", dx: 0, dy: -1 },
+  { key: "E", dx: 1, dy: 0 },
+  { key: "S", dx: 0, dy: 1 },
+  { key: "W", dx: -1, dy: 0 },
+] as const;
+
+function nextSeed(seed: number) {
+  return (seed * 1664525 + 1013904223) >>> 0;
+}
+
+function makeRng(seed: number) {
+  let state = seed >>> 0;
+  return {
+    next() {
+      state = nextSeed(state);
+      return state;
+    },
+    float() {
+      return this.next() / 0xffffffff;
+    },
+    int(min: number, maxInclusive: number) {
+      return Math.floor(this.float() * (maxInclusive - min + 1)) + min;
+    },
+    pick<T>(items: T[]) {
+      return items[this.int(0, items.length - 1)];
+    },
+    seed() {
+      return state;
+    },
+  };
+}
+
+function keyOf(cell: BoardCell) {
+  return `${cell.x},${cell.y}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function randomEdgeCell(
+  rng: ReturnType<typeof makeRng>,
+  width: number,
+  height: number
+): BoardCell {
+  const side = rng.int(0, 3);
+  if (side === 0) return { x: rng.int(0, width - 1), y: 0 };
+  if (side === 1) return { x: width - 1, y: rng.int(0, height - 1) };
+  if (side === 2) return { x: rng.int(0, width - 1), y: height - 1 };
+  return { x: 0, y: rng.int(0, height - 1) };
+}
+
+function walkPath(args: {
+  rng: ReturnType<typeof makeRng>;
+  width: number;
+  height: number;
+  length: number;
+  biasStraight: number;
+  start?: BoardCell;
+}): BoardCell[] {
+  const { rng, width, height, length, biasStraight } = args;
+  const path: BoardCell[] = [];
+  let current = args.start ?? randomEdgeCell(rng, width, height);
+  let lastDir: (typeof DIRECTIONS)[number] | null = null;
+
+  for (let i = 0; i < length; i += 1) {
+    path.push(current);
+    const options = DIRECTIONS.filter((dir) => {
+      const nx = current.x + dir.dx;
+      const ny = current.y + dir.dy;
+      return nx >= 0 && nx < width && ny >= 0 && ny < height;
+    });
+    let nextDir = rng.pick(options);
+    const lastDirSnapshot: (typeof DIRECTIONS)[number] | null = lastDir;
+    if (lastDirSnapshot && rng.float() < biasStraight) {
+      const straightOption: (typeof DIRECTIONS)[number] | undefined = options.find(
+        (opt) => opt.dx === lastDirSnapshot.dx && opt.dy === lastDirSnapshot.dy
+      );
+      if (straightOption) {
+        nextDir = straightOption;
+      }
+    }
+    current = { x: current.x + nextDir.dx, y: current.y + nextDir.dy };
+    lastDir = nextDir;
+  }
+  return path;
+}
+
+function generateNetworkCells(args: {
+  rng: ReturnType<typeof makeRng>;
+  width: number;
+  height: number;
+  density: number;
+  biasStraight: number;
+  lengthScale: number;
+}): BoardCell[] {
+  const { rng, width, height, density, biasStraight, lengthScale } = args;
+  const clamped = clamp(density, 0.01, 0.6);
+  const area = width * height;
+  const target = Math.max(4, Math.floor(area * clamped));
+  const cells = new Map<string, BoardCell>();
+  const maxPaths = Math.max(2, Math.floor(Math.sqrt(area) * clamped * lengthScale));
+  const baseLength = Math.max(4, Math.floor(Math.sqrt(area) * lengthScale));
+
+  for (let i = 0; i < maxPaths && cells.size < target; i += 1) {
+    const length = baseLength + rng.int(-2, 4);
+    const start = i === 0 ? randomEdgeCell(rng, width, height) : undefined;
+    const path = walkPath({ rng, width, height, length, biasStraight, start });
+    for (const cell of path) {
+      cells.set(keyOf(cell), cell);
+      if (cells.size >= target) break;
+    }
+  }
+
+  return Array.from(cells.values());
+}
+
+export function generateTerrainNetworks(args: {
+  width: number;
+  height: number;
+  seed: number;
+  roadDensity: number;
+  riverDensity: number;
+}): { road: BoardCell[]; river: BoardCell[]; nextSeed: number } {
+  const rng = makeRng(args.seed);
+
+  const road = generateNetworkCells({
+    rng,
+    width: args.width,
+    height: args.height,
+    density: args.roadDensity,
+    biasStraight: 0.68,
+    lengthScale: 1.1,
+  });
+
+  const river = generateNetworkCells({
+    rng,
+    width: args.width,
+    height: args.height,
+    density: args.riverDensity,
+    biasStraight: 0.55,
+    lengthScale: 1.25,
+  });
+
+  return { road, river, nextSeed: rng.seed() };
+}

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen:assets": "node scripts/gen_placeholders.mjs"
+    "gen:assets": "node scripts/gen_placeholders.mjs",
+    "gen:tiles": "node scripts/gen_terrain_tiles.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

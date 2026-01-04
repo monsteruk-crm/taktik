@@ -5,7 +5,9 @@ import { PNG } from "pngjs";
 
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, "public", "assets", "tiles");
+const NETWORK_DIR = path.join(OUT_DIR, "networks");
 const TEMP_DIR = path.join(ROOT, "temp");
+const TEMP_NETWORK_DIR = path.join(TEMP_DIR, "networks");
 const SCALE = 3;
 
 function ensureDir(dir) {
@@ -47,6 +49,14 @@ function setPixel(png, x, y, color) {
   png.data[idx + 3] = color[3];
 }
 
+const EDGE_ORDER = ["N", "E", "S", "W"];
+
+function edgeKey(edges) {
+  if (!edges || edges.length === 0) return "NONE";
+  const set = new Set(edges);
+  return EDGE_ORDER.filter((e) => set.has(e)).join("");
+}
+
 function fillPolygon(png, points, color) {
   const ys = points.map((p) => p.y);
   const minY = Math.max(0, Math.floor(Math.min(...ys)));
@@ -77,6 +87,292 @@ function fillPolygon(png, points, color) {
       }
     }
   }
+}
+
+function applyTopFaceMask(png, cx, cy, tileW, tileH) {
+  const halfW = tileW / 2;
+  const halfH = tileH / 2;
+
+  const minX = Math.floor(cx - halfW);
+  const maxX = Math.ceil(cx + halfW);
+  const minY = Math.floor(cy - halfH);
+  const maxY = Math.ceil(cy + halfH);
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const dx = Math.abs(x - cx);
+      const dy = Math.abs(y - cy);
+      const inside = dx / halfW + dy / halfH <= 1;
+      if (!inside) {
+        const idx = (y * png.width + x) * 4;
+        if (idx >= 0 && idx + 3 < png.data.length) {
+          png.data[idx + 3] = 0;
+        }
+      }
+    }
+  }
+}
+
+function fillRect(png, x0, y0, x1, y1, color) {
+  const minX = Math.max(0, Math.floor(Math.min(x0, x1)));
+  const maxX = Math.min(png.width - 1, Math.ceil(Math.max(x0, x1)));
+  const minY = Math.max(0, Math.floor(Math.min(y0, y1)));
+  const maxY = Math.min(png.height - 1, Math.ceil(Math.max(y0, y1)));
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      setPixel(png, x, y, color);
+    }
+  }
+}
+
+function generateNetworkSurface({
+  kind,
+  edges,
+  rectOnTopFace,
+  rng,
+  widthPx,
+  color,
+  innerColor,
+  tileW,
+  png,
+}) {
+  const c = 0.5;
+  const width = widthPx / tileW;
+  const half = width / 2;
+
+  function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+  }
+
+  function drawRect(s0, s1, t0, t1, fill) {
+    const sMin = clamp01(Math.min(s0, s1));
+    const sMax = clamp01(Math.max(s0, s1));
+    const tMin = clamp01(Math.min(t0, t1));
+    const tMax = clamp01(Math.max(t0, t1));
+    fillPolygon(png, rectOnTopFace(sMin, sMax, tMin, tMax), fill);
+  }
+
+  function drawArm(dir, armHalf, fill, offset = 0) {
+    if (dir === "N") {
+      drawRect(c - armHalf + offset, c + armHalf + offset, 0, c, fill);
+    } else if (dir === "S") {
+      drawRect(c - armHalf + offset, c + armHalf + offset, c, 1, fill);
+    } else if (dir === "E") {
+      drawRect(c, 1, c - armHalf + offset, c + armHalf + offset, fill);
+    } else if (dir === "W") {
+      drawRect(0, c, c - armHalf + offset, c + armHalf + offset, fill);
+    }
+  }
+
+  function drawCenter(sizeHalf, fill) {
+    drawRect(c - sizeHalf, c + sizeHalf, c - sizeHalf, c + sizeHalf, fill);
+  }
+
+  function drawMedianBlocks(fill, count, span, thickness) {
+    for (let i = 0; i < count; i += 1) {
+      const t = rng.range(0.15, 0.85);
+      drawRect(c - thickness, c + thickness, t - span / 2, t + span / 2, fill);
+    }
+  }
+
+  const edgeSet = new Set(edges);
+  const degree = edges.length;
+  const isStraight =
+    degree === 2 &&
+    ((edgeSet.has("N") && edgeSet.has("S")) || (edgeSet.has("E") && edgeSet.has("W")));
+  const isCorner = degree === 2 && !isStraight;
+  const isTJunction = degree === 3;
+  const isCross = degree === 4;
+
+  if (kind === "road") {
+    const shoulder = width * rng.range(1.25, 1.4);
+    const lane = width * rng.range(0.6, 0.7);
+    const offset = width * rng.range(0.14, 0.22);
+    const centerHalf = shoulder * 0.6;
+
+    drawCenter(centerHalf, color);
+
+    if (isStraight) {
+      for (const dir of edges) {
+        drawArm(dir, shoulder / 2, color);
+      }
+
+      if (edgeSet.has("N") && edgeSet.has("S")) {
+        drawArm("N", lane / 2, innerColor ?? color, -offset);
+        drawArm("S", lane / 2, innerColor ?? color, -offset);
+        drawArm("N", lane / 2, innerColor ?? color, offset);
+        drawArm("S", lane / 2, innerColor ?? color, offset);
+        drawMedianBlocks(innerColor ?? color, 2, 0.08, lane / 4);
+      } else {
+        drawArm("E", lane / 2, innerColor ?? color, -offset);
+        drawArm("W", lane / 2, innerColor ?? color, -offset);
+        drawArm("E", lane / 2, innerColor ?? color, offset);
+        drawArm("W", lane / 2, innerColor ?? color, offset);
+        drawMedianBlocks(innerColor ?? color, 2, 0.08, lane / 4);
+      }
+    } else if (isCorner) {
+      for (const dir of edges) {
+        drawArm(dir, shoulder / 2, color);
+        drawArm(dir, lane / 2, innerColor ?? color, 0);
+      }
+      drawCenter(shoulder * 0.75, color);
+      if (edgeSet.has("N") && edgeSet.has("E")) {
+        drawRect(c, c + shoulder, c - shoulder * 0.35, c + shoulder * 0.35, innerColor ?? color);
+      } else if (edgeSet.has("E") && edgeSet.has("S")) {
+        drawRect(c - shoulder * 0.35, c + shoulder * 0.35, c, c + shoulder, innerColor ?? color);
+      } else if (edgeSet.has("S") && edgeSet.has("W")) {
+        drawRect(c - shoulder, c, c - shoulder * 0.35, c + shoulder * 0.35, innerColor ?? color);
+      } else if (edgeSet.has("W") && edgeSet.has("N")) {
+        drawRect(c - shoulder * 0.35, c + shoulder * 0.35, c - shoulder, c, innerColor ?? color);
+      }
+      const secondary = lane * 0.9;
+      if (edgeSet.has("N")) drawArm("N", secondary / 2, innerColor ?? color, -offset / 2);
+      if (edgeSet.has("E")) drawArm("E", secondary / 2, innerColor ?? color, offset / 2);
+      if (edgeSet.has("S")) drawArm("S", secondary / 2, innerColor ?? color, offset / 2);
+      if (edgeSet.has("W")) drawArm("W", secondary / 2, innerColor ?? color, -offset / 2);
+    } else if (isTJunction) {
+      drawCenter(shoulder * 0.9, color);
+      for (const dir of edges) {
+        drawArm(dir, shoulder / 2, color);
+        drawArm(dir, lane / 2, innerColor ?? color, 0);
+      }
+      const stubHalf = lane * 0.6;
+      drawRect(c - stubHalf, c + stubHalf, c - stubHalf, c + stubHalf, innerColor ?? color);
+      if (edgeSet.has("N")) drawRect(c - stubHalf, c + stubHalf, 0.1, 0.2, innerColor ?? color);
+      if (edgeSet.has("S")) drawRect(c - stubHalf, c + stubHalf, 0.8, 0.9, innerColor ?? color);
+      if (edgeSet.has("E")) drawRect(0.8, 0.9, c - stubHalf, c + stubHalf, innerColor ?? color);
+      if (edgeSet.has("W")) drawRect(0.1, 0.2, c - stubHalf, c + stubHalf, innerColor ?? color);
+    } else if (isCross) {
+      drawCenter(shoulder * 1.05, color);
+      for (const dir of edges) {
+        drawArm(dir, shoulder / 2, color);
+      }
+      const quad = lane * 0.55;
+      drawRect(c - quad, c, c - quad, c, innerColor ?? color);
+      drawRect(c, c + quad, c - quad, c, innerColor ?? color);
+      drawRect(c - quad, c, c, c + quad, innerColor ?? color);
+      drawRect(c, c + quad, c, c + quad, innerColor ?? color);
+      for (const dir of edges) {
+        drawArm(dir, lane / 2, innerColor ?? color, 0);
+      }
+    } else {
+      drawCenter(shoulder * 0.7, color);
+      for (const dir of edges) {
+        drawArm(dir, shoulder / 2, color);
+        drawArm(dir, lane / 2, innerColor ?? color, 0);
+      }
+    }
+  } else {
+    const channel = width * rng.range(1.3, 1.6);
+    const banks = channel * rng.range(1.15, 1.3);
+    const inner = channel * rng.range(0.65, 0.8);
+
+    drawCenter(banks * 0.6, color);
+
+    for (const dir of edges) {
+      drawArm(dir, banks / 2, color);
+      drawArm(dir, inner / 2, innerColor ?? color, 0);
+    }
+
+    if (isCorner) {
+      drawCenter(banks * 0.85, color);
+      if (edgeSet.has("N") && edgeSet.has("E")) {
+        drawRect(c, c + banks * 0.75, c - banks * 0.2, c + banks * 0.4, innerColor ?? color);
+      } else if (edgeSet.has("E") && edgeSet.has("S")) {
+        drawRect(c - banks * 0.2, c + banks * 0.4, c, c + banks * 0.75, innerColor ?? color);
+      } else if (edgeSet.has("S") && edgeSet.has("W")) {
+        drawRect(c - banks * 0.75, c, c - banks * 0.2, c + banks * 0.4, innerColor ?? color);
+      } else if (edgeSet.has("W") && edgeSet.has("N")) {
+        drawRect(c - banks * 0.2, c + banks * 0.4, c - banks * 0.75, c, innerColor ?? color);
+      }
+    } else if (isTJunction) {
+      drawCenter(banks * 1.0, color);
+      if (edgeSet.has("N") && edgeSet.has("E") && edgeSet.has("W")) {
+        drawArm("S", banks * 0.65, color, rng.range(-0.05, 0.05));
+      } else if (edgeSet.has("S") && edgeSet.has("E") && edgeSet.has("W")) {
+        drawArm("N", banks * 0.65, color, rng.range(-0.05, 0.05));
+      } else if (edgeSet.has("N") && edgeSet.has("S") && edgeSet.has("E")) {
+        drawArm("W", banks * 0.65, color, rng.range(-0.05, 0.05));
+      } else if (edgeSet.has("N") && edgeSet.has("S") && edgeSet.has("W")) {
+        drawArm("E", banks * 0.65, color, rng.range(-0.05, 0.05));
+      }
+    } else if (isCross) {
+      drawCenter(banks * 1.1, color);
+      drawCenter(inner * 0.7, innerColor ?? color);
+    } else if (isStraight) {
+      const offset = width * rng.range(0.08, 0.16);
+      if (edgeSet.has("N") && edgeSet.has("S")) {
+        drawArm("N", banks / 2, color, -offset);
+        drawArm("S", banks / 2, color, -offset);
+        drawArm("N", inner / 2, innerColor ?? color, offset);
+        drawArm("S", inner / 2, innerColor ?? color, offset);
+      } else {
+        drawArm("E", banks / 2, color, -offset);
+        drawArm("W", banks / 2, color, -offset);
+        drawArm("E", inner / 2, innerColor ?? color, offset);
+        drawArm("W", inner / 2, innerColor ?? color, offset);
+      }
+    }
+
+    if (rng.float() < 0.35) {
+      const voidHalf = inner * rng.range(0.15, 0.25);
+      drawRect(c - voidHalf, c + voidHalf, c - voidHalf, c + voidHalf, [0, 0, 0, 0]);
+    }
+  }
+}
+
+function makeNetworkOverlayTopFace({ edges, kind, widthPx, color, innerColor }) {
+  const size = 1024 * SCALE;
+  const png = new PNG({ width: size, height: size });
+  png.data.fill(0);
+
+  const cx = size / 2;
+  const cy = 430 * SCALE;
+
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
+
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const left = { x: cx - tileW / 2, y: cy };
+  const a = { x: right.x - top.x, y: right.y - top.y };
+  const b = { x: left.x - top.x, y: left.y - top.y };
+
+  function rectOnTopFace(s0, s1, t0, t1) {
+    return [
+      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
+      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
+      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
+      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
+    ];
+  }
+
+  const slabAlpha = Math.round(255 * 0.05);
+  const slabFill = [color[0], color[1], color[2], slabAlpha];
+  fillPolygon(png, rectOnTopFace(0, 1, 0, 1), slabFill);
+
+  const rngSeed =
+    0x524f4144 ^
+    edges.length ^
+    edges.reduce((sum, edge) => sum + edge.charCodeAt(0), 0);
+  const rng = makeRng(rngSeed);
+
+  generateNetworkSurface({
+    kind,
+    edges,
+    rectOnTopFace,
+    rng,
+    widthPx,
+    color,
+    innerColor,
+    tileW,
+    png,
+  });
+
+  applyTopFaceMask(png, cx, cy, tileW, tileH);
+
+  return png;
 }
 
 function makeTilePlain1024() {
@@ -873,7 +1169,9 @@ function makeHighlightTileTopFace({ fill, border, banding, segmentation }) {
 }
 
 ensureDir(OUT_DIR);
+ensureDir(NETWORK_DIR);
 ensureDir(TEMP_DIR);
+ensureDir(TEMP_NETWORK_DIR);
 const generatedFiles = [];
 
 const plain = makeTilePlain1024();
@@ -938,6 +1236,53 @@ const targetConfirmHighlight = makeHighlightTileTopFace({
 generatedFiles.push("highlight_target_confirm.png");
 writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), targetConfirmHighlight);
 
+const NETWORKS = [
+  {
+    id: "road",
+    kind: "stroke",
+    widthPx: Math.round(640 * SCALE * 0.045),
+    color: [70, 70, 66, 210],
+    innerColor: [92, 92, 88, 210],
+  },
+  {
+    id: "river",
+    kind: "channel",
+    widthPx: Math.round(640 * SCALE * 0.060),
+    color: [58, 142, 170, 205],
+    innerColor: [86, 176, 204, 210],
+  },
+];
+
+const EDGE_SUBSETS = [];
+for (let mask = 1; mask < 16; mask += 1) {
+  const edges = [];
+  if (mask & 1) edges.push("N");
+  if (mask & 2) edges.push("E");
+  if (mask & 4) edges.push("S");
+  if (mask & 8) edges.push("W");
+  EDGE_SUBSETS.push(edges);
+}
+
+const networkManifest = {};
+
+for (const net of NETWORKS) {
+  const variants = [];
+  for (const edges of EDGE_SUBSETS) {
+    const key = edgeKey(edges);
+    const png = makeNetworkOverlayTopFace({
+      edges,
+      kind: net.kind,
+      widthPx: net.widthPx,
+      color: net.color,
+      innerColor: net.innerColor,
+    });
+    const filename = `${net.id}_${key}.png`;
+    variants.push(key);
+    writePng(path.join(TEMP_NETWORK_DIR, filename), png);
+  }
+  networkManifest[net.id] = variants;
+}
+
 for (const fileName of generatedFiles) {
   cropTileWithImagemagick(
     path.join(TEMP_DIR, fileName),
@@ -945,7 +1290,23 @@ for (const fileName of generatedFiles) {
   );
 }
 
+for (const [netId, variants] of Object.entries(networkManifest)) {
+  for (const key of variants) {
+    const filename = `${netId}_${key}.png`;
+    cropTileWithImagemagick(
+      path.join(TEMP_NETWORK_DIR, filename),
+      path.join(NETWORK_DIR, filename)
+    );
+  }
+}
+
+fs.writeFileSync(
+  path.join(NETWORK_DIR, "manifest.json"),
+  JSON.stringify(networkManifest, null, 2)
+);
+
 console.log(
   "Generated terrain tiles: terrain-01-plain.png, terrain-02-rough.png, terrain-03-forest.png, terrain-04-urban.png, terrain-05-hill.png, terrain-06-water.png, terrain-10-industrial.png, ground.png, highlight_move.png, highlight_attack.png, highlight_move_adv.png, highlight_target_confirm.png",
 );
+console.log("Generated network overlays:", NETWORKS.map((n) => n.id).join(", "));
 console.log("Cropped tiles with ImageMagick: convert ... -gravity North -extent 1918x1190");

@@ -193,6 +193,27 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-04 — Guard terrain path bias against null direction
+
+### BEFORE
+- `walkPath` unconditionally dereferenced `lastDir` when applying `biasStraight`, which broke TypeScript strict null checks even though runtime generation usually has a prior direction.
+
+### NOW
+- The terrain walker snapshots `lastDir` before using it, so continuing straight only happens when a direction exists and the compile error disappears without behavioral changes.
+- The snapshot also carries an explicit `(typeof DIRECTIONS)[number]` type, which satisfies TypeScript’s inference while leaving the deterministic bias logic untouched.
+
+### NEXT
+- Scan other strict-null warnings in the terrain/codegen helpers to keep the generator TypeScript-clean.
+
+### Known limitations / TODOs
+- The terrain generator still randomly chooses start points on the map edge, so the same road/rivers may look asymmetrical; separate seeding for rivers might be a future polish.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/terrain.ts`
+
+---
+
 ## 2025-12-27 — Adjust unit centering on tiles
 
 ### BEFORE
@@ -2685,6 +2706,251 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-04 — Stop board recentering on unit moves
+
+### BEFORE
+- The board re-centered whenever `initialPan` changed, which happened on unit moves because the median unit position shifted.
+
+### NOW
+- Recenter only happens on resize/orientation events; `initialPan` updates no longer trigger a forced recenter.
+
+### NEXT
+- If we add explicit “recenter” controls, expose a manual action rather than implicit pan changes.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/components/BoardViewport.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Avoid hydration mismatch for procedural terrain seeds
+
+### BEFORE
+- Server and client generated different initial terrain seeds, causing hydration mismatch when road/river overlays rendered.
+
+### NOW
+- Server uses a fixed seed (`1`) unless `NEXT_PUBLIC_RNG_SEED` is set; the client re-seeds after mount for randomness when no env seed is provided.
+
+### NEXT
+- If desired, expose a UI control to lock or display the current seed.
+
+### Known limitations / TODOs
+- First paint uses the deterministic seed; map changes once after hydration when randomized.
+
+### Files touched
+- UI: `src/app/page.tsx`
+- Shared: `src/lib/settings.ts`
+- Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Fix terrain seed variability and density normalization
+
+### BEFORE
+- Terrain generation always used a fixed seed and density values above 1 were effectively clamped, making reloads identical and density tweaks feel ignored.
+
+### NOW
+- Initial RNG seed is sourced from `getInitialRngSeed()` (env override or random), and terrain density values >1 are treated as percentages so tuning is respected.
+
+### NEXT
+- Decide whether map seeds should be user-configurable per match or scenario.
+
+### Known limitations / TODOs
+- Without `NEXT_PUBLIC_RNG_SEED`, reloads will vary by design.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`, `src/lib/engine/reducer.ts`
+- Shared: `src/lib/settings.ts`
+- Docs: `docs/engine.md`, `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Add global settings file for terrain parameters
+
+### BEFORE
+- Initial terrain density parameters lived inline in the reducer.
+
+### NOW
+- Added `src/lib/settings.ts` to hold `initialTerrainParams`, and the reducer imports from this global settings module.
+
+### NEXT
+- Centralize additional tunable defaults in the settings file as they’re introduced.
+
+### Known limitations / TODOs
+- Settings are static constants; no runtime config override yet.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`
+- Shared: `src/lib/settings.ts`
+- Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Shift river palette toward cyan/blue
+
+### BEFORE
+- Rivers used muted blue-green tones that read too subdued on the board.
+
+### NOW
+- Updated river colors to a more cyan/blue palette with a brighter inner band for contrast.
+
+### NEXT
+- Recheck river contrast against urban/industrial tiles once those palettes finalize.
+
+### Known limitations / TODOs
+- Palette is still flat fill only; no texture.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Add faint top-face slabs for road/river overlays
+
+### BEFORE
+- Road/river overlays floated visually with no subtle base plate, making them feel slightly off-center on tiles.
+
+### NOW
+- Each network overlay includes a 5% alpha top-face slab under the geometry to center and anchor the visual footprint.
+
+### NEXT
+- Re-evaluate slab opacity after more terrain types are added to ensure it stays subtle.
+
+### Known limitations / TODOs
+- Slab tint is derived from the network base color; if palettes change, re-check contrast.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Generate terrain networks from engine rngSeed
+
+### BEFORE
+- Road/river overlays were driven by a static UI demo layout, not by engine state.
+
+### NOW
+- Terrain networks are generated deterministically at game start using `rngSeed` and stored in `GameState.terrain`, with density parameters controlling coverage.
+
+### NEXT
+- Add gameplay rules that consume terrain once the manual’s terrain system is defined.
+
+### Known limitations / TODOs
+- Terrain generation is currently a simple random-walk layout without scenario constraints.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`, `src/lib/engine/gameState.ts`, `src/lib/engine/reducer.ts`
+- UI: `src/components/IsometricBoard.tsx`
+- Docs: `docs/engine.md`, `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Expand demo road/river layout for richer topology coverage
+
+### BEFORE
+- Demo network layout only showed a small L-shaped road and river, which masked the procedural variety of the generated tiles.
+
+### NOW
+- Demo layout includes straights, corners, a T-junction, and a cross so the procedural overlays are visible in-context.
+
+### NEXT
+- Validate the expanded demo layout visually and keep it updated if board dimensions change.
+
+### Known limitations / TODOs
+- Demo layout is still static and not seeded by gameplay state.
+
+### Files touched
+- UI: `src/lib/ui/networks.ts`
+- Docs: `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Enrich road/river topology generation for stronger presence
+
+### BEFORE
+- Road and river overlays used single-strip arms, so tiles read as thin indicators despite correct perspective.
+
+### NOW
+- Network overlays are built from multi-pass, topology-aware recipes (straight, corner, T, cross) with center plates, parallel bands, and basin plates for stronger visual mass.
+
+### NEXT
+- Review additional layout variants and tweak widths if any topology still reads as too thin.
+
+### Known limitations / TODOs
+- Procedural variation is deterministic per topology; it does not yet vary by map seed.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Fix road/river overlays to match isometric top-face perspective
+
+### BEFORE
+- Network overlays were drawn as screen-axis rectangles, producing flat bars that did not align with the isometric tile face.
+
+### NOW
+- Network overlays are generated using top-face (s,t) rectangles aligned to the tile basis, so roads/rivers render in perspective and join cleanly across tiles.
+
+### NEXT
+- Review the demo layout for additional connector cases and verify junctions after any future palette or width tweaks.
+
+### Known limitations / TODOs
+- Requires rerunning `npm run gen:tiles` after any geometry changes.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
+## 2026-01-04 — Restore move-range highlight lookup in isometric board
+
+### BEFORE
+- `IsometricBoard` referenced `moveRangeKeys` without defining it, causing a runtime error when rendering unit overlays.
+
+### NOW
+- `moveRangeKeys` is reinstated so move-range checks are defined and unit opacity correctly reflects move range.
+
+### NEXT
+- Run the board view after network overlay changes to verify highlight behavior remains consistent.
+
+### Known limitations / TODOs
+- None beyond existing demo-only network data.
+
+### Files touched
+- UI: `src/components/IsometricBoard.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Add road/river network overlays (UI-only)
+
+### BEFORE
+- The board rendered only ground tiles and highlights; there were no road/river overlays or connector logic.
+
+### NOW
+- Added network overlay generation (road/river variants), a UI-only adjacency helper, and demo overlay rendering on the board with proper z-index layering.
+
+### NEXT
+- Replace the demo network layout with real map data once terrain rules are defined.
+
+### Known limitations / TODOs
+- Networks are demo-only; there is no engine terrain model yet.
+
+### Files touched
+- Scripts: `scripts/gen_terrain_tiles.mjs`, `package.json`
+- UI: `src/components/IsometricBoard.tsx`, `src/lib/ui/networks.ts`
+- Docs: `docs/roads-rivers.md`, `docs/progress.md`
+
+---
+
 ## 2026-01-04 — Align highlight overlays with ground tiles
 
 ### BEFORE
@@ -2802,3 +3068,43 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/lib/ui/iso.ts`
 - Docs: `docs/progress.md`
+
+---
+
+## 2026-01-04 — Repair terrain road generation crash
+
+### BEFORE
+- `createInitialGameState()` destructured `{ road: roadSet }` from `generateRoadCells(...)`, but `generateRoadCells` actually returns a `Set<string>`. SSR/game start would throw `TypeError: undefined is not iterable` and the board could never render.
+
+### NOW
+- `generateTerrainNetworks()` calls `generateRoadCells()` directly, maps the returned `Set` into an array, and keeps the deterministic seed flow intact, so the game can now boot without the runtime crash.
+
+### NEXT
+- Audit other uses of destructured returns in `lib/engine/terrain.ts` (e.g., tributary builders and bridge helpers) to ensure future refactors keep the deterministic seed path intact.
+
+### Known limitations / TODOs
+- Road/river generation still uses the same density heuristics; additional coverage for extreme density settings (zero or near-one) should be added if we need extreme map types.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Docs: `docs/progress.md`, `docs/engine.md`
+
+---
+
+## 2026-01-04 — Guard road sampling against empty sets
+
+### BEFORE
+- The collector/local road loop sampled a random existing road cell each iteration (`parseKey([...road][rng.int(0, road.size - 1)])`), so when the arterial phase produced no paths the set was empty, `rng.int(0, -1)` returned `NaN`, and `parseKey` received `undefined`, crashing the app during SSR startup.
+
+### NOW
+- After generating arterials we add a small fallback seed (`{0,0}`/`{1,0}`) before the collector loop so the road set is never empty when we sample from it; the collector/local expansion still grows deterministically, but the runtime crash from feeding `parseKey` a missing value is gone.
+
+### NEXT
+- Introduce authenticated sampling utilities (e.g., `pickFromSetOrDefault`) so future loops can safely fall back without duplicating guard code.
+
+### Known limitations / TODOs
+- The fallback always anchors at `{0,0}`/`{1,0}`, so extreme density fiddles should still be double-checked if we expose custom board origins later.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Docs: `docs/progress.md`, `docs/engine.md`

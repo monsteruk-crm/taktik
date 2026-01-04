@@ -16,6 +16,7 @@ import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { Player, ReactionWindow } from "@/lib/engine";
 import { gameReducer, getOpenReactionWindows, initialGameState } from "@/lib/engine";
+import { getInitialRngSeed } from "@/lib/settings";
 import { getMoveRange } from "@/lib/engine/movement";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
@@ -157,6 +158,17 @@ export default function Home() {
     resolvedTargetingContext?.source === "tactic"
       ? tacticById.get(resolvedTargetingContext.cardId) ?? null
       : null;
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_RNG_SEED) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+    const randomSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
+    dispatch({ type: "RESET_GAME", seed: randomSeed });
+  }, [dispatch]);
   const targetableTiles = useMemo(() => {
     if (!isTargeting || targetingSpec?.type !== "unit") {
       return [];
