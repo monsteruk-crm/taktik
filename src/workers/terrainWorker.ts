@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { generateTerrainNetworks } from "@/lib/engine/terrain";
+import type { TerrainSquarePenalties } from "@/lib/settings";
 
 type TerrainWorkerRequest = {
   width: number;
@@ -9,6 +10,7 @@ type TerrainWorkerRequest = {
   roadDensity: number;
   riverDensity: number;
   maxBridges?: number;
+  penalties: TerrainSquarePenalties;
 };
 
 type TerrainWorkerResponse = {
@@ -22,7 +24,7 @@ type TerrainWorkerResponse = {
 const ctx: DedicatedWorkerGlobalScope = self as DedicatedWorkerGlobalScope;
 
 ctx.onmessage = (event: MessageEvent<TerrainWorkerRequest>) => {
-  const { width, height, seed, roadDensity, riverDensity, maxBridges } = event.data;
+  const { width, height, seed, roadDensity, riverDensity, maxBridges, penalties } = event.data;
   const terrain = generateTerrainNetworks({
     width,
     height,
@@ -30,6 +32,7 @@ ctx.onmessage = (event: MessageEvent<TerrainWorkerRequest>) => {
     roadDensity,
     riverDensity,
     maxBridges,
+    penalties,
   });
   const response: TerrainWorkerResponse = { terrain };
   ctx.postMessage(response);

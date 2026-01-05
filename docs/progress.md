@@ -3450,3 +3450,66 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/app/page.tsx`
 - Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Tighten river 2x2 suppression at joins
+
+### BEFORE
+- Tributaries allowed 2x2 squares at their join cell, which could still produce checkerboard clusters where multiple rivers intersected.
+
+### NOW
+- River walks still allow joins, but they now reject any 2x2 square that would include existing river cells, preventing lattice clusters at intersections.
+
+### NEXT
+- Re-check dense river maps to confirm joins still happen reliably at high density.
+
+### Known limitations / TODOs
+- Very dense maps may see fewer tributary joins if existing river cells dominate the join area.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Docs: `docs/progress.md`, `docs/engine.md`
+
+---
+
+## 2026-01-05 — Strengthen road lattice suppression without shortening routes
+
+### BEFORE
+- Road A* only applied a single 2x2 square penalty, which still allowed checkerboard clusters when routes overlapped.
+
+### NOW
+- Road routing applies a higher penalty when a 2x2 square would include existing road cells, and a lighter penalty for newly formed squares, discouraging lattices without blocking path completion.
+
+### NEXT
+- Review high-density road maps to confirm lattices are suppressed without starving coverage.
+
+### Known limitations / TODOs
+- Extreme densities may still form occasional squares if no alternative path exists.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Docs: `docs/progress.md`, `docs/engine.md`
+
+---
+
+## 2026-01-05 — Expose road lattice penalties in settings
+
+### BEFORE
+- The lattice suppression penalties were hard-coded inside `terrain.ts`, making it difficult to keep worker and fallback in sync.
+
+### NOW
+- `initialTerrainSquarePenalties` in `src/lib/settings.ts` defines the “new square” and “existing square” penalties, and that object is passed through `generateTerrainNetworks` both in the worker and the fallback path so changes stay centralized.
+
+### NEXT
+- Allow these penalties to be tuned via query params or debug UI if further tweaking is needed.
+
+### Known limitations / TODOs
+- The fallback still runs on the main thread if the worker fails and uses these same penalties without additional guardrails.
+
+### Files touched
+- Config: `src/lib/settings.ts`
+- Engine: `src/lib/engine/terrain.ts`, `src/lib/engine/reducer.ts`
+- UI: `src/app/page.tsx`
+- Worker: `src/workers/terrainWorker.ts`
+- Docs: `docs/progress.md`, `docs/engine.md`

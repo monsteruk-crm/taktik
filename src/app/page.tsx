@@ -24,7 +24,11 @@ import {
   prepareGameBootstrap,
 } from "@/lib/engine";
 import { generateTerrainNetworks } from "@/lib/engine/terrain";
-import { getInitialRngSeed, initialTerrainParams } from "@/lib/settings";
+import {
+  getInitialRngSeed,
+  initialTerrainParams,
+  initialTerrainSquarePenalties,
+} from "@/lib/settings";
 import { getMoveRange } from "@/lib/engine/movement";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
@@ -197,14 +201,15 @@ export default function Home() {
       setTerrainStatus("loading");
       const fallbackToMainThread = () => {
         try {
-          const terrain = generateTerrainNetworks({
-            width: state.boardWidth,
-            height: state.boardHeight,
-            seed: bootstrap.terrainSeed,
-            roadDensity: initialTerrainParams.roadDensity,
-            riverDensity: initialTerrainParams.riverDensity,
-            maxBridges: initialTerrainParams.maxBridges,
-          });
+        const terrain = generateTerrainNetworks({
+          width: state.boardWidth,
+          height: state.boardHeight,
+          seed: bootstrap.terrainSeed,
+          roadDensity: initialTerrainParams.roadDensity,
+          riverDensity: initialTerrainParams.riverDensity,
+          maxBridges: initialTerrainParams.maxBridges,
+          penalties: initialTerrainSquarePenalties,
+        });
           const nextState = createInitialGameStateFromBootstrap({
             bootstrap,
             terrain,
@@ -245,6 +250,7 @@ export default function Home() {
         roadDensity: initialTerrainParams.roadDensity,
         riverDensity: initialTerrainParams.riverDensity,
         maxBridges: initialTerrainParams.maxBridges,
+        penalties: initialTerrainSquarePenalties,
       });
     },
     [state.boardHeight, state.boardWidth]

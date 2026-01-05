@@ -56,8 +56,10 @@ Defined in `lib/engine/gameState.ts`:
   - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus an optional `maxBridges` cap that limits how many river crossings/bridges are allowed; this comes from `initialTerrainParams`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
 - Initial unit placement is driven by the global `initialUnitComposition` map (`src/lib/settings.ts`); the reducer instantiates each player’s configured number of `INFANTRY`, `VEHICLE`, and `SPECIAL` units as IDs `A*`/`B*`, lines them up across the centre columns (using centerX ± offsets for each row), positions Player A on the northern anchor and Player B on the southern anchor so `bootstrapUnitPlacement.enemyDistance` cells separate them when possible, and then snaps every unit to the nearest clear tile while keeping the road/river collision rules and occupied set intact.
-- River paths apply axis-run persistence during generation (runAxis/runLen with a minimum run before turns plus anti-ABAB filtering) and avoid forming 2x2 lattice squares when approaching joins to keep intersections from checkerboarding.
+- River paths apply axis-run persistence during generation (runAxis/runLen with a minimum run before turns plus anti-ABAB filtering) and avoid forming 2x2 lattice squares; even at tributary joins, 2x2 squares that include existing river cells are rejected to prevent checkerboard clusters.
 - Road pruning is single-pass only, removing short spurs without recursive cascades.
+  - Road routing penalizes 2x2 squares, with a heavier penalty when the square touches existing road cells, to prevent lattice/checkerboard clusters while still allowing paths to complete.
+- Road lattice penalties are sourced from `initialTerrainSquarePenalties` (`src/lib/settings.ts`) so tuning happens at a single config point for both main-thread fallback and the worker.
   - Initial terrain params are defined in `src/lib/settings.ts`.
 - Decks/cards:
   - `commonDeck`: the draw pile for the turn card.

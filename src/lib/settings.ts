@@ -7,9 +7,9 @@ export type TerrainParams = {
 };
 
 export const initialTerrainParams: TerrainParams = {
-  roadDensity: 0.15,
-  riverDensity: 0.16,
-  maxBridges: 6,
+  roadDensity: 0.3,
+  riverDensity: 0.2,
+  maxBridges: 10,
 };
 
 export type UnitComposition = {
@@ -47,3 +47,13 @@ export function getInitialRngSeed(): number {
   }
   return 1;
 }
+
+export type TerrainSquarePenalties = {
+  roadSquarePenaltyNew: number;
+  roadSquarePenaltyExisting: number;
+};
+
+export const initialTerrainSquarePenalties: TerrainSquarePenalties = {
+  roadSquarePenaltyNew: 3.5,
+  roadSquarePenaltyExisting: 8.5,
+};

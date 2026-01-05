@@ -23,6 +23,7 @@ import {
   bootstrapUnitPlacement,
   getInitialRngSeed,
   initialTerrainParams,
+  initialTerrainSquarePenalties,
   initialUnitComposition,
 } from "@/lib/settings";
 
@@ -298,6 +299,7 @@ export function createInitialGameState(seed: number): GameState {
     roadDensity: initialTerrainParams.roadDensity,
     riverDensity: initialTerrainParams.riverDensity,
     maxBridges: initialTerrainParams.maxBridges,
+    penalties: initialTerrainSquarePenalties,
   });
   return createInitialGameStateFromBootstrap({
     bootstrap,

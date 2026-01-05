@@ -197,6 +197,50 @@ function wouldCreateSquare(
   return false;
 }
 
+function wouldCreateSquareWithExisting(
+  set: Set<string>,
+  existing: Set<string>,
+  cell: BoardCell,
+  width: number,
+  height: number
+) {
+  const positions = [
+    { x: cell.x, y: cell.y },
+    { x: cell.x - 1, y: cell.y },
+    { x: cell.x, y: cell.y - 1 },
+    { x: cell.x - 1, y: cell.y - 1 },
+  ];
+
+  for (const pos of positions) {
+    const a = { x: pos.x, y: pos.y };
+    const b = { x: pos.x + 1, y: pos.y };
+    const c = { x: pos.x, y: pos.y + 1 };
+    const d = { x: pos.x + 1, y: pos.y + 1 };
+    if (!inBounds(a, width, height)) continue;
+    if (!inBounds(b, width, height)) continue;
+    if (!inBounds(c, width, height)) continue;
+    if (!inBounds(d, width, height)) continue;
+    const aKey = keyOf(a);
+    const bKey = keyOf(b);
+    const cKey = keyOf(c);
+    const dKey = keyOf(d);
+    const filled =
+      (a.x === cell.x && a.y === cell.y ? 1 : set.has(aKey) ? 1 : 0) +
+      (b.x === cell.x && b.y === cell.y ? 1 : set.has(bKey) ? 1 : 0) +
+      (c.x === cell.x && c.y === cell.y ? 1 : set.has(cKey) ? 1 : 0) +
+      (d.x === cell.x && d.y === cell.y ? 1 : set.has(dKey) ? 1 : 0);
+    if (filled !== 4) continue;
+    const existingCount =
+      (a.x === cell.x && a.y === cell.y ? 0 : existing.has(aKey) ? 1 : 0) +
+      (b.x === cell.x && b.y === cell.y ? 0 : existing.has(bKey) ? 1 : 0) +
+      (c.x === cell.x && c.y === cell.y ? 0 : existing.has(cKey) ? 1 : 0) +
+      (d.x === cell.x && d.y === cell.y ? 0 : existing.has(dKey) ? 1 : 0);
+    if (existingCount > 0) return true;
+  }
+
+  return false;
+}
+
 function buffered(set: Set<string>, width: number, height: number, radius: number) {
   const out = new Set<string>(set);
   if (radius <= 0) return out;
@@ -385,6 +429,7 @@ function riverWalk(args: {
   goal?: BoardCell;
   blocked: Set<string>;
   avoidSquaresWith: Set<string>;
+  existingSquaresWith?: Set<string>;
   allowSquareAtGoal?: boolean;
   minAxisRun: number;
   turnProb: number;
@@ -403,6 +448,7 @@ function riverWalk(args: {
   } = args;
   const goal = args.goal;
   const allowSquareAtGoal = args.allowSquareAtGoal ?? false;
+  const existingSquaresWith = args.existingSquaresWith ?? null;
   // Sanity: axis-run persistence + anti-ABAB filter prevents checkerboard lattices at high density.
   const path: BoardCell[] = [start];
   let current = start;
@@ -419,12 +465,13 @@ function riverWalk(args: {
       if (!inBounds(next, width, height)) return false;
       const key = keyOf(next);
       if (blocked.has(key) && !(goal && next.x === goal.x && next.y === goal.y)) return false;
-      if (
-        !allowSquareAtGoal &&
-        !(goal && next.x === goal.x && next.y === goal.y) &&
-        wouldCreateSquare(avoidSquaresWith, next, width, height)
-      ) {
-        return false;
+      const isGoal = goal && next.x === goal.x && next.y === goal.y;
+      if (!allowSquareAtGoal || !isGoal) {
+        if (wouldCreateSquare(avoidSquaresWith, next, width, height)) return false;
+      } else if (existingSquaresWith) {
+        if (wouldCreateSquareWithExisting(avoidSquaresWith, existingSquaresWith, next, width, height)) {
+          return false;
+        }
       }
       return true;
     });
@@ -532,6 +579,7 @@ function generateRiverCells(args: {
     goal,
     blocked: new Set(),
     avoidSquaresWith: new Set<string>(),
+    existingSquaresWith: new Set<string>(),
     minAxisRun: 2,
     turnProb: 0.4,
     maxSteps: width * height,
@@ -593,6 +641,7 @@ function generateRiverCells(args: {
       goal: join,
       blocked,
       avoidSquaresWith: new Set<string>(river),
+      existingSquaresWith: river,
       allowSquareAtGoal: true,
       minAxisRun: 2,
       turnProb: 0.45,
@@ -644,6 +693,11 @@ function computeBridgeCandidates(river: Set<string>, width: number, height: numb
 
 type RoadMode = "arterial" | "collector" | "local";
 
+type RoadSquarePenalties = {
+  roadSquarePenaltyNew: number;
+  roadSquarePenaltyExisting: number;
+};
+
 function generateRoadCells(args: {
   rng: ReturnType<typeof makeRng>;
   width: number;
@@ -651,8 +705,9 @@ function generateRoadCells(args: {
   density: number;
   river: Set<string>;
   maxBridges?: number;
+  penalties: RoadSquarePenalties;
 }): Set<string> {
-  const { rng, width, height, river } = args;
+  const { rng, width, height, river, penalties } = args;
 
   const density = normalizeDensity(args.density);
   const target = Math.max(0, Math.round(width * height * density));
@@ -707,6 +762,8 @@ function generateRoadCells(args: {
     return p;
   };
 
+  const { roadSquarePenaltyNew, roadSquarePenaltyExisting } = penalties;
+
   const routeRoad = (start: BoardCell, goal: BoardCell, relax = 0) => {
     // Block river EXCEPT bridge cells.
     const blocked = new Set<string>();
@@ -736,10 +793,13 @@ function generateRoadCells(args: {
         // IMPORTANT: encourage using bridges when they exist (otherwise overlap may never happen)
         const bridgeBonus = bridges.has(tk) ? -1.2 : 0;
 
-        // TODO: If checkerboards persist, tweak 2x2 suppression:
-        // - Increase squarePenalty above 4.5 to further discourage road lattices
-        // - Allow more square formation by lowering it toward 0
-        const squarePenalty = wouldCreateSquare(road, to, width, height) ? 4.5 : 0;
+        // Road lattices: penalize 2x2 squares, especially when the square touches existing roads.
+        const squarePenalty =
+          wouldCreateSquareWithExisting(road, road, to, width, height)
+            ? roadSquarePenaltyExisting
+            : wouldCreateSquare(road, to, width, height)
+              ? roadSquarePenaltyNew
+              : 0;
 
         const crossingPenalty =
             wouldCreateDenseCrossing(road, to, width, height) ? 3.5 : 0;
@@ -1054,6 +1114,7 @@ export function generateTerrainNetworks(args: {
   roadDensity: number;
   riverDensity: number;
   maxBridges?: number;
+  penalties: RoadSquarePenalties;
 }): { road: BoardCell[]; river: BoardCell[]; nextSeed: number } {
   const rng = makeRng(args.seed);
 
@@ -1073,6 +1134,7 @@ export function generateTerrainNetworks(args: {
     density: args.roadDensity,
     river: riverSet,
     maxBridges: args.maxBridges,
+    penalties: args.penalties,
   });
 
   const river = Array.from(riverSet).map((k) => parseKey(k));

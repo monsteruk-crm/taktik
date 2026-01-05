@@ -1,88 +1,182 @@
-**PROMPT (UNITS / Taktik):**
+## PROMPT (UNITS / Taktik v2)
 
-You are generating a tactical boardgame token as a 3D kit of parts.
+You are generating a tactical boardgame unit token as a **readable isometric icon**, built from **abstract block anatomy**, not a sculpture.
 
-**Token type:** isometric tactical unit token, **[UNIT_CLASS]** unit
-Examples: infantry, special operations, motorized, armored, artillery, recon, air-defense, drone, command, engineer, logistics.
+**Token type:** isometric tactical unit token, **[UNIT_CLASS]**
+
+---
 
 ## Visual style
 
-Brutalist Constructivism, cold war military operational aesthetic, constructivist diagram language.
-Flat color fields only, diagrammatic (not illustrative), clean edges, hard shapes, no decoration.
+* Brutalist Constructivism
+* cold war military operational aesthetic
+* constructivist diagram language
+* flat color fields only
+* diagrammatic, not illustrative
+* clean edges, hard shapes
+* no decoration
 
-## Form rules
+---
 
-* silhouette-first (readable from isometric view)
-* abstract irregular block composition
-* shoulders + upper mass clearly visible
-* asymmetry allowed to encode class identity
-* no realism, no identifiable real-world equipment
-* no surface detail, no micro-textures
+## 🔑 Semantic anatomy (MANDATORY — this fixes legibility)
+
+The unit MUST clearly read as a **humanoid or vehicle form**, even when abstract.
+
+### For HUMANOID units (infantry, special ops, command):
+
+You MUST include **all** of the following as distinct blocks:
+
+* `Head_Block` (small, topmost, centered)
+* `Torso_Block` (largest vertical mass)
+* `Shoulder_Blocks` (left + right, horizontal emphasis)
+* `Arm_Blocks` (simplified, vertical or L-shaped)
+* `Leg_Blocks` (two distinct vertical supports)
+* `Base_Slab`
+
+No realism, no fingers, no faces —
+but the **body plan must be unmistakable**.
+
+### For VEHICLE units (motorized, armored, artillery):
+
+You MUST include:
+
+* `Chassis_Block` (long, low, dominant)
+* `Cabin_Block` (raised front or center mass)
+* `Payload_or_Turret_Block` (rear or top mass)
+* Optional side blocks to suggest wheels/tracks
+* `Base_Slab`
+
+The silhouette must clearly suggest:
+
+* **length**
+* **direction**
+* **weight distribution**
+
+---
 
 ## Block-kit construction (IMPORTANT)
 
-Create **separate objects**, not merged. Name them clearly:
+* Every body part is a **separate object**
+* Axis-aligned boxes or extruded prisms only
+* Hard edges only
+* No bevel
+* No rounding
+* No smoothing
 
-* `Base_Slab` (always)
-* `Lower_Mass` / `Chassis` (if applicable)
-* `Upper_Mass` / `Shoulders` (always)
-* `Asym_Block_01..03` (0–3)
-* `Accent_Block_01..02` (0–2, small)
+Object names must be semantic (`Head_Block`, `Torso_Block`, etc.)
 
-Every block must be:
-
-* axis-aligned box / hard extruded prism only
-* hard edges only, no bevel, no rounding
-* no smoothing
+---
 
 ## Base
 
-Flat brutalist rectangular slab. Hard edges. Single flat fill. No bevel. No shadow.
+* flat brutalist slab
+* rectangular
+* hard edges
+* single flat fill
+* no bevel
+* no shadow
 
-## Color / Materials (MUST use src/lib/ui/semanticColors.ts)
+---
 
-Use flat materials only (no metalness, gloss, reflections).
+## 🎨 Color logic (this fixes the “no color” problem)
 
-* `MAT_BASE`  = `semanticColors.unitBase`
-* `MAT_BODY`  = `semanticColors.unitBody`
-* `MAT_BODY2` = `semanticColors.unitBody2` (optional, sparing)
-* `MAT_ACCENT` = `semanticColors.[FACTION]` where `[FACTION]` is `playerA` or `playerB` (sparingly)
+Colors are **semantic**, not decorative.
+They indicate **body regions**, not textures.
 
-Accent rules:
+Use `src/lib/ui/semanticColors.ts` **explicitly**:
 
-* max **1 faction accent** material
-* accent coverage should be small (1–2 tiny blocks)
+### Mandatory mapping
+
+* Base: `semanticColors.unitBase`
+* Torso / Chassis: `semanticColors.unitBody`
+* Secondary body parts: `semanticColors.unitBody2`
+* Small markers / highlights: `semanticColors.ink`
+
+### Faction accent (REQUIRED)
+
+* Use `semanticColors.playerA` or `playerB`
+* Apply to:
+
+    * shoulders OR
+    * chest block OR
+    * head band / stripe
+* Accent must be **clearly visible from isometric view**
+* Accent coverage: ~5–15% of visible area (not tiny cubes!)
+
+⚠️ A unit with no visible accent color is INVALID.
+
+---
+
+## Abstraction limits (very important)
+
+You are NOT allowed to:
+
+* collapse the body into a single stack
+* hide arms/legs entirely
+* produce a “pile of blocks”
+* rely only on silhouette without anatomy
+
+If the unit cannot be identified as:
+
+* “a soldier”
+* “a vehicle”
+* “an artillery piece”
+
+…then the output is WRONG.
+
+---
 
 ## Absolute prohibitions
 
-No gradients, glow, soft shadows, lighting effects, cinematic styling, depth of field, rounded corners, pixel art, miniature feel, “3D render look”, decals, logos, text.
+* no gradients
+* no glow
+* no soft shadows
+* no lighting effects
+* no cinematic styling
+* no depth of field
+* no rounded corners
+* no surface textures
+* no realistic equipment
+* no miniature look
+* no voxel art
+
+---
 
 ## Output requirements
 
-* Deliver as **separate named objects** (NOT merged)
-* Simple topology, low poly
-* Unit centered above base, fully visible
+* Separate named objects (NOT merged)
+* Low poly
 * Z-up
-* Provide **OBJ+MTL** (or glTF) with materials mapped to the semanticColors above
+* Centered
+* Fully visible
+* OBJ + MTL or glTF
+* Flat materials mapped to `semanticColors`
 
-## Class identity encoding (abstract only)
+---
 
-* infantry: compact core + clear shoulders, minimal asymmetry
-* special operations: sharper asymmetry + offset upper mass
-* motorized: longer chassis + rear mass, slight forward bias
-* armored: wider/heavier chassis, low center of mass
-* artillery: rear-extended mass + tall offset upper block
-* recon: light chassis, forward offset upper block, strong asymmetry
-* command: prominent upper mass + secondary side block (“signal” vibe)
+## Unit-class shaping rules (strong hints, not decoration)
 
-**Fill only:**
+* **Light infantry**
+  Slim proportions, visible legs, upright stance, clear head–torso separation
+
+* **Special operations**
+  Same anatomy, but asymmetry in shoulders or arms, heavier upper mass
+
+* **Motorized**
+  Long chassis, raised cabin, rear payload block — reads horizontally
+
+* **Armored**
+  Very wide chassis, low profile, dominant central mass
+
+* **Artillery**
+  Rear-heavy silhouette, long rear block, elevated firing mass
+
+---
+
+### Fill only:
 
 * `[UNIT_CLASS] = …`
 * `[FACTION] = playerA | playerB`
 
 ---
 
-
-
-
-If you want, I can also regenerate your **motorized** + **special ops** versions using *exactly* these semanticColors materials (unitBase/unitBody/unitBody2 + player accent), so your pipeline stays perfectly consistent.

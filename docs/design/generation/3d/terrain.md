@@ -1,72 +1,183 @@
-**PROMPT (TERRAIN / Taktik):**
+## PROMPT (TERRAIN / Taktik v2)
 
-You are generating tactical boardgame terrain as a 3D modular kit of parts.
+You are generating tactical boardgame terrain as a **readable isometric terrain tile**, built from **abstract semantic masses**, not decorative scenery.
 
-**Terrain type:** isometric tactical terrain, **[TERRAIN_CLASS]**
-Examples: wall, barricade, building, bunker, tower, platform, bridge, rubble, trench, hill, cover block, objective marker, industrial.
+**Terrain type:** isometric tactical terrain tile, **[TERRAIN_CLASS]**
+
+Examples: forest, woods, hill, building, bunker, wall, barricade, rubble, trench, bridge, objective.
+
+---
 
 ## Visual style
 
-Brutalist Constructivism, cold war military operational aesthetic, constructivist diagram language.
-Flat color fields only, diagrammatic (not illustrative), clean edges, hard shapes, no decoration.
+* Brutalist Constructivism
+* cold war military operational aesthetic
+* constructivist diagram language
+* flat color fields only
+* diagrammatic, not illustrative
+* clean edges, hard shapes
+* no decoration
 
-## Form rules
+---
 
-* readable silhouette from isometric angle
-* abstract massing, no realism
-* no identifiable real-world details (no doors/windows/signage/pipes)
-* no surface detail, no micro-textures
-* hard edges only, no bevel, no rounding
-* avoid fragile thin parts
+## 🔑 Semantic terrain language (MANDATORY)
+
+Each terrain type MUST communicate its identity using **mass repetition and spatial pattern**, not texture or detail.
+
+### Terrain is defined by:
+
+* **vertical rhythm**
+* **density**
+* **negative space**
+* **cluster pattern**
+
+A single solid block is NOT valid terrain unless explicitly required (e.g. bunker).
+
+---
+
+## Terrain-class semantic rules
+
+### 🌲 Forest / Woods (VERY IMPORTANT)
+
+To represent a forest, you MUST:
+
+* Use **multiple vertical pillar-like blocks** (tree abstractions)
+* Vary their heights slightly (2–3 discrete heights max)
+* Cluster them in groups, not evenly spaced
+* Leave visible gaps between trunks (permeable terrain)
+* Avoid merging into one solid green mass
+
+Required objects:
+
+* `Ground_Slab`
+* `Tree_Trunk_01..N` (at least 5, ideally 7–12)
+* Optional `Canopy_Block_01..N` (blocky, flat, no spheres)
+
+Forbidden:
+
+* single monolithic green block
+* smooth shapes
+* cone/sphere “tree” icons
+* decorative foliage
+
+The forest should read immediately as:
+
+> “many vertical things → forest → cover terrain”
+
+---
+
+### 🏠 Building
+
+* One dominant mass
+* 1–2 secondary stacked masses
+* Clear roof plate
+* Solid, opaque, impassable
+
+---
+
+### 🧱 Wall / Barricade
+
+* Long, low repeated slabs
+* Horizontal rhythm
+* Partial cover implied by height
+
+---
+
+### 🪨 Rubble
+
+* Many small irregular blocks
+* Low profile
+* Chaotic but still blocky
+* No single dominant mass
+
+---
+
+### 🕳 Trench
+
+* Stepped negative space implied via slabs
+* Horizontal cuts
+* No literal holes or sculpted trenches
+
+---
 
 ## Modular construction (IMPORTANT)
 
-Create **separate objects**, not merged. Name them clearly:
+Create **separate objects**, not merged:
 
-* `Footprint_Base` (optional but recommended)
-* `Primary_Mass` (always)
-* `Secondary_Mass_01..04` (0–4)
-* `Top_Plate_01..02` / `Cover_Slab_01..02` (0–2)
-* `Trim_Block_01..02` (0–2, neutral accent only)
+* `Ground_Slab` (almost always)
+* `Primary_Mass` or repeated masses
+* `Secondary_Mass_01..N`
 
-## Color / Materials (MUST use src/lib/ui/semanticColors.ts)
+Each object:
 
-Flat materials only:
+* axis-aligned box or extruded prism
+* hard edges only
+* no bevel
+* no rounding
 
-* `MAT_BASE`  = `semanticColors.terrainBase`
-* `MAT_MASS`  = `semanticColors.terrainMass`
-* `MAT_MASS2` = `semanticColors.terrainMass2` (optional)
-* `MAT_TRIM`  = `semanticColors.terrainEdge` (sparingly)
+---
 
-Faction colors (`semanticColors.playerA/playerB`) are **not** used on terrain unless explicitly requested for “owned structures”.
+## 🎨 Color logic (semanticColors.ts REQUIRED)
+
+Use flat materials only, mapped explicitly:
+
+### Ground
+
+* `semanticColors.terrainBase`
+
+### Terrain masses
+
+* `semanticColors.terrainMass`
+* `semanticColors.terrainMass2` (variation only)
+
+### Forest-specific
+
+* Trunks: `semanticColors.success` OR `semanticColors.info` (muted green)
+* Ground still neutral (NOT green slab)
+
+⚠️ Entire tile being green is INVALID.
+
+Green must appear as **repeated vertical elements**, not as a solid base.
+
+---
+
+## Abstraction limits
+
+You are NOT allowed to:
+
+* rely on color alone to define terrain
+* use a single mass for complex terrain
+* use texture to imply meaning
+* create decorative scenery
+
+If the terrain cannot be identified in 1 second from isometric view, it is WRONG.
+
+---
 
 ## Absolute prohibitions
 
-No gradients, glow, soft shadows, lighting effects, cinematic styling, depth of field, rounded corners, realistic textures, decals, text.
+* no gradients
+* no glow
+* no soft shadows
+* no lighting effects
+* no cinematic styling
+* no depth of field
+* no rounded corners
+* no surface textures
+* no noise
+* no decals
+* no text
+
+---
 
 ## Output requirements
 
-* Deliver as **separate named objects** (NOT merged)
-* Simple topology, low poly
-* Centered, fully visible
+* Separate named objects (NOT merged)
+* Low poly
 * Z-up
-* Provide **OBJ+MTL** (or glTF) using the semanticColors materials above
-
-## Terrain identity encoding (abstract only)
-
-* wall/barricade: long low slab + 1–2 offset blocks
-* bunker: squat heavy mass + thick top plate
-* building: stacked masses + stepped roof plate
-* tower: vertical stack + stable base + one side offset
-* platform: thin top slab on chunky supports
-* bridge: long top slab + two support pylons
-* rubble: low profile irregular stacked blocks
-* trench: stepped slabs implying negative space (no detailed cuts)
-* hill: stepped terraces (no smooth slope)
-* objective: compact base + tall monolith + small trim plate
-
-**Fill only:**
-
-* `[TERRAIN_CLASS] = …`
+* Centered
+* Fully visible
+* OBJ + MTL or glTF
+* Flat materials from `semanticColors.ts`
 
 ---
