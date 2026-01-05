@@ -1,36 +1,5 @@
 {
-  "road": [
-    "N",
-    "E",
-    "NE",
-    "S",
-    "NS",
-    "ES",
-    "NES",
-    "W",
-    "NW",
-    "EW",
-    "NEW",
-    "SW",
-    "NSW",
-    "ESW",
-    "NESW"
-  ],
-  "river": [
-    "N",
-    "E",
-    "NE",
-    "S",
-    "NS",
-    "ES",
-    "NES",
-    "W",
-    "NW",
-    "EW",
-    "NEW",
-    "SW",
-    "NSW",
-    "ESW",
-    "NESW"
+  "bridge": [
+    "square"
   ]
 }

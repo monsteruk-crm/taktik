@@ -1,14 +1,5 @@
-isometric tactical unit token, special operations unit,
+isometric tactical unit token, motorized unit,
 
-isometric camera:
-true isometric projection,
-30-degree isometric view (camera pitched 30°),
-3/4 top-down isometric,
-NOT side elevation,
-NOT frontal view,
-unit clearly reads as volumetric blocks (diagrammatic),
-we see the unit from the back,
-the unit looks NORTH-EAST,
 
 visual style: Brutalist Constructivism,
 cold war military operational aesthetic,
@@ -51,12 +42,7 @@ no lighting effects,
 no cinematic styling,
 no depth of field,
 no rounded corners,
-no pixel art,
-no miniature feel,
 no 3D render look,
 
 output:
-single PNG sprite,
-transparent background,
-unit fully visible and centered,
-no cropping
+single Blender OBJ

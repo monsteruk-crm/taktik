@@ -191,6 +191,82 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - Docs: `docs/progress.md`
 - UI: `components/IsometricBoard.tsx`
 
+## 2026-01-05 — Centered opening deployment
+
+### BEFORE
+- Units started in the upper-left corner (two rows near coordinates 2–6), so the start-of-game fight was always offset from the board center despite the manual describing central engagements.
+- Terrain avoidance still ran, but the corner anchors limited the interesting tactical terrain the neutral board could offer at turn 1.
+
+### NOW
+- Spawn anchors now target the central columns (centerX ± 1) across two adjacent rows, and each anchor still snaps to the nearest clear tile, keeping the road/river prohibition intact while clustering Players A + B near the middle of the tactical board.
+- Both armies therefore begin adjacent to the board center, better matching the idea of a central engagement while still respecting deterministic placement and terrain rules.
+
+### NEXT
+- Investigate whether different scenarios should shift those center anchors or whether pre-game terrain hints can nudge the snapped positions away from each other without breaking determinism.
+
+### Known limitations / TODOs
+- If the very center column is blocked by dense roads/rivers, the nearest clear-cell scan may push units outward, which can still leave both factions adjacent; future work could add a small offset for symmetry or per-side facing.
+
+-### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/reducer.ts`
+
+## 2026-01-06 — Configurable roster plus center lift
+
+### BEFORE
+- Each faction’s opening roster was hard-coded to three units (“A1–A3”, “B1–B3”) with prescribed types and row/column preferences, so expansion to different unit mixes required code edits and could not react to a simple configuration change.
+- The centering logic also assumed exactly three spawn columns per row, limiting later adjustments when the roster or map changed.
+
+### NOW
+- Added `initialUnitComposition` in `src/lib/settings.ts` to describe how many `INFANTRY`, `VEHICLE`, and `SPECIAL` units each player may field, letting the reducer generate IDs and stats from that map while keeping the deterministic stats-per-type table.
+- The reducer now builds each player’s roster from that configuration, generates center-column anchors (`centerX ± offsets`), and still snaps every unit to the nearest non-road/non-river tile, so the centre deployment and terrain avoidance rules scale automatically with the configured roster.
+
+### NEXT
+- Explore whether scenario presets should swap `initialUnitComposition` or if an override mechanism is needed, and ensure future cards/rules reference the new, dynamic unit IDs.
+
+### Known limitations / TODOs
+- No validation yet that `initialUnitComposition` sums to the same totals per player, so anything from zero to dozens of units is technically allowed and may cause overlapping `findNearestClearCell` scans to re-use the center column repeatedly.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/reducer.ts`, `src/lib/settings.ts`
+
+## 2026-01-07 — Placement distance guard
+
+### BEFORE
+- Centered placement clustered opposing rows right beside each other (one row apart) even though future scenarios may call for more spacing, and there was no shared config for how close the enemy could start.
+
+### NOW
+- Added `bootstrapUnitPlacement.enemyDistance` in `src/lib/settings.ts`, and the reducer now tries to separate the anchor rows by that many cells before the nearest-clear-cell adjustment so the opening lines respect a single source of truth for enemy spacing.
+
+### NEXT
+- Review whether later logic should use the same `enemyDistance` to enforce column spacing or to adjust markup for specific missions (e.g., fanning out across the map edges).
+
+### Known limitations / TODOs
+- Clamping when the centre is near the board edges can still collapse the spacing below `enemyDistance`; a future refinement could add a fallback shift or ensure map height accommodates the desired distance before placement.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/reducer.ts`, `src/lib/settings.ts`
+
+## 2026-01-08 — Enforce unit orientation
+
+### BEFORE
+- Row anchors could swap sides when the board edges limited spacing, so Player A sometimes spawned behind Player B even though the intent is fixed facing.
+
+### NOW
+- Anchor rows now accept the desired `enemyDistance`, clamp to the board bounds, and force Player A onto the northern row and Player B onto the southern row before the nearest-clear-cell correction, keeping facing consistent across scenarios.
+
+### NEXT
+- Decide if column/diagonal preferences also need a fixed facing or if per-scenario overrides should rotate the entire formation while keeping the anchor order intact.
+
+### Known limitations / TODOs
+- When the board height is smaller than `enemyDistance`, the rows collapse into the closest available pair, so the facing enforcement still relies on a tall enough map.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/reducer.ts`
+
 ---
 
 ## 2026-01-04 — Guard terrain path bias against null direction
@@ -3130,6 +3206,90 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ---
 
+## 2026-01-04 — River walk axis persistence + single-pass road pruning
+
+### BEFORE
+- Rivers could still form checkerboard lattices because generation relied on local turns without explicit run-length persistence.
+- Road pruning already used a single pass, but the river generator did not enforce axis-run persistence in its walk logic.
+
+### NOW
+- River generation uses an explicit axis-run persistence walk (runAxis/runLen, minimum run before turns, turn probability, and anti-ABAB filter) to prevent checkerboard lattices while staying deterministic.
+- Road pruning remains single-pass spur trimming (no recursive cascades), matching the non-destructive requirement.
+
+### NEXT
+- Tune `MIN_AXIS_RUN` and `TURN_PROB` if rivers are too rigid or too bendy at extreme densities.
+
+### Known limitations / TODOs
+- The river walk caps step count to avoid infinite loops; very small maps may still terminate early if no valid turns exist.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`
+- Engine: `src/lib/engine/terrain.ts`
+
+---
+
+## 2026-01-04 — Suppress checkerboard clusters at intersections
+
+### BEFORE
+- Checkerboard artifacts still appeared around river/road intersections because local joins could complete 2x2 lattice squares.
+
+### NOW
+- River walks reject moves that would create 2x2 squares when approaching joins, and road routing penalizes 2x2 square formation, reducing checkerboard clusters at intersections.
+
+### NEXT
+- Tune square penalties if intersections become too sparse or overly straight in dense maps.
+
+### Known limitations / TODOs
+- The square avoidance uses a local 2x2 test; extremely complex junctions may still create larger grid-like clusters.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`, `docs/roads-rivers.md`
+- Engine: `src/lib/engine/terrain.ts`
+
+---
+
+## 2026-01-04 — Add tuning TODO for checkerboard suppression
+
+### BEFORE
+- There was no in-code pointer for how to adjust checkerboard suppression if lattices persisted in road intersections.
+
+### NOW
+- Added a focused TODO next to the square-penalty logic documenting exactly which values to tweak to loosen/tighten 2x2 suppression.
+
+### NEXT
+- If checkerboards reappear, adjust the square-penalty value as described in the TODO and recheck dense intersections.
+
+### Known limitations / TODOs
+- The TODO only covers road square suppression; rivers use the 2x2 rejection in `riverWalk`, which may also need tuning if river intersections become too rigid.
+
+### Files touched
+- Docs: `docs/progress.md`
+- Engine: `src/lib/engine/terrain.ts`
+
+---
+
+## 2026-01-04 — Add river axis persistence + single-pass road pruning
+
+### BEFORE
+- Rivers could alternate direction every tile, creating checkerboard lattices at higher densities.
+- Road pruning used a recursive loop, which could cascade and delete large portions of dense road networks.
+
+### NOW
+- River A* step cost tracks axis run length and discourages premature turns plus A‑B‑A‑B alternation, producing meandering runs without checkerboards.
+- Road pruning is single-pass: it trims one-tile spurs (and tiny two-tile segments) without recursive cascades.
+
+### NEXT
+- Tune axis-run penalties if river paths are too rigid or too bendy on extreme densities.
+
+### Known limitations / TODOs
+- River run-length persistence is capped for A* state size; extremely long straight runs may still be favored on wide-open maps.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/engine.md`, `docs/roads-rivers.md`
+- Engine: `src/lib/engine/terrain.ts`
+
+---
+
 ## 2026-01-04 — Guard road sampling against empty sets
 
 ### BEFORE
@@ -3147,3 +3307,84 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - Engine: `src/lib/engine/terrain.ts`
 - Docs: `docs/progress.md`, `docs/engine.md`
+
+---
+
+## 2026-01-05 — Add bridge overlay square tile (vector)
+
+### BEFORE
+- There was no dedicated bridge overlay tile to mark bridge cells independently of road/river tiles.
+
+### NOW
+- Added a vector bridge overlay tile (`bridge_square.svg`) with a brown, center-aligned top-face square and a faint slab for placement alignment; it can be layered transparently over existing tiles.
+
+### NEXT
+- Wire the new bridge overlay into the renderer so bridge cells get the brown square marker when present.
+
+### Known limitations / TODOs
+- The overlay is a standalone asset only; rendering logic still needs to place it on bridge cells.
+
+### Files touched
+- Assets: `public/assets/tiles/networks/bridge_square.svg`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Bridge overlay generated by tile script + single-tile render flag
+
+### BEFORE
+- Bridge overlay existed only as a hand-authored SVG and the tile generator could only render the full set.
+
+### NOW
+- `scripts/gen_terrain_tiles.mjs` generates a brown bridge center-square overlay (`bridge_square.png`) using the same top-face slab + mask pipeline as roads/rivers, and the script accepts `--only=` to render a single tile or network variant on demand.
+
+### NEXT
+- Add renderer wiring so bridge cells draw `bridge_square.png` in the board overlay layer.
+
+### Known limitations / TODOs
+- `--only=` filtering is string-based; it does not validate unknown IDs.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/progress.md`
+- Removed: `public/assets/tiles/networks/bridge_square.svg`
+
+---
+
+## 2026-01-05 — Render bridge overlay on board
+
+### BEFORE
+- Bridge cells were not visually distinguished; only the road and river overlays rendered.
+
+### NOW
+- The board renderer overlays `bridge_square.png` on tiles where a road and river overlap, matching the engine’s bridge cells.
+
+### NEXT
+- Validate bridge overlay readability across zoom levels and adjust color/size if needed.
+
+### Known limitations / TODOs
+- Bridge detection currently relies on road+river overlap; if we later store bridges explicitly, the renderer should switch to that source of truth.
+
+### Files touched
+- UI: `src/components/IsometricBoard.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Fix river walk backtrack filter typing
+
+### BEFORE
+- The river walk backtrack filter referenced a nullable `lastDir` inside a closure, causing a TypeScript compile error.
+
+### NOW
+- The backtrack filter snapshots `lastDir` into a non-null `Dir` before filtering, removing the TS error without changing behavior.
+
+### NEXT
+- Re-run `npm run build` after the next terrain change to ensure no new strict-null errors appear.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Docs: `docs/progress.md`

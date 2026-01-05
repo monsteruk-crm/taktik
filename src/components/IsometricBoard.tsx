@@ -28,6 +28,8 @@ export default function IsometricBoard({
   const moveRangeKeys = new Set(moveRange.map(posKey));
   const { width: TILE_W, height: TILE_H } = TILE_LAYOUT;
   const connectorsByPos = mergeNetworks(state.terrain);
+  const roadKeys = new Set(state.terrain.road.map((cell) => `${cell.x},${cell.y}`));
+  const riverKeys = new Set(state.terrain.river.map((cell) => `${cell.x},${cell.y}`));
   const UNIT_BASE_SIZE = TILE_W * 0.52;
   const UNIT_SCALE_BY_TYPE = {
     INFANTRY: 0.95,
@@ -46,6 +48,8 @@ export default function IsometricBoard({
       const top = originY + sy - TILE_H / 2;
       const connectors = connectorsByPos.get(`${x},${y}`);
       const baseZ = (x + y) * 3;
+      const cellKey = `${x},${y}`;
+      const hasBridge = roadKeys.has(cellKey) && riverKeys.has(cellKey);
       const roadKey = edgeKey(connectors?.road);
       const riverKey = edgeKey(connectors?.river);
       const roadSrc = roadKey ? `/assets/tiles/networks/road_${roadKey}.png` : null;
@@ -109,6 +113,28 @@ export default function IsometricBoard({
               width: TILE_W,
               height: TILE_H,
               zIndex: baseZ + 2,
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      }
+      if (hasBridge) {
+        tiles.push(
+          <Box
+            key={`bridge-${x}-${y}`}
+            component="img"
+            draggable={false}
+            alt="Bridge overlay"
+            src="/assets/tiles/networks/bridge_square.png"
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex: baseZ + 3,
               pointerEvents: "none",
               userSelect: "none",
               WebkitUserDrag: "none",

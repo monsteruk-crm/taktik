@@ -4,7 +4,9 @@ import type {
   Effect,
   GamePhase,
   GameState,
+  Player,
   Unit,
+  UnitType,
 } from "./gameState";
 import { cardById, commonDeckCards, tacticalDeckCards } from "./cards";
 import { buildContext, instantiateEffect, validateTargets } from "./effects";
@@ -16,7 +18,12 @@ import {
 } from "./reactions";
 import { rollDie } from "./rng";
 import { generateTerrainNetworks } from "./terrain";
-import { getInitialRngSeed, initialTerrainParams } from "@/lib/settings";
+import {
+  bootstrapUnitPlacement,
+  getInitialRngSeed,
+  initialTerrainParams,
+  initialUnitComposition,
+} from "@/lib/settings";
 
 function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed: number } {
   const shuffled = [...items];
@@ -97,6 +104,37 @@ function findNearestClearCell(args: {
 
   return start;
 }
+
+const unitStatsByType: Record<UnitType, { movement: number; attack: number }> = {
+  INFANTRY: { movement: 3, attack: 1 },
+  VEHICLE: { movement: 2, attack: 2 },
+  SPECIAL: { movement: 2, attack: 3 },
+};
+
+function getCenteredColumns(count: number, centerX: number, width: number): number[] {
+  if (count <= 0) return [];
+  const columns: number[] = [];
+  const cappedCenterX = Math.min(Math.max(centerX, 0), width - 1);
+  columns.push(cappedCenterX);
+  let ring = 1;
+  while (columns.length < count && ring <= width) {
+    const left = cappedCenterX - ring;
+    if (left >= 0) {
+      columns.push(left);
+      if (columns.length === count) break;
+    }
+    const right = cappedCenterX + ring;
+    if (right < width) {
+      columns.push(right);
+      if (columns.length === count) break;
+    }
+    ring += 1;
+  }
+  while (columns.length < count) {
+    columns.push(cappedCenterX);
+  }
+  return columns;
+}
 function createInitialGameState(seed: number): GameState {
   const initialCommonDeck = shuffleWithSeed(commonDeckCards, seed);
   const initialTacticalDeck = shuffleWithSeed(
@@ -114,27 +152,63 @@ function createInitialGameState(seed: number): GameState {
 
   const terrainBlocked = buildTerrainBlockSet(initialTerrain);
   const occupied = new Set<string>();
-  const spawnA = [
-    { id: "A1", x: 2, y: 2 },
-    { id: "A2", x: 4, y: 2 },
-    { id: "A3", x: 6, y: 2 },
-  ];
-  const spawnB = [
-    { id: "B1", x: 2, y: 6 },
-    { id: "B2", x: 4, y: 6 },
-    { id: "B3", x: 6, y: 6 },
-  ];
-  const spawnPositions = new Map<string, { x: number; y: number }>();
-  for (const spawn of [...spawnA, ...spawnB]) {
-    const position = findNearestClearCell({
-      start: { x: spawn.x, y: spawn.y },
-      width: boardWidth,
-      height: boardHeight,
-      blocked: terrainBlocked,
-      occupied,
+  const centerX = Math.floor(boardWidth / 2);
+  const centerY = Math.floor(boardHeight / 2);
+  const enemyDistance = Math.max(1, bootstrapUnitPlacement.enemyDistance);
+  const clampRow = (value: number) => Math.max(0, Math.min(boardHeight - 1, value));
+  const halfDistance = Math.floor(enemyDistance / 2);
+  let rowA = clampRow(centerY - halfDistance);
+  let rowB = clampRow(centerY + (enemyDistance - halfDistance));
+  if (rowA >= rowB) {
+    rowB = Math.min(boardHeight - 1, rowA + enemyDistance);
+    rowA = Math.max(0, rowB - enemyDistance);
+  }
+  if (rowA >= rowB) {
+    rowB = Math.min(boardHeight - 1, rowA + 1);
+    rowA = Math.max(0, rowB - 1);
+  }
+  const rowForPlayer: Record<Player, number> = {
+    PLAYER_A: Math.min(rowA, rowB),
+    PLAYER_B: Math.max(rowA, rowB),
+  };
+  const playerOrder: Player[] = ["PLAYER_A", "PLAYER_B"];
+  const unitTypeOrder: UnitType[] = ["INFANTRY", "VEHICLE", "SPECIAL"];
+  const units: Unit[] = [];
+  for (const player of playerOrder) {
+    const prefix = player === "PLAYER_A" ? "A" : "B";
+    const specs: { id: string; type: UnitType }[] = [];
+    let serial = 1;
+    const counts = initialUnitComposition[player];
+    for (const type of unitTypeOrder) {
+      const quantity = counts[type] ?? 0;
+      for (let index = 0; index < quantity; index += 1) {
+        specs.push({ id: `${prefix}${serial}`, type });
+        serial += 1;
+      }
+    }
+    if (specs.length === 0) continue;
+    const columns = getCenteredColumns(specs.length, centerX, boardWidth);
+    const row = rowForPlayer[player];
+    specs.forEach((spec, specIndex) => {
+      const start = { x: columns[specIndex], y: row };
+      const position = findNearestClearCell({
+        start,
+        width: boardWidth,
+        height: boardHeight,
+        blocked: terrainBlocked,
+        occupied,
+      });
+      occupied.add(`${position.x},${position.y}`);
+      units.push({
+        id: spec.id,
+        owner: player,
+        type: spec.type,
+        position,
+        movement: unitStatsByType[spec.type].movement,
+        attack: unitStatsByType[spec.type].attack,
+        hasMoved: false,
+      });
     });
-    spawnPositions.set(spawn.id, position);
-    occupied.add(`${position.x},${position.y}`);
   }
 
   return {
@@ -143,62 +217,7 @@ function createInitialGameState(seed: number): GameState {
     turn: 1,
     boardWidth,
     boardHeight,
-    units: [
-      {
-        id: "A1",
-        owner: "PLAYER_A",
-        type: "INFANTRY",
-        position: spawnPositions.get("A1") ?? { x: 2, y: 2 },
-        movement: 3,
-        attack: 1,
-        hasMoved: false,
-      },
-      {
-        id: "A2",
-        owner: "PLAYER_A",
-        type: "VEHICLE",
-        position: spawnPositions.get("A2") ?? { x: 4, y: 2 },
-        movement: 2,
-        attack: 2,
-        hasMoved: false,
-      },
-      {
-        id: "A3",
-        owner: "PLAYER_A",
-        type: "SPECIAL",
-        position: spawnPositions.get("A3") ?? { x: 6, y: 2 },
-        movement: 2,
-        attack: 3,
-        hasMoved: false,
-      },
-      {
-        id: "B1",
-        owner: "PLAYER_B",
-        type: "INFANTRY",
-        position: spawnPositions.get("B1") ?? { x: 2, y: 6 },
-        movement: 3,
-        attack: 1,
-        hasMoved: false,
-      },
-      {
-        id: "B2",
-        owner: "PLAYER_B",
-        type: "VEHICLE",
-        position: spawnPositions.get("B2") ?? { x: 4, y: 6 },
-        movement: 2,
-        attack: 2,
-        hasMoved: false,
-      },
-      {
-        id: "B3",
-        owner: "PLAYER_B",
-        type: "SPECIAL",
-        position: spawnPositions.get("B3") ?? { x: 6, y: 6 },
-        movement: 2,
-        attack: 3,
-        hasMoved: false,
-      },
-    ],
+    units,
     movesThisTurn: 0,
     terrain: {
       road: initialTerrain.road,

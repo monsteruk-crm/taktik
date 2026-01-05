@@ -375,6 +375,46 @@ function makeNetworkOverlayTopFace({ edges, kind, widthPx, color, innerColor }) 
   return png;
 }
 
+function makeBridgeOverlayTopFace({ widthPx, color }) {
+  const size = 1024 * SCALE;
+  const png = new PNG({ width: size, height: size });
+  png.data.fill(0);
+
+  const cx = size / 2;
+  const cy = 430 * SCALE;
+
+  const tileW = 640 * SCALE;
+  const tileH = 320 * SCALE;
+
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const left = { x: cx - tileW / 2, y: cy };
+  const a = { x: right.x - top.x, y: right.y - top.y };
+  const b = { x: left.x - top.x, y: left.y - top.y };
+
+  function rectOnTopFace(s0, s1, t0, t1) {
+    return [
+      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
+      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
+      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
+      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
+    ];
+  }
+
+  const slabAlpha = Math.round(255 * 0.05);
+  const slabFill = [color[0], color[1], color[2], slabAlpha];
+  fillPolygon(png, rectOnTopFace(0, 1, 0, 1), slabFill);
+
+  const c = 0.5;
+  const half = (widthPx / tileW) * 1.6;
+  const square = rectOnTopFace(c - half, c + half, c - half, c + half);
+  fillPolygon(png, square, color);
+
+  applyTopFaceMask(png, cx, cy, tileW, tileH);
+
+  return png;
+}
+
 function makeTilePlain1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -1174,67 +1214,100 @@ ensureDir(TEMP_DIR);
 ensureDir(TEMP_NETWORK_DIR);
 const generatedFiles = [];
 
-const plain = makeTilePlain1024();
-generatedFiles.push("terrain-01-plain.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), plain);
+const onlyArg = process.argv.find((arg) => arg.startsWith("--only="));
+const onlyList = onlyArg ? onlyArg.slice("--only=".length).split(",") : null;
+const only = onlyList ? new Set(onlyList.filter(Boolean)) : null;
 
-const rough = makeTileRough1024();
-generatedFiles.push("terrain-02-rough.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), rough);
+function allowOnly(...ids) {
+  if (!only) return true;
+  return ids.some((id) => only.has(id));
+}
 
-const forest = makeTileForest1024();
-generatedFiles.push("terrain-03-forest.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), forest);
+if (allowOnly("terrain-01-plain", "terrain-01-plain.png")) {
+  const plain = makeTilePlain1024();
+  generatedFiles.push("terrain-01-plain.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), plain);
+}
 
-const urban = makeTileUrban1024();
-generatedFiles.push("terrain-04-urban.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), urban);
+if (allowOnly("terrain-02-rough", "terrain-02-rough.png")) {
+  const rough = makeTileRough1024();
+  generatedFiles.push("terrain-02-rough.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), rough);
+}
 
-const hill = makeTileHill1024();
-generatedFiles.push("terrain-05-hill.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), hill);
+if (allowOnly("terrain-03-forest", "terrain-03-forest.png")) {
+  const forest = makeTileForest1024();
+  generatedFiles.push("terrain-03-forest.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), forest);
+}
 
-const water = makeTileWater1024();
-generatedFiles.push("terrain-06-water.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), water);
+if (allowOnly("terrain-04-urban", "terrain-04-urban.png")) {
+  const urban = makeTileUrban1024();
+  generatedFiles.push("terrain-04-urban.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), urban);
+}
 
-const industrial = makeTileIndustrial1024();
-generatedFiles.push("terrain-10-industrial.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), industrial);
+if (allowOnly("terrain-05-hill", "terrain-05-hill.png")) {
+  const hill = makeTileHill1024();
+  generatedFiles.push("terrain-05-hill.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), hill);
+}
+
+if (allowOnly("terrain-06-water", "terrain-06-water.png")) {
+  const water = makeTileWater1024();
+  generatedFiles.push("terrain-06-water.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), water);
+}
+
+if (allowOnly("terrain-10-industrial", "terrain-10-industrial.png")) {
+  const industrial = makeTileIndustrial1024();
+  generatedFiles.push("terrain-10-industrial.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), industrial);
+}
 
 // Main in-game tiles (overwrites legacy placeholders).
-const groundMain = makeMainGroundTile();
-generatedFiles.push("ground.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), groundMain);
+if (allowOnly("ground", "ground.png")) {
+  const groundMain = makeMainGroundTile();
+  generatedFiles.push("ground.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), groundMain);
+}
 
-const highlightMain = makeMainHighlightTile();
-generatedFiles.push("highlight_move.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), highlightMain);
+if (allowOnly("highlight_move", "highlight_move.png")) {
+  const highlightMain = makeMainHighlightTile();
+  generatedFiles.push("highlight_move.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), highlightMain);
+}
 
 // Advanced overlays (not wired into runtime yet).
-const attackHighlight = makeHighlightTileTopFace({
-  fill: [126, 58, 47, 190], // muted rust red
-  border: [126, 58, 47, 230],
-  segmentation: "radial-4",
-});
-generatedFiles.push("highlight_attack.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), attackHighlight);
+if (allowOnly("highlight_attack", "highlight_attack.png")) {
+  const attackHighlight = makeHighlightTileTopFace({
+    fill: [126, 58, 47, 190], // muted rust red
+    border: [126, 58, 47, 230],
+    segmentation: "radial-4",
+  });
+  generatedFiles.push("highlight_attack.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), attackHighlight);
+}
 
-const moveHighlightAdvanced = makeHighlightTileTopFace({
-  fill: [66, 135, 168, 190], // desaturated cold blue
-  border: [66, 135, 168, 230],
-  banding: "subtle",
-});
-generatedFiles.push("highlight_move_adv.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), moveHighlightAdvanced);
+if (allowOnly("highlight_move_adv", "highlight_move_adv.png")) {
+  const moveHighlightAdvanced = makeHighlightTileTopFace({
+    fill: [66, 135, 168, 190], // desaturated cold blue
+    border: [66, 135, 168, 230],
+    banding: "subtle",
+  });
+  generatedFiles.push("highlight_move_adv.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), moveHighlightAdvanced);
+}
 
-const targetConfirmHighlight = makeHighlightTileTopFace({
-  fill: [164, 154, 96, 200], // pale khaki
-  border: [164, 154, 96, 235],
-  segmentation: "diagonal-split",
-});
-generatedFiles.push("highlight_target_confirm.png");
-writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), targetConfirmHighlight);
+if (allowOnly("highlight_target_confirm", "highlight_target_confirm.png")) {
+  const targetConfirmHighlight = makeHighlightTileTopFace({
+    fill: [164, 154, 96, 200], // pale khaki
+    border: [164, 154, 96, 235],
+    segmentation: "diagonal-split",
+  });
+  generatedFiles.push("highlight_target_confirm.png");
+  writePng(path.join(TEMP_DIR, generatedFiles[generatedFiles.length - 1]), targetConfirmHighlight);
+}
 
 const NETWORKS = [
   {
@@ -1266,9 +1339,16 @@ for (let mask = 1; mask < 16; mask += 1) {
 const networkManifest = {};
 
 for (const net of NETWORKS) {
+  if (!allowOnly(net.id)) {
+    const specific = EDGE_SUBSETS.some((edges) =>
+      allowOnly(`${net.id}_${edgeKey(edges)}`, `${net.id}_${edgeKey(edges)}.png`)
+    );
+    if (!specific) continue;
+  }
   const variants = [];
   for (const edges of EDGE_SUBSETS) {
     const key = edgeKey(edges);
+    if (!allowOnly(net.id, `${net.id}_${key}`, `${net.id}_${key}.png`)) continue;
     const png = makeNetworkOverlayTopFace({
       edges,
       kind: net.kind,
@@ -1280,7 +1360,19 @@ for (const net of NETWORKS) {
     variants.push(key);
     writePng(path.join(TEMP_NETWORK_DIR, filename), png);
   }
-  networkManifest[net.id] = variants;
+  if (variants.length) {
+    networkManifest[net.id] = variants;
+  }
+}
+
+if (allowOnly("bridge_square", "bridge_square.png", "bridge")) {
+  const bridgeSquare = makeBridgeOverlayTopFace({
+    widthPx: Math.round(640 * SCALE * 0.05),
+    color: [139, 90, 43, 220],
+  });
+  const filename = "bridge_square.png";
+  writePng(path.join(TEMP_NETWORK_DIR, filename), bridgeSquare);
+  networkManifest.bridge = ["square"];
 }
 
 for (const fileName of generatedFiles) {
@@ -1292,7 +1384,7 @@ for (const fileName of generatedFiles) {
 
 for (const [netId, variants] of Object.entries(networkManifest)) {
   for (const key of variants) {
-    const filename = `${netId}_${key}.png`;
+    const filename = netId === "bridge" ? "bridge_square.png" : `${netId}_${key}.png`;
     cropTileWithImagemagick(
       path.join(TEMP_NETWORK_DIR, filename),
       path.join(NETWORK_DIR, filename)

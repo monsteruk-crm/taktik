@@ -1,3 +1,5 @@
+import type { Player, UnitType } from "@/lib/engine/gameState";
+
 export type TerrainParams = {
   roadDensity: number;
   riverDensity: number;
@@ -5,9 +7,34 @@ export type TerrainParams = {
 };
 
 export const initialTerrainParams: TerrainParams = {
-  roadDensity: 0.8,
-  riverDensity: 0.2,
-  maxBridges: 10,
+  roadDensity: 0.15,
+  riverDensity: 0.16,
+  maxBridges: 6,
+};
+
+export type UnitComposition = {
+  [player in Player]: Record<UnitType, number>;
+};
+
+export const initialUnitComposition: UnitComposition = {
+  PLAYER_A: {
+    INFANTRY: 3,
+    VEHICLE: 3,
+    SPECIAL: 1,
+  },
+  PLAYER_B: {
+    INFANTRY: 3,
+    VEHICLE: 3,
+    SPECIAL: 2,
+  },
+};
+
+export type BootstrapUnitPlacementConfig = {
+  enemyDistance: number;
+};
+
+export const bootstrapUnitPlacement: BootstrapUnitPlacementConfig = {
+  enemyDistance: 4,
 };
 
 export function getInitialRngSeed(): number {

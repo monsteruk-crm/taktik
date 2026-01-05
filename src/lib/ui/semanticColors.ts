@@ -1,22 +1,52 @@
 export const semanticColors = {
+
+  // Core UI neutrals
   ink: "#1B1B1B",
   ink2: "#2A2A2A",
   surface: "#E6E6E2",
   surface2: "#EFEFEA",
   panel: "#DEDED8",
   panel2: "#D2D2CB",
+  // Factions / phases
+
   playerA: "#1F4E79",
   playerB: "#C1121F",
   move: "#1F4E79",
   attack: "#C1121F",
   dice: "#F2B705",
+  // UI semantics
+
   confirm: "#1B1B1B",
   cancel: "#D2D2CB",
   focus: "#EFE5C7",
   danger: "#E9D0D0",
   info: "#D9E4EF",
   success: "#D7E7D4",
+
+  // Utility / pattern
   neutralStripe: "#8A8F94",
+
+  // ─────────────────────────────────────────────────────────────
+  // Taktik 3D / tokens + terrain (NEW)
+  // Use these for flat materials in OBJ/GLTF and for consistent look
+  // ─────────────────────────────────────────────────────────────
+
+  // Units (3D tokens)
+  unitBase: "#D2D2CB",       // usually the slab
+  unitBody: "#DEDED8",       // main mass
+  unitBody2: "#EFEFEA",      // optional secondary mass / highlight block
+  unitMark: "#1B1B1B",       // optional tiny “ink” block (rare, if needed)
+
+  // Terrain (3D tiles / props)
+  terrainBase: "#D2D2CB",    // footprint slab / ground plate
+  terrainMass: "#DEDED8",    // primary building mass
+  terrainMass2: "#E6E6E2",   // secondary mass / stepped plate
+  terrainEdge: "#8A8F94",    // thin accent/trim plate (neutral, not faction)
+
+  // Optional: networks if you later do roads/rivers as terrain props
+  road: "#8A8F94",
+  river: "#D9E4EF",
+
 };
 
 function hexToRgb(hex: string) {

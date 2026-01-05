@@ -156,6 +156,47 @@ function isStraightCell(cellKey: string, set: Set<string>) {
   return (hasN && hasS) || (hasE && hasW);
 }
 
+function axisOf(dir: Dir): "H" | "V" {
+  return dir.dx === 0 ? "V" : "H";
+}
+
+function wouldCreateSquare(
+  set: Set<string>,
+  cell: BoardCell,
+  width: number,
+  height: number
+) {
+  const positions = [
+    { x: cell.x, y: cell.y },
+    { x: cell.x - 1, y: cell.y },
+    { x: cell.x, y: cell.y - 1 },
+    { x: cell.x - 1, y: cell.y - 1 },
+  ];
+
+  for (const pos of positions) {
+    const a = { x: pos.x, y: pos.y };
+    const b = { x: pos.x + 1, y: pos.y };
+    const c = { x: pos.x, y: pos.y + 1 };
+    const d = { x: pos.x + 1, y: pos.y + 1 };
+    if (!inBounds(a, width, height)) continue;
+    if (!inBounds(b, width, height)) continue;
+    if (!inBounds(c, width, height)) continue;
+    if (!inBounds(d, width, height)) continue;
+    const aKey = keyOf(a);
+    const bKey = keyOf(b);
+    const cKey = keyOf(c);
+    const dKey = keyOf(d);
+    const filled =
+      (a.x === cell.x && a.y === cell.y ? 1 : set.has(aKey) ? 1 : 0) +
+      (b.x === cell.x && b.y === cell.y ? 1 : set.has(bKey) ? 1 : 0) +
+      (c.x === cell.x && c.y === cell.y ? 1 : set.has(cKey) ? 1 : 0) +
+      (d.x === cell.x && d.y === cell.y ? 1 : set.has(dKey) ? 1 : 0);
+    if (filled === 4) return true;
+  }
+
+  return false;
+}
+
 function buffered(set: Set<string>, width: number, height: number, radius: number) {
   const out = new Set<string>(set);
   if (radius <= 0) return out;
@@ -176,8 +217,19 @@ type AStarCostFn = (args: {
   to: BoardCell;
   dir: Dir;
   prevDir: Dir | null;
+  prevPrevDir: Dir | null;
+  runLen: number;
+  nextRunLen: number;
   g: number;
 }) => number;
+
+function sameAxis(a: Dir, b: Dir) {
+  return (a.dx === 0 && b.dx === 0) || (a.dy === 0 && b.dy === 0);
+}
+
+function isOpposite(a: Dir, b: Dir) {
+  return a.dx === -b.dx && a.dy === -b.dy;
+}
 
 function aStarPath(args: {
   width: number;
@@ -193,7 +245,8 @@ function aStarPath(args: {
   const allowGoalOnBlocked = args.allowGoalOnBlocked ?? false;
   const maxExpanded = args.maxExpanded ?? width * height * 60;
 
-  const startKey = `${start.x},${start.y},_`;
+  const startKey = `${start.x},${start.y},_,_,0`;
+  const maxRunBucket = 4;
 
   const gScore = new Map<string, number>();
   const fScore = new Map<string, number>();
@@ -203,11 +256,13 @@ function aStarPath(args: {
   gScore.set(startKey, 0);
   fScore.set(startKey, manhattan(start, goal));
 
-  function parseStateKey(k: string): { cell: BoardCell; prevDir: Dir | null } {
-    const [xs, ys, d] = k.split(",");
+  function parseStateKey(k: string): { cell: BoardCell; prevDir: Dir | null; prevPrevDir: Dir | null; runLen: number } {
+    const [xs, ys, d, p, runStr] = k.split(",");
     const cell = { x: Number(xs), y: Number(ys) };
     const prevDir = d === "_" ? null : (DIRECTIONS.find((dd) => dd.key === d) ?? null);
-    return { cell, prevDir };
+    const prevPrevDir = p === "_" ? null : (DIRECTIONS.find((dd) => dd.key === p) ?? null);
+    const runLen = runStr ? Number(runStr) : 0;
+    return { cell, prevDir, prevPrevDir, runLen };
   }
 
   function lowestFIndex(): number {
@@ -231,7 +286,7 @@ function aStarPath(args: {
     expanded++;
     const idx = lowestFIndex();
     const currentKey = open.splice(idx, 1)[0]!;
-    const { cell: current, prevDir } = parseStateKey(currentKey);
+    const { cell: current, prevDir, prevPrevDir, runLen } = parseStateKey(currentKey);
 
     if (current.x === goal.x && current.y === goal.y) {
       const path: BoardCell[] = [goal];
@@ -257,10 +312,22 @@ function aStarPath(args: {
         continue;
       }
 
-      const nxtStateKey = `${nxt.x},${nxt.y},${dir.key}`;
+      const nextRunLen =
+        prevDir && sameAxis(prevDir, dir) ? Math.min(runLen + 1, maxRunBucket) : 1;
+      const nextPrevPrev = prevDir ? prevDir.key : "_";
+      const nxtStateKey = `${nxt.x},${nxt.y},${dir.key},${nextPrevPrev},${nextRunLen}`;
       const gCurrent = gScore.get(currentKey) ?? Infinity;
 
-      const step = args.stepCost({ from: current, to: nxt, dir, prevDir, g: gCurrent });
+      const step = args.stepCost({
+        from: current,
+        to: nxt,
+        dir,
+        prevDir,
+        prevPrevDir,
+        runLen,
+        nextRunLen,
+        g: gCurrent,
+      });
       const tentativeG = gCurrent + step;
       const prevBest = gScore.get(nxtStateKey);
 
@@ -310,6 +377,132 @@ function tooManyNewHighDegree(
   return false;
 }
 
+function riverWalk(args: {
+  rng: ReturnType<typeof makeRng>;
+  width: number;
+  height: number;
+  start: BoardCell;
+  goal?: BoardCell;
+  blocked: Set<string>;
+  avoidSquaresWith: Set<string>;
+  allowSquareAtGoal?: boolean;
+  minAxisRun: number;
+  turnProb: number;
+  maxSteps: number;
+}): BoardCell[] | null {
+  const {
+    rng,
+    width,
+    height,
+    start,
+    blocked,
+    avoidSquaresWith,
+    minAxisRun,
+    turnProb,
+    maxSteps,
+  } = args;
+  const goal = args.goal;
+  const allowSquareAtGoal = args.allowSquareAtGoal ?? false;
+  // Sanity: axis-run persistence + anti-ABAB filter prevents checkerboard lattices at high density.
+  const path: BoardCell[] = [start];
+  let current = start;
+  let lastDir: Dir | null = null;
+  let runAxis: "H" | "V" | null = null;
+  let runLen = 0;
+  const recentDirs: Dir[] = [];
+
+  for (let steps = 0; steps < maxSteps; steps += 1) {
+    if (goal && current.x === goal.x && current.y === goal.y) return path;
+
+    let options = DIRECTIONS.filter((dir) => {
+      const next = { x: current.x + dir.dx, y: current.y + dir.dy };
+      if (!inBounds(next, width, height)) return false;
+      const key = keyOf(next);
+      if (blocked.has(key) && !(goal && next.x === goal.x && next.y === goal.y)) return false;
+      if (
+        !allowSquareAtGoal &&
+        !(goal && next.x === goal.x && next.y === goal.y) &&
+        wouldCreateSquare(avoidSquaresWith, next, width, height)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (options.length === 0) return null;
+
+    if (lastDir) {
+      const lastDirSnapshot: Dir = lastDir;
+      const withoutBacktrack = options.filter((dir) => !isOpposite(lastDirSnapshot, dir));
+      if (withoutBacktrack.length > 0) options = withoutBacktrack;
+    }
+
+    if (lastDir) {
+      const axis = axisOf(lastDir);
+      const sameAxis = options.filter((dir) => axisOf(dir) === axis);
+      const turnAxis = options.filter((dir) => axisOf(dir) !== axis);
+      const canTurn = runLen >= minAxisRun && rng.float() < turnProb;
+
+      if (runLen < minAxisRun && sameAxis.length > 0) {
+        options = sameAxis;
+      } else if (canTurn && turnAxis.length > 0) {
+        options = turnAxis;
+      } else if (sameAxis.length > 0) {
+        options = sameAxis;
+      }
+    }
+
+    if (recentDirs.length >= 3) {
+      const a = recentDirs[recentDirs.length - 3]!;
+      const b = recentDirs[recentDirs.length - 2]!;
+      const c = recentDirs[recentDirs.length - 1]!;
+      if (a.key === c.key) {
+        const filtered = options.filter((dir) => dir.key !== b.key);
+        if (filtered.length > 0) options = filtered;
+      }
+    }
+
+    if (options.length === 0) return null;
+
+    let chosen = options[0]!;
+    if (goal) {
+      let bestDist = Infinity;
+      const best: Dir[] = [];
+      for (const dir of options) {
+        const next = { x: current.x + dir.dx, y: current.y + dir.dy };
+        const dist = manhattan(next, goal);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best.length = 0;
+          best.push(dir);
+        } else if (dist === bestDist) {
+          best.push(dir);
+        }
+      }
+      chosen = rng.pick(best);
+    } else {
+      chosen = rng.pick(options);
+    }
+
+    current = { x: current.x + chosen.dx, y: current.y + chosen.dy };
+    path.push(current);
+    avoidSquaresWith.add(keyOf(current));
+
+    const chosenAxis = axisOf(chosen);
+    if (runAxis === chosenAxis) {
+      runLen += 1;
+    } else {
+      runAxis = chosenAxis;
+      runLen = 1;
+    }
+    lastDir = chosen;
+    recentDirs.push(chosen);
+    if (recentDirs.length > 3) recentDirs.shift();
+  }
+
+  return null;
+}
+
 /**
  * RIVERS: hierarchy = trunk + tributaries (tree-ish)
  * - target is still "coverage" so density affects how many tributaries we add
@@ -331,17 +524,17 @@ function generateRiverCells(args: {
 
   // 1) Trunk
   const { start, goal } = pickFarEdgePair(rng, width, height, 30);
-  const trunk = aStarPath({
+  const trunk = riverWalk({
+    rng,
     width,
     height,
     start,
     goal,
     blocked: new Set(),
-    stepCost: ({ dir, prevDir }) => {
-      const turnPenalty = prevDir && prevDir.key !== dir.key ? 0.9 : 0;
-      return 1 + turnPenalty;
-    },
-    maxExpanded: width * height * 160,
+    avoidSquaresWith: new Set<string>(),
+    minAxisRun: 2,
+    turnProb: 0.4,
+    maxSteps: width * height,
   });
 
   if (!trunk || trunk.length < 3) {
@@ -392,34 +585,18 @@ function generateRiverCells(args: {
 
     const blocked = new Set<string>(river);
 
-    const path = aStarPath({
+    const path = riverWalk({
+      rng,
       width,
       height,
       start: source,
       goal: join,
       blocked,
-      allowGoalOnBlocked: true,
-      stepCost: ({ to, dir, prevDir }) => {
-        const toKey = keyOf(to);
-        if (river.has(toKey) && !(to.x === join.x && to.y === join.y)) return 999;
-
-        const turnPenalty = prevDir && prevDir.key !== dir.key ? 1.1 : 0;
-
-        // Avoid running parallel next to the river (prevents double-tracks).
-        let adjPenalty = 0;
-        const nearJoin = manhattan(to, join) <= 2;
-        if (!nearJoin) {
-          for (const { cell } of neighbors(to, width, height)) {
-            if (river.has(keyOf(cell))) adjPenalty += 0.8;
-          }
-        }
-
-        // Very mild preference for reaching the join quickly.
-        const towardJoin = manhattan(to, join) * 0.01;
-
-        return 1 + turnPenalty + adjPenalty + towardJoin;
-      },
-      maxExpanded: width * height * 220,
+      avoidSquaresWith: new Set<string>(river),
+      allowSquareAtGoal: true,
+      minAxisRun: 2,
+      turnProb: 0.45,
+      maxSteps: Math.floor((width + height) * 2.5),
     });
 
     if (!path || path.length < 4) continue;
@@ -559,10 +736,15 @@ function generateRoadCells(args: {
         // IMPORTANT: encourage using bridges when they exist (otherwise overlap may never happen)
         const bridgeBonus = bridges.has(tk) ? -1.2 : 0;
 
+        // TODO: If checkerboards persist, tweak 2x2 suppression:
+        // - Increase squarePenalty above 4.5 to further discourage road lattices
+        // - Allow more square formation by lowering it toward 0
+        const squarePenalty = wouldCreateSquare(road, to, width, height) ? 4.5 : 0;
+
         const crossingPenalty =
             wouldCreateDenseCrossing(road, to, width, height) ? 3.5 : 0;
 
-        return 1 + turnPenalty + crossingPenalty+ nearRiver + nearRoad + bridgeBonus;
+        return 1 + turnPenalty + crossingPenalty + nearRiver + nearRoad + bridgeBonus + squarePenalty;
       },
       maxExpanded: width * height * 260,
     });
@@ -904,56 +1086,30 @@ function pruneDeadArmsAtIntersections(
     width: number,
     height: number
 ) {
-  let changed = true;
+  const deg = computeDegrees(road, width, height);
+  const toRemove = new Set<string>();
 
-  while (changed) {
-    changed = false;
+  for (const [k, d] of deg.entries()) {
+    if (d !== 1) continue;
+    const c = parseKey(k);
+    const neighbor = neighbors(c, width, height).find((n) => road.has(keyOf(n.cell)));
+    if (!neighbor) continue;
+    const neighborKey = keyOf(neighbor.cell);
+    const neighborDeg = deg.get(neighborKey) ?? 0;
 
-    const deg = computeDegrees(road, width, height);
+    if (neighborDeg >= 3) {
+      toRemove.add(k);
+      continue;
+    }
 
-    for (const [k, d] of deg.entries()) {
-      if (d < 3) continue; // not an intersection
-
-      const c = parseKey(k);
-
-      for (const { cell: n } of neighbors(c, width, height)) {
-        const nk = keyOf(n);
-        if (!road.has(nk)) continue;
-
-        // Walk outward along this arm
-        let prev = c;
-        let cur = n;
-        let length = 1;
-
-        while (true) {
-          const curDeg = deg.get(keyOf(cur)) ?? 0;
-          if (curDeg !== 2) break;
-
-          const next = neighbors(cur, width, height)
-              .map((x) => x.cell)
-              .find(
-                  (x) =>
-                      road.has(keyOf(x)) &&
-                      !(x.x === prev.x && x.y === prev.y)
-              );
-
-          if (!next) break;
-
-          prev = cur;
-          cur = next;
-          length++;
-          if (length >= 2) break;
-        }
-
-        // If this arm is too short, remove it
-        if (length < 2) {
-          road.delete(nk);
-          changed = true;
-        }
-      }
+    if (neighborDeg === 1) {
+      toRemove.add(k);
+      toRemove.add(neighborKey);
     }
   }
-  return road
+
+  for (const k of toRemove) road.delete(k);
+  return road;
 }
 
 function riverZigZagPenalty(
