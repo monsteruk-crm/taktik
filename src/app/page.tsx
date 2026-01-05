@@ -11,12 +11,20 @@ import {
   useState,
 } from "react";
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import type { Player, ReactionWindow } from "@/lib/engine";
-import { gameReducer, getOpenReactionWindows, initialGameState } from "@/lib/engine";
-import { getInitialRngSeed } from "@/lib/settings";
+import type { GameBootstrap, Player, ReactionWindow } from "@/lib/engine";
+import {
+  createInitialGameStateFromBootstrap,
+  createLoadingGameState,
+  gameReducer,
+  getOpenReactionWindows,
+  prepareGameBootstrap,
+} from "@/lib/engine";
+import { generateTerrainNetworks } from "@/lib/engine/terrain";
+import { getInitialRngSeed, initialTerrainParams } from "@/lib/settings";
 import { getMoveRange } from "@/lib/engine/movement";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
@@ -48,8 +56,19 @@ export default function Home() {
     ownerId: Player;
   };
 
-  const [state, dispatch] = useReducer(gameReducer, initialGameState);
+  const initialSeed = useMemo(() => getInitialRngSeed(), []);
+  const initialBootstrap = useMemo(() => prepareGameBootstrap(initialSeed), [initialSeed]);
+  const [state, dispatch] = useReducer(
+    gameReducer,
+    initialBootstrap,
+    createLoadingGameState
+  );
   const [mode, setMode] = useState<"MOVE" | "ATTACK">("MOVE");
+  const [terrainStatus, setTerrainStatus] = useState<
+    "loading" | "ready" | "error" | "cancelled"
+  >("loading");
+  const terrainWorkerRef = useRef<Worker | null>(null);
+  const lastSeedRef = useRef<number>(initialSeed);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
@@ -75,24 +94,28 @@ export default function Home() {
   const lastPhaseRef = useRef<string | null>(null);
   const dockInteractedRef = useRef(false);
   const isGameOver = state.phase === "VICTORY";
-  const canMove = state.phase === "MOVEMENT" && !isGameOver;
-  const canAttack = state.phase === "ATTACK" && !isGameOver;
+  const terrainReady = terrainStatus === "ready";
+  const canMove = terrainReady && state.phase === "MOVEMENT" && !isGameOver;
+  const canAttack = terrainReady && state.phase === "ATTACK" && !isGameOver;
   const canRollDice =
+    terrainReady &&
     state.phase === "DICE_RESOLUTION" &&
     !!state.pendingAttack &&
     !state.lastRoll &&
     !isGameOver;
   const canResolveAttack =
+    terrainReady &&
     state.phase === "DICE_RESOLUTION" &&
     !!state.pendingAttack &&
     !!state.lastRoll &&
     !isGameOver;
-  const canDrawCard = !isGameOver && !state.pendingCard;
+  const canDrawCard = terrainReady && !isGameOver && !state.pendingCard;
   const canStoreBonus =
+    terrainReady &&
     !isGameOver &&
     state.pendingCard?.kind === "bonus" &&
     state.storedBonuses.length < 6;
-  const canPlayCard = !isGameOver && !!state.pendingCard;
+  const canPlayCard = terrainReady && !isGameOver && !!state.pendingCard;
   const moveRange = useMemo(() => {
     if (mode !== "MOVE" || !selectedUnitId) {
       return [];
@@ -159,16 +182,116 @@ export default function Home() {
       ? tacticById.get(resolvedTargetingContext.cardId) ?? null
       : null;
 
-  useEffect(() => {
-    if (process.env.NEXT_PUBLIC_RNG_SEED) {
-      return;
+  const startTerrainWorker = useCallback(
+    (bootstrap: GameBootstrap) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      if (terrainWorkerRef.current) {
+        terrainWorkerRef.current.terminate();
+      }
+      const worker = new Worker(
+        new URL("../workers/terrainWorker.ts", import.meta.url)
+      );
+      terrainWorkerRef.current = worker;
+      setTerrainStatus("loading");
+      const fallbackToMainThread = () => {
+        try {
+          const terrain = generateTerrainNetworks({
+            width: state.boardWidth,
+            height: state.boardHeight,
+            seed: bootstrap.terrainSeed,
+            roadDensity: initialTerrainParams.roadDensity,
+            riverDensity: initialTerrainParams.riverDensity,
+            maxBridges: initialTerrainParams.maxBridges,
+          });
+          const nextState = createInitialGameStateFromBootstrap({
+            bootstrap,
+            terrain,
+          });
+          dispatch({ type: "LOAD_STATE", state: nextState });
+          setTerrainStatus("ready");
+          return true;
+        } catch (error) {
+          return false;
+        }
+      };
+      worker.onmessage = (event: MessageEvent<{ terrain: { road: { x: number; y: number }[]; river: { x: number; y: number }[]; nextSeed: number } }>) => {
+        const nextState = createInitialGameStateFromBootstrap({
+          bootstrap,
+          terrain: event.data.terrain,
+        });
+        dispatch({ type: "LOAD_STATE", state: nextState });
+        setTerrainStatus("ready");
+        worker.terminate();
+        if (terrainWorkerRef.current === worker) {
+          terrainWorkerRef.current = null;
+        }
+      };
+      worker.onerror = () => {
+        const recovered = fallbackToMainThread();
+        if (!recovered) {
+          setTerrainStatus("error");
+        }
+        worker.terminate();
+        if (terrainWorkerRef.current === worker) {
+          terrainWorkerRef.current = null;
+        }
+      };
+      worker.postMessage({
+        width: state.boardWidth,
+        height: state.boardHeight,
+        seed: bootstrap.terrainSeed,
+        roadDensity: initialTerrainParams.roadDensity,
+        riverDensity: initialTerrainParams.riverDensity,
+        maxBridges: initialTerrainParams.maxBridges,
+      });
+    },
+    [state.boardHeight, state.boardWidth]
+  );
+
+
+  const requestNewGame = useCallback(
+    (seed: number) => {
+      const bootstrap = prepareGameBootstrap(seed >>> 0);
+      lastSeedRef.current = seed >>> 0;
+      dispatch({ type: "LOAD_STATE", state: createLoadingGameState(bootstrap) });
+      startTerrainWorker(bootstrap);
+    },
+    [startTerrainWorker]
+  );
+
+  const cancelTerrainWorker = useCallback(() => {
+    if (terrainWorkerRef.current) {
+      terrainWorkerRef.current.terminate();
+      terrainWorkerRef.current = null;
     }
+    setTerrainStatus("cancelled");
+  }, []);
+
+  const retryTerrainWorker = useCallback(() => {
+    requestNewGame(lastSeedRef.current);
+  }, [requestNewGame]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
+    if (process.env.NEXT_PUBLIC_RNG_SEED) {
+      requestNewGame(initialSeed);
+      return;
+    }
     const randomSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
-    dispatch({ type: "RESET_GAME", seed: randomSeed });
-  }, [dispatch]);
+    requestNewGame(randomSeed);
+  }, [initialSeed, requestNewGame]);
+
+  useEffect(() => {
+    return () => {
+      if (terrainWorkerRef.current) {
+        terrainWorkerRef.current.terminate();
+      }
+    };
+  }, []);
   const targetableTiles = useMemo(() => {
     if (!isTargeting || targetingSpec?.type !== "unit") {
       return [];
@@ -480,6 +603,9 @@ export default function Home() {
     zoom: number;
     viewportRef: RefObject<HTMLDivElement | null>;
   }) {
+    if (!terrainReady) {
+      return;
+    }
     if (!args.viewportRef.current) {
       return;
     }
@@ -503,6 +629,9 @@ export default function Home() {
       viewportRef: RefObject<HTMLDivElement | null>;
       isPanning: boolean;
     }) => {
+      if (!terrainReady) {
+        return;
+      }
       if (!args.viewportRef.current) {
         return;
       }
@@ -525,7 +654,7 @@ export default function Home() {
         return { x, y };
       });
     },
-    [originX, originY, state.boardHeight, state.boardWidth]
+    [originX, originY, state.boardHeight, state.boardWidth, terrainReady]
   );
 
 
@@ -983,6 +1112,74 @@ export default function Home() {
                 />
               )}
             </BoardViewport>
+            {terrainStatus !== "ready" ? (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "auto",
+                }}
+              >
+                <OverlayPanel title="MAP RENDERING" tone="focus" accent="yellow">
+                  <Stack spacing={2}>
+                    {terrainStatus === "loading" ? (
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <CircularProgress enableTrackSlot size={40} />
+                        <Stack spacing={0.5}>
+                          <Typography variant="subtitle2" fontWeight={700}>
+                            Map rendering in progress.
+                          </Typography>
+                          <Typography variant="body2">
+                            Generating terrain networks in a background worker.
+                          </Typography>
+                        </Stack>
+                      </Stack>
+                    ) : (
+                      <Stack spacing={0.5}>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          Map rendering halted.
+                        </Typography>
+                        <Typography variant="body2">
+                          {terrainStatus === "error"
+                            ? "Worker failed to respond. You can retry or regenerate."
+                            : "Rendering was cancelled. You can retry or regenerate."}
+                        </Typography>
+                      </Stack>
+                    )}
+                    <Stack direction="row" spacing={1.5}>
+                      {terrainStatus === "loading" ? (
+                        <ObliqueKey
+                          label="CANCEL"
+                          onClick={cancelTerrainWorker}
+                          tone="neutral"
+                          size="sm"
+                        />
+                      ) : (
+                        <>
+                          <ObliqueKey
+                            label="RETRY"
+                            onClick={retryTerrainWorker}
+                            tone="yellow"
+                            size="sm"
+                          />
+                          <ObliqueKey
+                            label="NEW SEED"
+                            onClick={() =>
+                              requestNewGame(Math.floor(Math.random() * 0xffffffff) >>> 0)
+                            }
+                            tone="neutral"
+                            size="sm"
+                          />
+                        </>
+                      )}
+                    </Stack>
+                  </Stack>
+                </OverlayPanel>
+              </Box>
+            ) : null}
           </Box>
         </Frame>
         <Box

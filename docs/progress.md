@@ -3388,3 +3388,65 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - Engine: `src/lib/engine/terrain.ts`
 - Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Terrain generation moved to a web worker
+
+### BEFORE
+- Terrain networks were generated synchronously during initial game state creation, blocking the UI thread.
+
+### NOW
+- Terrain generation runs inside a dedicated web worker and the UI shows a focused “map rendering in progress” panel while the worker computes the networks. The engine bootstrap was split into deterministic deck preparation and a terrain assembly step so the worker can return `{road, river, nextSeed}` without serializing card effect functions.
+
+### NEXT
+- Add a retry path or fallback to main-thread generation if the worker fails.
+
+### Known limitations / TODOs
+- The loading overlay is informational only; it does not yet expose a cancel or retry action.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`, `src/lib/engine/index.ts`
+- UI: `src/app/page.tsx`
+- Worker: `src/workers/terrainWorker.ts`
+- Docs: `docs/progress.md`, `docs/engine.md`
+
+---
+
+## 2026-01-05 — Remove stale bootstrapRef usage
+
+### BEFORE
+- `requestNewGame` referenced `bootstrapRef`, which had been removed, causing a runtime ReferenceError.
+
+### NOW
+- `requestNewGame` uses the local bootstrap object only; no dangling ref usage.
+
+### NEXT
+- Verify worker flow on initial load and RNG reset.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- UI: `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Terrain loading UI now shows spinner + retry/cancel
+
+### BEFORE
+- The loading panel was static text only, and worker failures left no recovery path in the UI.
+
+### NOW
+- The loading overlay includes a `CircularProgress` spinner and ObliqueKey actions for canceling, retrying, or regenerating a new seed. Worker errors automatically fall back to main-thread terrain generation once before surfacing an error state.
+
+### NEXT
+- Add telemetry/logging around worker failures so we can see how often the fallback triggers.
+
+### Known limitations / TODOs
+- Fallback terrain generation will still block the UI if it runs, so persistent worker failures remain a performance risk.
+
+### Files touched
+- UI: `src/app/page.tsx`
+- Docs: `docs/progress.md`

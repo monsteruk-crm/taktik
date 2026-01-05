@@ -26,7 +26,9 @@ The manual does not define RNG mechanics, but the project contract requires repr
 - Dice rolls use an LCG in `lib/engine/rng.ts`:
   - `rollDie(seed) -> { result: 1..6, nextSeed }`
 - Deck shuffling uses a deterministic Fisher–Yates shuffle that advances the same LCG constants (`shuffleWithSeed` in `lib/engine/reducer.ts`).
-- Terrain networks are generated at game start from the current `rngSeed` using `generateTerrainNetworks` (`lib/engine/terrain.ts`), and the returned `nextSeed` is stored back in `GameState.rngSeed`.
+- Bootstrapping now splits into two deterministic steps:
+  - `prepareGameBootstrap(seed)` shuffles decks and produces `terrainSeed`.
+  - `generateTerrainNetworks` consumes `terrainSeed` (often off-thread in the UI) and returns `{ road, river, nextSeed }`, then `createInitialGameStateFromBootstrap` assembles the full `GameState` while storing `nextSeed` into `GameState.rngSeed`.
 - `generateRoadCells` returns a `Set<string>` so `generateTerrainNetworks` maps those coordinates into arrays after calling it; this guards the engine against React/SSR runtime failures caused by invalid destructuring while keeping terrain seeding deterministic.
 - `generateRoads` now seeds the road set with fallback cells before the collector/local loop, so `parseKey` never receives `undefined` from an empty `Set` (the crash triggered by destructuring `roadSet` with zero entries is gone while the deterministic RNG flow remains the same).
 - Reducer is deterministic given `(state, action)`; no `Date.now()`, no side effects, no UI coupling.

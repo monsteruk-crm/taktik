@@ -12,6 +12,13 @@ export type {
   UnitType,
 } from "./gameState";
 
-export type { GameAction } from "./reducer";
-export { gameReducer, getUnitMovementWithEffects, initialGameState } from "./reducer";
+export type { GameAction, GameBootstrap, TerrainResult } from "./reducer";
+export {
+  createInitialGameStateFromBootstrap,
+  createLoadingGameState,
+  gameReducer,
+  getUnitMovementWithEffects,
+  initialGameState,
+  prepareGameBootstrap,
+} from "./reducer";
 export { canPlayTacticInWindow, getOpenReactionWindows } from "./reactions";

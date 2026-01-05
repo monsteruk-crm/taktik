@@ -1,6 +1,7 @@
 import type {
   AttackMeta,
   CardDefinition,
+  BoardCell,
   Effect,
   GamePhase,
   GameState,
@@ -38,11 +39,25 @@ function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed
   return { shuffled, nextSeed };
 }
 
+export type TerrainResult = {
+  road: BoardCell[];
+  river: BoardCell[];
+  nextSeed: number;
+};
+
+export type GameBootstrap = {
+  seed: number;
+  commonDeck: CardDefinition[];
+  tacticalDeck: CardDefinition[];
+  terrainSeed: number;
+};
+
 export type GameAction =
   | { type: "NEXT_PHASE" }
   | { type: "TURN_START" }
   | { type: "END_TURN" }
   | { type: "RESET_GAME"; seed?: number }
+  | { type: "LOAD_STATE"; state: GameState }
   | { type: "DRAW_CARD" }
   | { type: "STORE_BONUS" }
   | { type: "PLAY_CARD"; cardId: string; targets?: { unitIds?: string[] } }
@@ -135,22 +150,56 @@ function getCenteredColumns(count: number, centerX: number, width: number): numb
   }
   return columns;
 }
-function createInitialGameState(seed: number): GameState {
+export function prepareGameBootstrap(seed: number): GameBootstrap {
   const initialCommonDeck = shuffleWithSeed(commonDeckCards, seed);
   const initialTacticalDeck = shuffleWithSeed(
     tacticalDeckCards,
     initialCommonDeck.nextSeed
   );
-  const initialTerrain = generateTerrainNetworks({
-    width: boardWidth,
-    height: boardHeight,
-    seed: initialTacticalDeck.nextSeed,
-    roadDensity: initialTerrainParams.roadDensity,
-    riverDensity: initialTerrainParams.riverDensity,
-    maxBridges:initialTerrainParams.maxBridges
-  });
+  return {
+    seed,
+    commonDeck: initialCommonDeck.shuffled,
+    tacticalDeck: initialTacticalDeck.shuffled,
+    terrainSeed: initialTacticalDeck.nextSeed,
+  };
+}
 
-  const terrainBlocked = buildTerrainBlockSet(initialTerrain);
+export function createLoadingGameState(bootstrap: GameBootstrap): GameState {
+  return {
+    phase: "TURN_START",
+    activePlayer: "PLAYER_A",
+    turn: 1,
+    boardWidth,
+    boardHeight,
+    units: [],
+    movesThisTurn: 0,
+    terrain: {
+      road: [],
+      river: [],
+      params: initialTerrainParams,
+      seed: bootstrap.terrainSeed,
+    },
+    commonDeck: bootstrap.commonDeck,
+    tacticalDeck: bootstrap.tacticalDeck,
+    selectedTacticalDeck: bootstrap.tacticalDeck,
+    pendingCard: null,
+    pendingAttack: null,
+    storedBonuses: [],
+    activeEffects: [],
+    nextEffectId: 1,
+    rngSeed: bootstrap.terrainSeed,
+    lastRoll: null,
+    winner: null,
+    log: ["", "", "", "", ""],
+  };
+}
+
+export function createInitialGameStateFromBootstrap(args: {
+  bootstrap: GameBootstrap;
+  terrain: TerrainResult;
+}): GameState {
+  const { bootstrap, terrain } = args;
+  const terrainBlocked = buildTerrainBlockSet(terrain);
   const occupied = new Set<string>();
   const centerX = Math.floor(boardWidth / 2);
   const centerY = Math.floor(boardHeight / 2);
@@ -220,28 +269,44 @@ function createInitialGameState(seed: number): GameState {
     units,
     movesThisTurn: 0,
     terrain: {
-      road: initialTerrain.road,
-      river: initialTerrain.river,
+      road: terrain.road,
+      river: terrain.river,
       params: initialTerrainParams,
-      seed: initialTacticalDeck.nextSeed,
+      seed: bootstrap.terrainSeed,
     },
-    commonDeck: initialCommonDeck.shuffled,
-    tacticalDeck: initialTacticalDeck.shuffled,
-    selectedTacticalDeck: initialTacticalDeck.shuffled,
+    commonDeck: bootstrap.commonDeck,
+    tacticalDeck: bootstrap.tacticalDeck,
+    selectedTacticalDeck: bootstrap.tacticalDeck,
     pendingCard: null,
     pendingAttack: null,
     storedBonuses: [],
     activeEffects: [],
     nextEffectId: 1,
-    rngSeed: initialTerrain.nextSeed,
+    rngSeed: terrain.nextSeed,
     lastRoll: null,
     winner: null,
     log: ["", "", "", "", ""],
   };
 }
 
+export function createInitialGameState(seed: number): GameState {
+  const bootstrap = prepareGameBootstrap(seed);
+  const initialTerrain = generateTerrainNetworks({
+    width: boardWidth,
+    height: boardHeight,
+    seed: bootstrap.terrainSeed,
+    roadDensity: initialTerrainParams.roadDensity,
+    riverDensity: initialTerrainParams.riverDensity,
+    maxBridges: initialTerrainParams.maxBridges,
+  });
+  return createInitialGameStateFromBootstrap({
+    bootstrap,
+    terrain: initialTerrain,
+  });
+}
+
 const initialSeed = getInitialRngSeed();
-const initialGameState = createInitialGameState(initialSeed);
+const initialGameState = createLoadingGameState(prepareGameBootstrap(initialSeed));
 
 function manhattanDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -366,13 +431,17 @@ export function getUnitMovementWithEffects(state: GameState, unitId: string) {
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
+  if (action.type === "LOAD_STATE") {
+    return action.state;
+  }
+
   if (state.phase === "VICTORY") {
     return state;
   }
 
   if (action.type === "RESET_GAME") {
     const seed = typeof action.seed === "number" ? action.seed : state.rngSeed;
-    return createInitialGameState(seed >>> 0);
+    return createLoadingGameState(prepareGameBootstrap(seed >>> 0));
   }
 
   if (action.type === "NEXT_PHASE") {
