@@ -15,7 +15,13 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import type { GameBootstrap, Player, ReactionWindow } from "@/lib/engine";
+import type {
+  CardDefinition,
+  GameBootstrap,
+  Player,
+  ReactionWindow,
+  TerrainResult,
+} from "@/lib/engine";
 import {
   createInitialGameStateFromBootstrap,
   createLoadingGameState,
@@ -23,7 +29,7 @@ import {
   getOpenReactionWindows,
   prepareGameBootstrap,
 } from "@/lib/engine";
-import { generateTerrainNetworks } from "@/lib/engine/terrain";
+import { formatTerrainStats, generateTerrainBiomes, generateTerrainNetworks } from "@/lib/engine/terrain";
 import {
   getInitialRngSeed,
   initialTerrainParams,
@@ -43,11 +49,13 @@ import PhaseRuler from "@/components/ui/PhaseRuler";
 import Plate from "@/components/ui/Plate";
 import OverlayPanel from "@/components/ui/OverlayPanel";
 import StatusCapsule from "@/components/ui/StatusCapsule";
+import CardDrawOverlay from "@/components/ui/CardDrawOverlay";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
 import { semanticColors } from "@/lib/ui/semanticColors";
 import { buildContext } from "@/lib/engine/effects";
+import { TERRAIN_DEBUG_COLORS, TERRAIN_ORDER } from "@/lib/ui/terrain";
 
 export default function Home() {
   type TargetingContext =
@@ -80,6 +88,7 @@ export default function Home() {
   const targetingContextRef = useRef<TargetingContext | null>(null);
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
   const [queuedTactic, setQueuedTactic] = useState<QueuedTactic | null>(null);
+  const [cardDrawOverlay, setCardDrawOverlay] = useState<CardDefinition | null>(null);
   const isNarrow = useMediaQuery("(max-width:1100px)");
   const isTiny = useMediaQuery("(max-width:420px)");
   const isLandscape = useMediaQuery("(orientation: landscape)");
@@ -132,6 +141,7 @@ export default function Home() {
   }, [state.selectedTacticalDeck]);
   const openReactionWindows = useMemo(() => getOpenReactionWindows(state), [state]);
   const SHOW_DEV_LOGS = process.env.NEXT_PUBLIC_SHOW_DEV_LOGS === "true";
+  const SHOW_TERRAIN_DEBUG = process.env.NEXT_PUBLIC_TERRAIN_DEBUG === "true";
   const resolvedConsoleTab =
     !SHOW_DEV_LOGS && consoleTab === "log" ? "cards" : consoleTab;
   const consoleOpen = isNarrow && !landscapeMode ? isConsoleOpen : false;
@@ -191,25 +201,35 @@ export default function Home() {
       if (typeof window === "undefined") {
         return;
       }
-      if (terrainWorkerRef.current) {
-        terrainWorkerRef.current.terminate();
-      }
-      const worker = new Worker(
-        new URL("../workers/terrainWorker.ts", import.meta.url)
-      );
-      terrainWorkerRef.current = worker;
       setTerrainStatus("loading");
       const fallbackToMainThread = () => {
         try {
-        const terrain = generateTerrainNetworks({
-          width: state.boardWidth,
-          height: state.boardHeight,
-          seed: bootstrap.terrainSeed,
-          roadDensity: initialTerrainParams.roadDensity,
-          riverDensity: initialTerrainParams.riverDensity,
-          maxBridges: initialTerrainParams.maxBridges,
-          penalties: initialTerrainSquarePenalties,
-        });
+          const networks = generateTerrainNetworks({
+            width: state.boardWidth,
+            height: state.boardHeight,
+            seed: bootstrap.terrainSeed,
+            roadDensity: initialTerrainParams.roadDensity,
+            riverDensity: initialTerrainParams.riverDensity,
+            maxBridges: initialTerrainParams.maxBridges,
+            penalties: initialTerrainSquarePenalties,
+          });
+          const biomes = generateTerrainBiomes({
+            width: state.boardWidth,
+            height: state.boardHeight,
+            seed: networks.nextSeed,
+            rivers: networks.river,
+            roads: networks.road,
+          });
+          if (SHOW_TERRAIN_DEBUG) {
+            console.info("Terrain biome stats\n" + formatTerrainStats(biomes.stats));
+          }
+          const terrain = {
+            road: networks.road,
+            river: networks.river,
+            biomes: biomes.biomes,
+            stats: biomes.stats,
+            nextSeed: biomes.nextSeed,
+          };
           const nextState = createInitialGameStateFromBootstrap({
             bootstrap,
             terrain,
@@ -221,7 +241,26 @@ export default function Home() {
           return false;
         }
       };
-      worker.onmessage = (event: MessageEvent<{ terrain: { road: { x: number; y: number }[]; river: { x: number; y: number }[]; nextSeed: number } }>) => {
+
+      // Dev-only: when terrain debug is enabled, always run on the main thread.
+      // Next dev server does not reliably hot-reload worker bundles, which can make
+      // biome counts appear "stuck" even after code changes.
+      if (SHOW_TERRAIN_DEBUG) {
+        const recovered = fallbackToMainThread();
+        if (!recovered) {
+          setTerrainStatus("error");
+        }
+        return;
+      }
+
+      if (terrainWorkerRef.current) {
+        terrainWorkerRef.current.terminate();
+      }
+      const worker = new Worker(
+        new URL("../workers/terrainWorker.ts", import.meta.url)
+      );
+      terrainWorkerRef.current = worker;
+      worker.onmessage = (event: MessageEvent<{ terrain: TerrainResult }>) => {
         const nextState = createInitialGameStateFromBootstrap({
           bootstrap,
           terrain: event.data.terrain,
@@ -251,9 +290,10 @@ export default function Home() {
         riverDensity: initialTerrainParams.riverDensity,
         maxBridges: initialTerrainParams.maxBridges,
         penalties: initialTerrainSquarePenalties,
+        debugTerrain: SHOW_TERRAIN_DEBUG,
       });
     },
-    [state.boardHeight, state.boardWidth]
+    [SHOW_TERRAIN_DEBUG, state.boardHeight, state.boardWidth]
   );
 
 
@@ -486,6 +526,9 @@ export default function Home() {
   const logRef = useRef<HTMLDivElement | null>(null);
   const logRowHeight = 18;
   const reducedMotion = useReducedMotion();
+  const handleCardOverlayComplete = useCallback(() => {
+    setCardDrawOverlay(null);
+  }, []);
 
   useEffect(() => {
     if (logRef.current) {
@@ -500,6 +543,7 @@ export default function Home() {
   }, [consoleOpen]);
 
   const prevPendingCardIdRef = useRef<string | null>(null);
+  const lastDrawnCardIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (prevPendingCardIdRef.current === state.pendingCard?.id) {
@@ -512,6 +556,17 @@ export default function Home() {
       }
       setSelectedTargetUnitIds([]);
     });
+  }, [state.pendingCard?.id]);
+
+  useEffect(() => {
+    if (!state.pendingCard) {
+      return;
+    }
+    if (lastDrawnCardIdRef.current === state.pendingCard.id) {
+      return;
+    }
+    lastDrawnCardIdRef.current = state.pendingCard.id;
+    setCardDrawOverlay(state.pendingCard);
   }, [state.pendingCard?.id]);
 
 
@@ -947,6 +1002,7 @@ export default function Home() {
       canDrawCard={canDrawCard}
       activePlayer={state.activePlayer}
       turn={state.turn}
+      suppressPendingArt={Boolean(cardDrawOverlay)}
       isPendingTargeting={isPendingTargeting}
       isTacticTargeting={isTacticTargeting}
       pendingTargetingSpec={pendingTargetingSpec}
@@ -1115,9 +1171,61 @@ export default function Home() {
                   moveRange={moveRange}
                   targetableTiles={targetableTiles}
                   attackableTiles={attackableTiles}
+                  showTerrainDebug={SHOW_TERRAIN_DEBUG}
                 />
               )}
             </BoardViewport>
+            {SHOW_TERRAIN_DEBUG && terrainReady ? (
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 16,
+                  left: 16,
+                  zIndex: 12,
+                  pointerEvents: "auto",
+                  width: 260,
+                  maxWidth: "calc(100% - 32px)",
+                }}
+              >
+                <OverlayPanel title="TERRAIN DEBUG" tone="info" accent="blue">
+                  <Stack spacing={1}>
+                    <Typography variant="caption" fontWeight={700}>
+                      CELL COUNTS / REGIONS
+                    </Typography>
+                    <Stack spacing={0.75}>
+                      {TERRAIN_ORDER.map((type) => {
+                        const count = state.terrain.stats?.counts[type] ?? 0;
+                        const regions = state.terrain.stats?.regions[type] ?? 0;
+                        return (
+                          <Stack
+                            key={type}
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            justifyContent="space-between"
+                          >
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 14,
+                                  height: 14,
+                                  border: "1px solid #1B1B1B",
+                                  backgroundColor: TERRAIN_DEBUG_COLORS[type],
+                                }}
+                              />
+                              <Typography variant="caption">{type}</Typography>
+                            </Stack>
+                            <Typography variant="caption">
+                              {count} / {regions}
+                            </Typography>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+                  </Stack>
+                </OverlayPanel>
+              </Box>
+            ) : null}
             {terrainStatus !== "ready" ? (
               <Box
                 sx={{
@@ -1294,6 +1402,14 @@ export default function Home() {
             showTabs: false,
             scrollMode: "body",
           })}
+        />
+      ) : null}
+
+      {cardDrawOverlay ? (
+        <CardDrawOverlay
+          card={cardDrawOverlay}
+          reducedMotion={reducedMotion}
+          onComplete={handleCardOverlayComplete}
         />
       ) : null}
 

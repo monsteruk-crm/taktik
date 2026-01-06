@@ -6,6 +6,8 @@ import type {
   GamePhase,
   GameState,
   Player,
+  TerrainBiomeStats,
+  TerrainType,
   Unit,
   UnitType,
 } from "./gameState";
@@ -18,7 +20,7 @@ import {
   validateTacticReaction,
 } from "./reactions";
 import { rollDie } from "./rng";
-import { generateTerrainNetworks } from "./terrain";
+import { generateTerrainBiomes, generateTerrainNetworks } from "./terrain";
 import {
   bootstrapUnitPlacement,
   getInitialRngSeed,
@@ -43,6 +45,8 @@ function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed
 export type TerrainResult = {
   road: BoardCell[];
   river: BoardCell[];
+  biomes: TerrainType[][];
+  stats: TerrainBiomeStats;
   nextSeed: number;
 };
 
@@ -166,6 +170,9 @@ export function prepareGameBootstrap(seed: number): GameBootstrap {
 }
 
 export function createLoadingGameState(bootstrap: GameBootstrap): GameState {
+  const biomes = Array.from({ length: boardHeight }, () =>
+    Array.from({ length: boardWidth }, () => "PLAIN" as TerrainType)
+  );
   return {
     phase: "TURN_START",
     activePlayer: "PLAYER_A",
@@ -177,6 +184,8 @@ export function createLoadingGameState(bootstrap: GameBootstrap): GameState {
     terrain: {
       road: [],
       river: [],
+      biomes,
+      stats: null,
       params: initialTerrainParams,
       seed: bootstrap.terrainSeed,
     },
@@ -272,6 +281,8 @@ export function createInitialGameStateFromBootstrap(args: {
     terrain: {
       road: terrain.road,
       river: terrain.river,
+      biomes: terrain.biomes,
+      stats: terrain.stats,
       params: initialTerrainParams,
       seed: bootstrap.terrainSeed,
     },
@@ -292,7 +303,7 @@ export function createInitialGameStateFromBootstrap(args: {
 
 export function createInitialGameState(seed: number): GameState {
   const bootstrap = prepareGameBootstrap(seed);
-  const initialTerrain = generateTerrainNetworks({
+  const networks = generateTerrainNetworks({
     width: boardWidth,
     height: boardHeight,
     seed: bootstrap.terrainSeed,
@@ -301,9 +312,22 @@ export function createInitialGameState(seed: number): GameState {
     maxBridges: initialTerrainParams.maxBridges,
     penalties: initialTerrainSquarePenalties,
   });
+  const biomes = generateTerrainBiomes({
+    width: boardWidth,
+    height: boardHeight,
+    seed: networks.nextSeed,
+    rivers: networks.river,
+    roads: networks.road,
+  });
   return createInitialGameStateFromBootstrap({
     bootstrap,
-    terrain: initialTerrain,
+    terrain: {
+      road: networks.road,
+      river: networks.river,
+      biomes: biomes.biomes,
+      stats: biomes.stats,
+      nextSeed: biomes.nextSeed,
+    },
   });
 }
 

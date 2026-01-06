@@ -26,9 +26,11 @@ The manual does not define RNG mechanics, but the project contract requires repr
 - Dice rolls use an LCG in `lib/engine/rng.ts`:
   - `rollDie(seed) -> { result: 1..6, nextSeed }`
 - Deck shuffling uses a deterministic Fisher–Yates shuffle that advances the same LCG constants (`shuffleWithSeed` in `lib/engine/reducer.ts`).
-- Bootstrapping now splits into two deterministic steps:
+- Bootstrapping now splits into deterministic terrain steps:
   - `prepareGameBootstrap(seed)` shuffles decks and produces `terrainSeed`.
-  - `generateTerrainNetworks` consumes `terrainSeed` (often off-thread in the UI) and returns `{ road, river, nextSeed }`, then `createInitialGameStateFromBootstrap` assembles the full `GameState` while storing `nextSeed` into `GameState.rngSeed`.
+  - `generateTerrainNetworks` consumes `terrainSeed` (often off-thread in the UI) and returns `{ road, river, nextSeed }`.
+  - `generateTerrainBiomes` consumes that `nextSeed` and returns `{ biomes, stats, nextSeed }`.
+  - `createInitialGameStateFromBootstrap` assembles the full `GameState` and stores the final `nextSeed` into `GameState.rngSeed`.
 - `generateRoadCells` returns a `Set<string>` so `generateTerrainNetworks` maps those coordinates into arrays after calling it; this guards the engine against React/SSR runtime failures caused by invalid destructuring while keeping terrain seeding deterministic.
 - `generateRoads` now seeds the road set with fallback cells before the collector/local loop, so `parseKey` never receives `undefined` from an empty `Set` (the crash triggered by destructuring `roadSet` with zero entries is gone while the deterministic RNG flow remains the same).
 - Reducer is deterministic given `(state, action)`; no `Date.now()`, no side effects, no UI coupling.
@@ -53,6 +55,9 @@ Defined in `lib/engine/gameState.ts`:
 - `movesThisTurn`: capped by the engine at 5 (see `maxMovesPerTurn`).
 - Terrain:
   - `terrain.road` / `terrain.river`: arrays of `{x,y}` cells generated at game start.
+  - `terrain.biomes`: `TerrainType[][]` grid (PLAIN/ROUGH/FOREST/URBAN/INDUSTRIAL/HILL/WATER), generated deterministically from the terrain seed plus river/road inputs; road/river cells are forced back to `PLAIN` to keep overlays legible.
+    - Guard: biome generation enforces minimum counts for `FOREST`, `ROUGH`, and `HILL` by deterministically assigning high-scoring interior `PLAIN` cells (moisture/elevation) if thresholds/smoothing would otherwise make them vanish.
+  - `terrain.stats`: counts + region totals per terrain type for debug tuning (dev-only visibility).
   - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus an optional `maxBridges` cap that limits how many river crossings/bridges are allowed; this comes from `initialTerrainParams`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
 - Initial unit placement is driven by the global `initialUnitComposition` map (`src/lib/settings.ts`); the reducer instantiates each player’s configured number of `INFANTRY`, `VEHICLE`, and `SPECIAL` units as IDs `A*`/`B*`, lines them up across the centre columns (using centerX ± offsets for each row), positions Player A on the northern anchor and Player B on the southern anchor so `bootstrapUnitPlacement.enemyDistance` cells separate them when possible, and then snaps every unit to the nearest clear tile while keeping the road/river collision rules and occupied set intact.
@@ -198,7 +203,7 @@ Planned alignment (TODO):
 
 ## RNG & Dice Usage
 - The initial `rngSeed` comes from `getInitialRngSeed()` in `src/lib/settings.ts` (uses `NEXT_PUBLIC_RNG_SEED` if provided, otherwise `1` for a deterministic SSR-safe default).
-- Terrain generation consumes `rngSeed` once at game start and stores the returned `nextSeed`.
+- Terrain generation consumes `rngSeed` once at game start for networks, then once more for biome placement, and stores the returned `nextSeed`.
 - `DRAW_CARD` consumes `rngSeed` only when refilling/shuffling an empty deck (current).
 - `ROLL_DICE` consumes `rngSeed` every time it is called.
 - Terrain path bias (the `biasStraight` parameter in `generateTerrainNetworks`) only reuses the previous direction when one exists, so the edge-case where `lastDir` is `null` no longer affects TypeScript strict mode while keeping the deterministic walk behavior intact.
@@ -210,6 +215,23 @@ Manual mismatch:
 ## Victory Conditions Status
 - Implemented: annihilation only (if all remaining units share one owner).
 - Planned: mission/scenario victory conditions from the manual.
+
+## Rendering Assets (UI, non-engine)
+The engine does not depend on rendering assets. The UI renders an isometric board using PNG tiles in `public/assets/tiles/`.
+
+- Current state: the runtime board renders base terrain tiles per cell using `public/assets/tiles/terrain-*.png`, with network overlays for roads/rivers/bridges.
+- Base tiles: `public/assets/tiles/terrain-*.png` (one per `TerrainType`).
+- Network overlays: `public/assets/tiles/networks/*.png` (roads, rivers, bridge center square).
+
+## Edge cases
+- Terrain biome cleanup dissolves undersized FOREST/ROUGH/HILL regions to the dominant neighboring terrain (or `PLAIN` if no neighbor dominates).
+- WATER/URBAN/INDUSTRIAL tiles are protected and never overwritten by smoothing passes.
+- Terrain generation avoids placing settlement seeds on river or water cells, and edge cells bias back to `PLAIN` unless protected.
+- Road/river cells are forced back to `PLAIN` at the end of biome generation to prevent noisy base tiles under overlays.
+
+## Open questions
+- When terrain starts affecting movement/combat, which terrain types will modify movement cost or attack resolution?
+- Generation source: `scripts/gen_terrain_tiles.mjs` (procedural, deterministic generation of tile PNGs and cropping via ImageMagick).
 
 ## Edge Cases / Invariants Checklist
 - `pendingCard` prevents drawing another card.

@@ -49,6 +49,18 @@ export const semanticColors = {
 
 };
 
+// Terrain debug palette (used for dev-only biome visualization).
+// Intentionally stored in semantic colors so it stays consistent across UI surfaces.
+export const terrainDebugColors = {
+  PLAIN: "#D6D3C9",
+  ROUGH: "#A19D90",
+  FOREST: "#5E7B55",
+  URBAN: "#7E7A7A",
+  INDUSTRIAL: "#6A6161",
+  HILL: "#B0A184",
+  WATER: "#8DA9C4",
+} as const;
+
 function hexToRgb(hex: string) {
   const normalized = hex.replace("#", "");
   const value =

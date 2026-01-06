@@ -3513,3 +3513,207 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - UI: `src/app/page.tsx`
 - Worker: `src/workers/terrainWorker.ts`
 - Docs: `docs/progress.md`, `docs/engine.md`
+
+---
+
+## 2026-01-05 — Rebuild WATER terrain tile to read as water
+
+### BEFORE
+- `terrain-06-water.png` used faint gray banding that read like generic “scanlines” instead of water.
+- Terrain tiles are generated assets but are not wired into the runtime board yet, so this tile wasn’t providing any usable “water” read in-game.
+
+### NOW
+- `makeTileWater1024()` uses an opaque pale-blue slab plus deterministic “current lanes” and hard-edged highlight rails (no curves/no gradients), so the asset reads as water while staying in the Brutalist Constructivism language.
+
+### NEXT
+- Wire terrain tiles into the board renderer (choose how terrain data maps to `terrain-*.png`), then verify readability alongside river overlays and units at normal zoom.
+
+### Known limitations / TODOs
+- Water currently uses a single fixed palette; if we introduce biome palettes later, this should become configurable (still deterministic).
+- This is an asset-only change until terrain rendering is implemented in the UI.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-06-water.png`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Rework FOREST terrain tile to read as vegetation mass
+
+### BEFORE
+- `terrain-03-forest.png` rendered as scattered gray “barcode” fragments that didn’t communicate forest/vegetation.
+- Terrain tiles are generated assets but are not wired into the runtime board yet, so this was purely an offline asset issue.
+
+### NOW
+- `makeTileForest1024()` renders clustered canopy plates in restrained field-green tones with sparse trunk marks and a few explicit clearings (all hard-edged, no curves/no gradients) so the tile reads as forest in the project’s diagram style.
+- Adjusted the forest grid coverage and added a deterministic NE-edge fill guard so the canopy reaches the slab edges consistently (fixes the “north-east not stretched” gap).
+
+### NEXT
+- Once terrain rendering is wired into the UI, validate that forest contrast stays subordinate to units and does not clash with road/river overlays.
+
+### Known limitations / TODOs
+- Forest uses a fixed palette and cluster layout seed; if/when biome palettes exist, this should become configurable while remaining deterministic.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-03-forest.png`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Rework INDUSTRIAL terrain tile to read as a facility slab
+
+### BEFORE
+- `terrain-10-industrial.png` used low-contrast gray fragments that didn’t read as a distinct “industrial facility” surface.
+- Terrain tiles are generated assets but are not wired into the runtime board yet, so this was an offline asset issue.
+
+### NOW
+- `makeTileIndustrial1024()` renders a structured facility footprint: a darker pad field, two long bays, a heavy core block, service cutouts, perimeter seams, paired rail channels, and sparse bolt/vent marks (flat plates only; no curves/no gradients).
+
+### NEXT
+- Once terrain rendering is wired into the UI, verify this doesn’t compete with unit silhouettes and still reads under overlays.
+
+### Known limitations / TODOs
+- Industrial palette is fixed; if we introduce palette theming later, keep it deterministic and configurable.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-10-industrial.png`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Ensure terrain biome generation always produces some FOREST
+
+### BEFORE
+- With `NEXT_PUBLIC_TERRAIN_DEBUG=true`, some seeds/boards could produce **zero** `FOREST` cells after smoothing + minimum-region pruning, making the map look like it “never” contains forest in debug.
+
+### NOW
+- `generateTerrainBiomes()` applies a deterministic “forest presence guard”: if the biome grid ends up with 0 `FOREST`, it seeds at least one forest cell and grows/backfills a small cluster near the highest-moisture area (avoiding protected types and road/river cells).
+- `createInitialGameState()` now mirrors the worker/UI bootstrap by generating both networks and biomes (so any non-worker code path gets the same biome behavior).
+
+### NEXT
+- Tune biome thresholds once terrain affects gameplay (movement/LOS), but keep generation deterministic and UI-agnostic.
+
+### Known limitations / TODOs
+- This guard is only a minimum; it does not attempt to hit a target forest percentage.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`, `src/lib/engine/reducer.ts`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Ensure biome generator always produces ROUGH / HILL too
+
+### BEFORE
+- Even after the forest guard, the default bootstrap seed pipeline could still yield `ROUGH: 0` and `HILL: 0` consistently (and forest could be too small to notice), making terrain debug look like those biomes “never happen”.
+
+### NOW
+- `generateTerrainBiomes()` enforces minimum counts for `FOREST`, `ROUGH`, and `HILL` by deterministically assigning the top-scoring interior `PLAIN` cells (moisture for forest, elevation for rough/hill), while still avoiding protected types and road/river cells.
+- With `NEXT_PUBLIC_TERRAIN_DEBUG=true`, terrain generation runs on the main thread (skips the worker) so debug counts/tiles don’t get “stuck” on stale worker bundles during dev iteration.
+
+### NEXT
+- When terrain impacts rules (movement/LOS), revisit this “minimum variety” rule and replace it with manual-driven gameplay requirements.
+
+### Known limitations / TODOs
+- These minimums are for visual/debug variety and do not ensure coherent large regions.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- UI: `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Promote terrain debug palette into semantic colors
+
+### BEFORE
+- Terrain debug colors existed only inside `src/lib/ui/terrain.ts`, so other UI surfaces couldn’t reuse the same palette consistently.
+
+### NOW
+- The terrain debug palette lives in `src/lib/ui/semanticColors.ts` (`terrainDebugColors`) and `src/lib/ui/terrain.ts` consumes it for `TERRAIN_DEBUG_COLORS`.
+
+### NEXT
+- Use `terrainDebugColors` anywhere we need consistent biome visualization (legends, debug overlays, tooling).
+
+### Known limitations / TODOs
+- This is dev-only presentation; it does not affect gameplay rules.
+
+### Files touched
+- UI: `src/lib/ui/semanticColors.ts`, `src/lib/ui/terrain.ts`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-05 — Add deterministic terrain biomes + tile rendering
+
+### BEFORE
+- The runtime board rendered a single `ground.png` everywhere; roads/rivers were present but base terrain types were not generated or displayed.
+- Terrain noise, settlements, and cleanup rules did not exist, so no coherent biome regions were possible.
+
+### NOW
+- A deterministic biome generator assigns PLAIN/ROUGH/FOREST/URBAN/INDUSTRIAL/HILL/WATER per cell using seeded scalar fields, river/road inputs, settlement clusters, and cleanup passes.
+- The isometric board renders per-cell terrain tiles (`terrain-*.png`) with roads/rivers/bridges layered on top.
+- A dev-only terrain debug overlay + stats output can be enabled with `NEXT_PUBLIC_TERRAIN_DEBUG=true`.
+
+### NEXT
+- Tune biome thresholds against real playtests and decide how terrain types affect movement/combat rules.
+
+### Known limitations / TODOs
+- Terrain effects are visual-only; movement and combat ignore terrain modifiers.
+- Biome thresholds are tuned for 20×30 and may need scaling rules for other map sizes.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`, `src/lib/engine/gameState.ts`, `src/lib/engine/reducer.ts`
+- UI: `src/components/IsometricBoard.tsx`, `src/app/page.tsx`, `src/lib/ui/terrain.ts`
+- Worker: `src/workers/terrainWorker.ts`
+- Docs: `docs/engine.md`, `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-05 — Suppress biome tiles under road/river overlays
+
+### BEFORE
+- Road and river cells could still render non-plain biome tiles (e.g., forest/rough/water), which made overlays look busy.
+
+### NOW
+- Road and river cells are forced back to `PLAIN` after biome generation so network overlays remain clean and legible.
+
+### NEXT
+- Reassess biome coverage targets once the simplified overlay baseline is validated in playtests.
+
+### Known limitations / TODOs
+- Water still appears adjacent to rivers via controlled widening; only the river cells themselves are forced to `PLAIN`.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Docs: `docs/engine.md`, `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Card draw overlay reveal + tween
+
+### BEFORE
+- Drawing a card updated the pending card panel instantly with no reveal or motion cue.
+
+### NOW
+- Drawing a card triggers a floating command-console header plus a huge centered card render while the rest of the UI stays visible.
+- The card snaps into the pending card slot via a deterministic tween (or a short static reveal with reduced motion).
+- The overlay uses only hard-edged frames/plates and flat fills in compliance with the UI doctrine.
+- Timing is adjustable via `cardDrawOverlayTiming` in `src/lib/settings.ts`.
+- The pending card art swaps to a blank placeholder while the overlay is active to avoid double renders.
+- The tween now scales uniformly to avoid horizontal squeezing before the slot swap.
+- Added a 300ms flat-color flash (black → white → red) at reveal start, skipped when reduced motion is enabled.
+
+### NEXT
+- Add an optional "skip reveal" interaction for power users if the animation ever feels too slow.
+
+### Known limitations / TODOs
+- If the pending card slot is not visible (mobile console closed), the overlay clears without a tween target.
+- The reveal is visual-only and does not block gameplay state changes beyond its short on-screen duration.
+
+### Files touched
+- UI: `src/app/page.tsx`, `src/components/OpsConsole.tsx`, `src/components/ui/CardDrawOverlay.tsx`, `src/lib/ui/CardArt.tsx`
+- Docs: `docs/card-draw-overlay.md`, `docs/progress.md`

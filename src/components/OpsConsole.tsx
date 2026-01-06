@@ -29,6 +29,7 @@ type OpsConsoleProps = {
     canDrawCard: boolean;
     activePlayer: string;
     turn: number;
+    suppressPendingArt?: boolean;
     isPendingTargeting: boolean;
     isTacticTargeting: boolean;
     pendingTargetingSpec: TargetingSpec | null;
@@ -112,6 +113,7 @@ export default function OpsConsole({
                                        canDrawCard,
                                        activePlayer,
                                        turn,
+                                       suppressPendingArt = false,
                                        isPendingTargeting,
                                        isTacticTargeting,
                                        pendingTargetingSpec,
@@ -282,12 +284,27 @@ export default function OpsConsole({
                                             alignItems: "start",
                                         }}
                                     >
-                                        <Box sx={{maxWidth: {xs: "100%", sm: 140}}}>
-                                            <CardArt
-                                                card={pendingCard}
-                                                label={`Art for ${pendingCard.name}`}
-                                                maxWidth={140}
-                                            />
+                                        <Box
+                                            sx={{maxWidth: {xs: "100%", sm: 140}}}
+                                            data-pending-card-slot="true"
+                                            data-card-id={pendingCard.id}
+                                        >
+                                            {suppressPendingArt ? (
+                                                <Box
+                                                    sx={{
+                                                        width: "100%",
+                                                        aspectRatio: "2 / 3",
+                                                        border: "2px solid #1B1B1B",
+                                                        backgroundColor: "var(--surface2)",
+                                                    }}
+                                                />
+                                            ) : (
+                                                <CardArt
+                                                    card={pendingCard}
+                                                    label={`Art for ${pendingCard.name}`}
+                                                    maxWidth={140}
+                                                />
+                                            )}
                                         </Box>
                                         <Box
                                             sx={{

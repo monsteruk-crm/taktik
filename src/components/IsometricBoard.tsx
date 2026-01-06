@@ -1,8 +1,9 @@
 import Box from "@mui/material/Box";
-import type { GameState } from "@/lib/engine/gameState";
+import type { GameState, TerrainType } from "@/lib/engine/gameState";
 import { posKey } from "@/lib/engine/selectors";
 import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_LAYOUT } from "@/lib/ui/iso";
 import { edgeKey, mergeNetworks } from "@/lib/ui/networks";
+import { TERRAIN_DEBUG_TILE_SRC, TERRAIN_TILE_SRC } from "@/lib/ui/terrain";
 
 type IsometricBoardProps = {
   state: GameState;
@@ -11,6 +12,7 @@ type IsometricBoardProps = {
   moveRange: { x: number; y: number }[];
   targetableTiles: { x: number; y: number }[];
   attackableTiles: { x: number; y: number }[];
+  showTerrainDebug?: boolean;
 };
 
 export default function IsometricBoard({
@@ -20,6 +22,7 @@ export default function IsometricBoard({
   moveRange,
   targetableTiles,
   attackableTiles,
+  showTerrainDebug = false,
 }: IsometricBoardProps) {
   const width = state.boardWidth;
   const height = state.boardHeight;
@@ -54,13 +57,18 @@ export default function IsometricBoard({
       const riverKey = edgeKey(connectors?.river);
       const roadSrc = roadKey ? `/assets/tiles/networks/road_${roadKey}.png` : null;
       const riverSrc = riverKey ? `/assets/tiles/networks/river_${riverKey}.png` : null;
+      const terrainType =
+        state.terrain.biomes[y]?.[x] ?? ("PLAIN" as TerrainType);
+      const baseSrc = showTerrainDebug
+        ? TERRAIN_DEBUG_TILE_SRC[terrainType]
+        : TERRAIN_TILE_SRC[terrainType];
       tiles.push(
         <Box
           key={`tile-${x}-${y}`}
           component="img"
           draggable={false}
           alt="Ground tile"
-          src="/assets/tiles/ground.png"
+          src={baseSrc}
           onDragStart={(event) => {
             event.preventDefault();
           }}

@@ -142,6 +142,24 @@ If the unit cannot be identified as:
 
 ---
 
+## Unit-class shaping rules (strong hints, not decoration)
+
+* **Light infantry**
+  Slim proportions, visible legs, upright stance, clear head–torso separation
+
+* **Special operations**
+  Same anatomy, but asymmetry in shoulders or arms, some tech details
+
+* **Motorized**
+  Long chassis, raised cabin, rear payload block — reads horizontally
+
+* **Armored**
+  Very wide chassis, low profile, dominant central mass
+
+* **Artillery**
+  Rear-heavy silhouette, long rear block, elevated firing mass
+
+
 ## Output requirements
 
 * Separate named objects (NOT merged)
@@ -154,22 +172,6 @@ If the unit cannot be identified as:
 
 ---
 
-## Unit-class shaping rules (strong hints, not decoration)
-
-* **Light infantry**
-  Slim proportions, visible legs, upright stance, clear head–torso separation
-
-* **Special operations**
-  Same anatomy, but asymmetry in shoulders or arms, heavier upper mass
-
-* **Motorized**
-  Long chassis, raised cabin, rear payload block — reads horizontally
-
-* **Armored**
-  Very wide chassis, low profile, dominant central mass
-
-* **Artillery**
-  Rear-heavy silhouette, long rear block, elevated firing mass
 
 ---
 

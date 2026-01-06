@@ -1,4 +1,4 @@
-import type { BoardCell } from "./gameState";
+import type { BoardCell, TerrainBiomeStats, TerrainType } from "./gameState";
 
 const DIRECTIONS = [
   { key: "N", dx: 0, dy: -1 },
@@ -1192,4 +1192,637 @@ function riverZigZagPenalty(
   }
 
   return 0;
+}
+
+export const TERRAIN_TYPES: TerrainType[] = [
+  "PLAIN",
+  "ROUGH",
+  "FOREST",
+  "URBAN",
+  "INDUSTRIAL",
+  "HILL",
+  "WATER",
+];
+
+type TerrainBiomeResult = {
+  biomes: TerrainType[][];
+  stats: TerrainBiomeStats;
+  nextSeed: number;
+};
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function smoothstep(t: number) {
+  return t * t * (3 - 2 * t);
+}
+
+function hash2d(x: number, y: number, seed: number) {
+  let h = (x * 374761393 + y * 668265263 + seed * 1442695041) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 1274126177) >>> 0;
+  h ^= h >>> 16;
+  return h / 0x100000000;
+}
+
+function valueNoise(x: number, y: number, scale: number, seed: number) {
+  const sx = x / scale;
+  const sy = y / scale;
+  const x0 = Math.floor(sx);
+  const y0 = Math.floor(sy);
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const tx = smoothstep(sx - x0);
+  const ty = smoothstep(sy - y0);
+  const v00 = hash2d(x0, y0, seed);
+  const v10 = hash2d(x1, y0, seed);
+  const v01 = hash2d(x0, y1, seed);
+  const v11 = hash2d(x1, y1, seed);
+  const ix0 = lerp(v00, v10, tx);
+  const ix1 = lerp(v01, v11, tx);
+  return lerp(ix0, ix1, ty);
+}
+
+function fbmNoise(x: number, y: number, seed: number, baseScale: number, octaves: number) {
+  let value = 0;
+  let amplitude = 0.55;
+  let scale = baseScale;
+  let max = 0;
+  for (let i = 0; i < octaves; i += 1) {
+    value += amplitude * valueNoise(x, y, scale, seed + i * 1013);
+    max += amplitude;
+    amplitude *= 0.5;
+    scale = Math.max(1, scale * 0.5);
+  }
+  return clamp(value / max, 0, 1);
+}
+
+function buildGrid(width: number, height: number, fill: TerrainType): TerrainType[][] {
+  return Array.from({ length: height }, () => Array.from({ length: width }, () => fill));
+}
+
+function collectSetFromCells(cells: BoardCell[]) {
+  const set = new Set<string>();
+  for (const cell of cells) {
+    set.add(keyOf(cell));
+  }
+  return set;
+}
+
+function isNearSet(
+  cell: BoardCell,
+  set: Set<string>,
+  width: number,
+  height: number,
+  radius: number
+) {
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      const nx = cell.x + dx;
+      const ny = cell.y + dy;
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      if (set.has(`${nx},${ny}`)) return true;
+    }
+  }
+  return false;
+}
+
+function countNeighborsOfType(
+  biomes: TerrainType[][],
+  width: number,
+  height: number,
+  cell: BoardCell,
+  type: TerrainType,
+  useDiagonal: boolean
+) {
+  let count = 0;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) continue;
+      if (!useDiagonal && Math.abs(dx) + Math.abs(dy) !== 1) continue;
+      const nx = cell.x + dx;
+      const ny = cell.y + dy;
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      if (biomes[ny]?.[nx] === type) count += 1;
+    }
+  }
+  return count;
+}
+
+function pickWeightedCell(
+  rng: ReturnType<typeof makeRng>,
+  weighted: Array<{ cell: BoardCell; weight: number }>
+) {
+  if (!weighted.length) return { x: 0, y: 0 };
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  if (total <= 0) return weighted[rng.int(0, weighted.length - 1)]?.cell ?? { x: 0, y: 0 };
+  let roll = rng.float() * total;
+  for (const entry of weighted) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.cell;
+  }
+  return weighted[weighted.length - 1]!.cell;
+}
+
+function growSettlementCluster(args: {
+  seed: BoardCell;
+  targetSize: number;
+  width: number;
+  height: number;
+  rng: ReturnType<typeof makeRng>;
+  blocked: Set<string>;
+  road: Set<string>;
+}): Set<string> {
+  const { seed, targetSize, width, height, rng, blocked, road } = args;
+  const cluster = new Set<string>();
+  const frontier: BoardCell[] = [];
+  const seedKey = keyOf(seed);
+  if (blocked.has(seedKey)) return cluster;
+  cluster.add(seedKey);
+  frontier.push(seed);
+  while (frontier.length && cluster.size < targetSize) {
+    const current = frontier.shift()!;
+    const scored = neighbors(current, width, height)
+      .map((n) => n.cell)
+      .filter((n) => !blocked.has(keyOf(n)) && !cluster.has(keyOf(n)))
+      .map((n) => {
+        const key = keyOf(n);
+        const touchesRoad = road.has(key);
+        const nearRoad = isNearSet(n, road, width, height, 1);
+        const score = (touchesRoad ? 3 : 0) + (nearRoad ? 2 : 0);
+        return { cell: n, score };
+      })
+      .sort((a, b) => {
+        if (a.score !== b.score) return b.score - a.score;
+        if (a.cell.y !== b.cell.y) return a.cell.y - b.cell.y;
+        return a.cell.x - b.cell.x;
+      });
+    const ordered = scored.map((entry) => entry.cell);
+    for (const next of ordered) {
+      if (cluster.size >= targetSize) break;
+      const key = keyOf(next);
+      if (blocked.has(key) || cluster.has(key)) continue;
+      cluster.add(key);
+      frontier.push(next);
+    }
+  }
+  return cluster;
+}
+
+function enforceMinimumRegionSize(args: {
+  biomes: TerrainType[][];
+  width: number;
+  height: number;
+  target: TerrainType;
+  minSize: number;
+  protectedTypes: Set<TerrainType>;
+}) {
+  const { biomes, width, height, target, minSize, protectedTypes } = args;
+  const visited = new Set<string>();
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const key = `${x},${y}`;
+      if (visited.has(key)) continue;
+      if (biomes[y]?.[x] !== target) continue;
+      const stack: BoardCell[] = [{ x, y }];
+      const component: BoardCell[] = [];
+      visited.add(key);
+      while (stack.length) {
+        const current = stack.pop()!;
+        component.push(current);
+        for (const { cell: n } of neighbors(current, width, height)) {
+          const nk = keyOf(n);
+          if (visited.has(nk)) continue;
+          if (biomes[n.y]?.[n.x] !== target) continue;
+          visited.add(nk);
+          stack.push(n);
+        }
+      }
+      if (component.length >= minSize) continue;
+      const neighborCounts = new Map<TerrainType, number>();
+      for (const cell of component) {
+        for (const { cell: n } of neighbors(cell, width, height)) {
+          const type = biomes[n.y]![n.x]!;
+          if (type === target) continue;
+          if (protectedTypes.has(type)) continue;
+          neighborCounts.set(type, (neighborCounts.get(type) ?? 0) + 1);
+        }
+      }
+      let replacement: TerrainType = "PLAIN";
+      let best = 0;
+      for (const [type, count] of neighborCounts.entries()) {
+        if (count > best) {
+          best = count;
+          replacement = type;
+        }
+      }
+      for (const cell of component) {
+        biomes[cell.y]![cell.x] = replacement;
+      }
+    }
+  }
+}
+
+export function computeTerrainStats(biomes: TerrainType[][]): TerrainBiomeStats {
+  const height = biomes.length;
+  const width = biomes[0]?.length ?? 0;
+  const counts: Record<TerrainType, number> = {
+    PLAIN: 0,
+    ROUGH: 0,
+    FOREST: 0,
+    URBAN: 0,
+    INDUSTRIAL: 0,
+    HILL: 0,
+    WATER: 0,
+  };
+  const regions: Record<TerrainType, number> = {
+    PLAIN: 0,
+    ROUGH: 0,
+    FOREST: 0,
+    URBAN: 0,
+    INDUSTRIAL: 0,
+    HILL: 0,
+    WATER: 0,
+  };
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const type = biomes[y]?.[x] ?? "PLAIN";
+      counts[type] += 1;
+    }
+  }
+  const visited = new Set<string>();
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const type = biomes[y]?.[x];
+      const key = `${x},${y}`;
+      if (!type || visited.has(key)) continue;
+      regions[type] += 1;
+      const stack: BoardCell[] = [{ x, y }];
+      visited.add(key);
+      while (stack.length) {
+        const current = stack.pop()!;
+        for (const { cell: n } of neighbors(current, width, height)) {
+          const nk = keyOf(n);
+          if (visited.has(nk)) continue;
+          if (biomes[n.y]?.[n.x] !== type) continue;
+          visited.add(nk);
+          stack.push(n);
+        }
+      }
+    }
+  }
+  return { counts, regions };
+}
+
+export function formatTerrainStats(stats: TerrainBiomeStats) {
+  const lines = TERRAIN_TYPES.map((type) => {
+    const count = stats.counts[type];
+    const regions = stats.regions[type];
+    return `${type}: ${count} cells, ${regions} regions`;
+  });
+  return lines.join("\n");
+}
+
+export function generateTerrainBiomes(args: {
+  width: number;
+  height: number;
+  seed: number;
+  rivers: BoardCell[];
+  roads: BoardCell[];
+}): TerrainBiomeResult {
+  const { width, height } = args;
+  const rng = makeRng(args.seed);
+  const riverSet = collectSetFromCells(args.rivers);
+  const roadSet = collectSetFromCells(args.roads);
+  const bridgeSet = new Set<string>();
+  for (const k of riverSet) {
+    if (roadSet.has(k)) bridgeSet.add(k);
+  }
+
+  const biomes = buildGrid(width, height, "PLAIN");
+  const baseScale = Math.max(width, height) * 0.4;
+  const elevation: number[][] = [];
+  const moisture: number[][] = [];
+  for (let y = 0; y < height; y += 1) {
+    const elevationRow: number[] = [];
+    const moistureRow: number[] = [];
+    for (let x = 0; x < width; x += 1) {
+      elevationRow.push(fbmNoise(x, y, rng.seed() + 71, baseScale, 3));
+      moistureRow.push(fbmNoise(x + 17, y + 29, rng.seed() + 131, baseScale, 3));
+    }
+    elevation.push(elevationRow);
+    moisture.push(moistureRow);
+  }
+
+  for (const k of riverSet) {
+    const { x, y } = parseKey(k);
+    biomes[y]![x] = "WATER";
+  }
+
+  const riverDeg = computeDegrees(riverSet, width, height);
+  for (const k of riverSet) {
+    const deg = riverDeg.get(k) ?? 0;
+    if (deg < 2) continue;
+    const isStraight = isStraightCell(k, riverSet);
+    const shouldWiden = deg >= 3 || !isStraight;
+    if (!shouldWiden) continue;
+    const { x, y } = parseKey(k);
+    const neighborsList = neighbors({ x, y }, width, height)
+      .map((n) => n.cell)
+      .filter((n) => !riverSet.has(keyOf(n)) && !roadSet.has(keyOf(n)));
+    if (!neighborsList.length) continue;
+    neighborsList.sort((a, b) => {
+      const ea = elevation[a.y]?.[a.x] ?? 0;
+      const eb = elevation[b.y]?.[b.x] ?? 0;
+      if (ea !== eb) return ea - eb;
+      if (a.y !== b.y) return a.y - b.y;
+      return a.x - b.x;
+    });
+    const pick = neighborsList[0]!;
+    biomes[pick.y]![pick.x] = "WATER";
+  }
+
+  const hillThreshold = 0.72;
+  const roughThreshold = 0.52;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (biomes[y]?.[x] === "WATER") continue;
+      const elev = elevation[y]?.[x] ?? 0;
+      if (elev >= hillThreshold) {
+        biomes[y]![x] = "HILL";
+      } else if (elev >= roughThreshold) {
+        biomes[y]![x] = "ROUGH";
+      }
+    }
+  }
+
+  const forestThreshold = 0.62;
+  const forestCandidates = buildGrid(width, height, "PLAIN");
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (biomes[y]?.[x] === "WATER") continue;
+      const moist = moisture[y]?.[x] ?? 0;
+      if (moist >= forestThreshold) {
+        forestCandidates[y]![x] = "FOREST";
+      }
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (biomes[y]?.[x] === "WATER") continue;
+      const moist = moisture[y]?.[x] ?? 0;
+      if (moist < forestThreshold - 0.08) continue;
+      const cell = { x, y };
+      const nearWater = isNearSet(cell, riverSet, width, height, 2);
+      const onRough = biomes[y]?.[x] === "ROUGH";
+      const forestNeighbors = countNeighborsOfType(
+        forestCandidates,
+        width,
+        height,
+        cell,
+        "FOREST",
+        true
+      );
+      if ((nearWater || onRough) && forestNeighbors >= 2) {
+        forestCandidates[y]![x] = "FOREST";
+      }
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (forestCandidates[y]?.[x] === "FOREST") {
+        biomes[y]![x] = "FOREST";
+      }
+    }
+  }
+
+  const intersectionKeys = new Set<string>();
+  const roadDeg = computeDegrees(roadSet, width, height);
+  for (const [k, d] of roadDeg.entries()) {
+    if (d >= 3) intersectionKeys.add(k);
+  }
+  const weightedCandidates: Array<{ cell: BoardCell; weight: number }> = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const key = `${x},${y}`;
+      if (biomes[y]?.[x] === "WATER") continue;
+      const roadHere = roadSet.has(key);
+      const intersection = intersectionKeys.has(key);
+      const bridge = bridgeSet.has(key);
+      const nearRoad = isNearSet({ x, y }, roadSet, width, height, 1);
+      const weight =
+        1 +
+        (roadHere ? 1.5 : 0) +
+        (nearRoad ? 1 : 0) +
+        (intersection ? 3 : 0) +
+        (bridge ? 2 : 0);
+      weightedCandidates.push({ cell: { x, y }, weight });
+    }
+  }
+
+  const area = width * height;
+  const urbanCount = clamp(Math.round(area / 220), 2, 4);
+  const industrialCount = clamp(Math.round(area / 300), 1, 3);
+  const minSeedDist = Math.max(4, Math.floor(Math.min(width, height) / 6));
+  const settlementSeeds: BoardCell[] = [];
+  if (weightedCandidates.length) {
+    let tries = 0;
+    while (settlementSeeds.length < urbanCount + industrialCount && tries < 400) {
+      tries += 1;
+      const candidate = pickWeightedCell(rng, weightedCandidates);
+      const key = keyOf(candidate);
+      if (biomes[candidate.y]?.[candidate.x] === "WATER") continue;
+      if (riverSet.has(key)) continue;
+      const tooClose = settlementSeeds.some((seed) => manhattan(seed, candidate) < minSeedDist);
+      if (tooClose) continue;
+      settlementSeeds.push(candidate);
+    }
+  }
+  const urbanSeeds = settlementSeeds.slice(0, urbanCount);
+  const industrialSeeds = settlementSeeds.slice(urbanCount);
+
+  const protectedTypes = new Set<TerrainType>(["WATER", "URBAN", "INDUSTRIAL"]);
+  const protectedCells = new Set<string>();
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (biomes[y]?.[x] === "WATER") protectedCells.add(`${x},${y}`);
+    }
+  }
+  for (const k of bridgeSet) protectedCells.add(k);
+
+  for (const seed of urbanSeeds) {
+    const radius = rng.int(2, 4);
+    const targetSize = rng.int(radius * 2 + 2, radius * radius + radius * 2);
+    const cluster = growSettlementCluster({
+      seed,
+      targetSize,
+      width,
+      height,
+      rng,
+      blocked: protectedCells,
+      road: roadSet,
+    });
+    for (const k of cluster) {
+      const { x, y } = parseKey(k);
+      biomes[y]![x] = "URBAN";
+      protectedCells.add(k);
+    }
+  }
+
+  for (const seed of industrialSeeds) {
+    const radius = rng.int(2, 3);
+    const targetSize = rng.int(radius * 2 + 1, radius * radius + radius + 2);
+    const cluster = growSettlementCluster({
+      seed,
+      targetSize,
+      width,
+      height,
+      rng,
+      blocked: protectedCells,
+      road: roadSet,
+    });
+    for (const k of cluster) {
+      const { x, y } = parseKey(k);
+      biomes[y]![x] = "INDUSTRIAL";
+      protectedCells.add(k);
+    }
+  }
+
+  const smoothingPasses = 2;
+  for (let pass = 0; pass < smoothingPasses; pass += 1) {
+    const next = buildGrid(width, height, "PLAIN");
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const current = biomes[y]![x]!;
+        if (protectedTypes.has(current)) {
+          next[y]![x] = current;
+          continue;
+        }
+        const counts = new Map<TerrainType, number>();
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            const type = biomes[ny]![nx]!;
+            if (protectedTypes.has(type)) continue;
+            counts.set(type, (counts.get(type) ?? 0) + 1);
+          }
+        }
+        let best = current;
+        let bestCount = 0;
+        for (const [type, count] of counts.entries()) {
+          if (count > bestCount) {
+            best = type;
+            bestCount = count;
+          }
+        }
+        next[y]![x] = bestCount >= 5 ? best : current;
+      }
+    }
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        biomes[y]![x] = next[y]![x]!;
+      }
+    }
+  }
+
+  enforceMinimumRegionSize({
+    biomes,
+    width,
+    height,
+    target: "FOREST",
+    minSize: 10,
+    protectedTypes,
+  });
+  enforceMinimumRegionSize({
+    biomes,
+    width,
+    height,
+    target: "ROUGH",
+    minSize: 8,
+    protectedTypes,
+  });
+  enforceMinimumRegionSize({
+    biomes,
+    width,
+    height,
+    target: "HILL",
+    minSize: 6,
+    protectedTypes,
+  });
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (x !== 0 && y !== 0 && x !== width - 1 && y !== height - 1) continue;
+      const current = biomes[y]![x]!;
+      if (protectedTypes.has(current)) continue;
+      biomes[y]![x] = "PLAIN";
+    }
+  }
+
+  for (const cell of args.roads) {
+    if (biomes[cell.y]?.[cell.x]) {
+      biomes[cell.y]![cell.x] = "PLAIN";
+    }
+  }
+  for (const cell of args.rivers) {
+    if (biomes[cell.y]?.[cell.x]) {
+      biomes[cell.y]![cell.x] = "PLAIN";
+    }
+  }
+
+  // Guard: ensure at least one meaningful forest region exists for the current
+  // seed/board size. Without this, some seeds can collapse FOREST to zero after
+  // smoothing + minimum-region pruning, which makes terrain debug mode look "never forest".
+  const minForest = Math.max(18, Math.round((width * height) / 70));
+  const minRough = Math.max(10, Math.round((width * height) / 120));
+  const minHill = Math.max(8, Math.round((width * height) / 150));
+
+  function ensureMinimumCells(args: {
+    type: TerrainType;
+    minCount: number;
+    scoreOf: (cell: BoardCell) => number;
+  }) {
+    const { type, minCount, scoreOf } = args;
+    const have = computeTerrainStats(biomes).counts[type];
+    if (have >= minCount) return;
+
+    const candidates: BoardCell[] = [];
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const current = biomes[y]![x]!;
+        if (current !== "PLAIN") continue;
+        if (protectedTypes.has(current)) continue;
+        const key = `${x},${y}`;
+        if (roadSet.has(key) || riverSet.has(key)) continue;
+        candidates.push({ x, y });
+      }
+    }
+
+    candidates.sort((l, r) => {
+      const sl = scoreOf(l);
+      const sr = scoreOf(r);
+      if (sl !== sr) return sr - sl;
+      if (l.y !== r.y) return l.y - r.y;
+      return l.x - r.x;
+    });
+
+    let placed = have;
+    for (const cell of candidates) {
+      if (placed >= minCount) break;
+      biomes[cell.y]![cell.x] = type;
+      placed += 1;
+    }
+  }
+
+  // Minimum biome variety for debug/presentation (keeps determinism, avoids protected cells).
+  ensureMinimumCells({ type: "HILL", minCount: minHill, scoreOf: (c) => elevation[c.y]?.[c.x] ?? 0 });
+  ensureMinimumCells({ type: "ROUGH", minCount: minRough, scoreOf: (c) => elevation[c.y]?.[c.x] ?? 0 });
+  ensureMinimumCells({ type: "FOREST", minCount: minForest, scoreOf: (c) => moisture[c.y]?.[c.x] ?? 0 });
+
+  const stats = computeTerrainStats(biomes);
+  return { biomes, stats, nextSeed: rng.seed() };
 }

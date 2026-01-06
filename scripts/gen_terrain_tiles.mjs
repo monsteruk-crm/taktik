@@ -414,7 +414,7 @@ function makeBridgeOverlayTopFace({ widthPx, color }) {
 
   return png;
 }
-
+//terrain-01-plain
 function makeTilePlain1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -489,7 +489,7 @@ function makeRng(seed) {
     },
   };
 }
-
+// terrain-02-rough
 function makeTileRough1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -591,7 +591,7 @@ function makeTileRough1024() {
 
   return png;
 }
-
+// terrain-03-forest
 function makeTileForest1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -617,15 +617,19 @@ function makeTileForest1024() {
   const topFill = [232, 232, 228, 255];
   const sideFillRight = [210, 210, 206, 255];
   const sideFillLeft = [204, 204, 200, 255];
-  const trunkA = [206, 206, 202, 255];
-  const trunkB = [214, 214, 210, 255];
+  // Forest should read as "vegetation mass" in a diagrammatic, hard-edged way.
+  // Keep it restrained: desaturated field-green plates over the concrete slab.
+  const canopyLight = [220, 228, 220, 255];
+  const canopyMid = [178, 200, 178, 255];
+  const canopyDark = [126, 160, 128, 255];
+  const trunkDark = [92, 128, 96, 255];
 
   fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
   fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
   fillPolygon(png, [top, right, bottom, left], topFill);
 
-  // FOREST: dense vertical block repetition (many tall thin rectangles), staggered rows,
-  // small clear lanes. Still purely orthogonal geometry.
+  // FOREST: clustered canopy plates + sparse trunk marks + a few clearings.
+  // No curves, no gradients, no noise — just orthogonal plates on the top face.
   const a = { x: right.x - top.x, y: right.y - top.y };
   const b = { x: left.x - top.x, y: left.y - top.y };
 
@@ -640,49 +644,109 @@ function makeTileForest1024() {
 
   const rng = makeRng(0x464f5245); // "FORE"
 
-  // Define a few clear lanes (gaps) in s to keep readability.
-  const lanes = [
-    { s0: 0.26, s1: 0.32 },
-    { s0: 0.58, s1: 0.64 },
-  ];
+  const margin = 0.06;
+  const span = 0.88;
+  const cols = 18;
+  const rows = 12;
+  const cellW = span / cols;
+  const cellH = span / rows;
+  const occupancy = Array.from({ length: rows }, () => Array.from({ length: cols }, () => false));
 
-  function inLane(s) {
-    return lanes.some((l) => s >= l.s0 && s <= l.s1);
+  function markCanopyCluster({ cxCell, cyCell, rx, ry }) {
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < cols; x += 1) {
+        const dx = (x - cxCell) / rx;
+        const dy = (y - cyCell) / ry;
+        const d = Math.abs(dx) + Math.abs(dy); // diamond metric for hard-edged clusters
+        if (d > 1.02) continue;
+
+        // Break the perimeter slightly so clusters don't read as a perfect stamp.
+        if (d > 0.82 && rng.float() < 0.35) continue;
+        occupancy[y][x] = true;
+      }
+    }
   }
 
-  const rowCount = 12;
-  for (let row = 0; row < rowCount; row += 1) {
-    const t0 = 0.08 + (row / rowCount) * 0.84;
-    const rowH = rng.range(0.035, 0.055);
-    const t1 = Math.min(0.92, t0 + rowH);
+  // 4–6 canopy clusters that read as "forest patches" at zoom.
+  const clusterCount = rng.int(4, 6);
+  for (let i = 0; i < clusterCount; i += 1) {
+    markCanopyCluster({
+      cxCell: rng.int(3, cols - 4),
+      cyCell: rng.int(2, rows - 3),
+      rx: rng.range(2.6, 4.6),
+      ry: rng.range(2.2, 4.0),
+    });
+  }
 
-    const stagger = (row % 2) * rng.range(0.010, 0.020);
-    let s = 0.08 + stagger;
-    while (s < 0.92) {
-      if (inLane(s)) {
-        s += 0.05;
-        continue;
+  function areaFillRatio(x0, x1, y0, y1) {
+    const xs = Math.max(0, Math.floor(x0));
+    const xe = Math.min(cols - 1, Math.ceil(x1));
+    const ys = Math.max(0, Math.floor(y0));
+    const ye = Math.min(rows - 1, Math.ceil(y1));
+    let filled = 0;
+    let total = 0;
+    for (let y = ys; y <= ye; y += 1) {
+      for (let x = xs; x <= xe; x += 1) {
+        total += 1;
+        if (occupancy[y][x]) filled += 1;
       }
-
-      const w = rng.range(0.010, 0.020);
-      const hBoost = rng.range(0.020, 0.060);
-      const tTall0 = Math.max(0.06, t0 - hBoost * 0.6);
-      const tTall1 = Math.min(0.94, t1 + hBoost * 0.4);
-      const s0 = s;
-      const s1 = Math.min(0.94, s + w);
-
-      // Density zones: occasionally skip to create micro-lanes.
-      if (rng.float() > 0.12) {
-        fillPolygon(png, rectOnTopFace(s0, s1, tTall0, tTall1), rng.pick([trunkA, trunkB]));
-      }
-
-      s += w + rng.range(0.006, 0.014);
     }
+    return total ? filled / total : 0;
+  }
+
+  // Ensure the canopy reaches all edges. The NE edge is easy to under-fill when
+  // clusters land mostly center/left; add a deterministic corrective cluster if needed.
+  const neRatio = areaFillRatio(cols - 6, cols - 1, 0, 3);
+  if (neRatio < 0.18) {
+    markCanopyCluster({ cxCell: cols - 3, cyCell: 2, rx: 3.6, ry: 2.8 });
+  }
+
+  // Paint canopy plates (blocky, restrained palette).
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
+      if (!occupancy[y][x]) continue;
+
+      const s0 = margin + x * cellW + cellW * 0.06;
+      const s1 = margin + (x + 1) * cellW - cellW * 0.06;
+      const t0 = margin + y * cellH + cellH * 0.06;
+      const t1 = margin + (y + 1) * cellH - cellH * 0.06;
+
+      const fill = rng.pick([canopyMid, canopyMid, canopyLight, canopyDark]);
+      fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), fill);
+
+      // Occasional intra-cell notch: a tiny clearing to avoid solid carpets.
+      if (rng.float() < 0.10) {
+        const notchW = cellW * rng.range(0.22, 0.34);
+        const notchH = cellH * rng.range(0.22, 0.34);
+        const ns0 = s0 + cellW * rng.range(0.08, 0.55);
+        const nt0 = t0 + cellH * rng.range(0.10, 0.55);
+        fillPolygon(png, rectOnTopFace(ns0, ns0 + notchW, nt0, nt0 + notchH), topFill);
+      }
+
+      // Trunk marks: thin dark plates inside canopy cells (sparingly).
+      if (rng.float() < 0.30) {
+        const trunkS0 = s0 + (s1 - s0) * rng.range(0.35, 0.55);
+        const trunkS1 = trunkS0 + (s1 - s0) * rng.range(0.14, 0.20);
+        const trunkT0 = t0 + (t1 - t0) * rng.range(0.10, 0.20);
+        const trunkT1 = t0 + (t1 - t0) * rng.range(0.78, 0.92);
+        fillPolygon(png, rectOnTopFace(trunkS0, trunkS1, trunkT0, trunkT1), trunkDark);
+      }
+    }
+  }
+
+  // A few clearings (explicit, readable voids).
+  const clearingCount = rng.int(2, 3);
+  for (let i = 0; i < clearingCount; i += 1) {
+    const w = rng.range(0.12, 0.22);
+    const h = rng.range(0.08, 0.16);
+    const s0 = rng.range(0.12, 0.88 - w);
+    const t0 = rng.range(0.12, 0.88 - h);
+    fillPolygon(png, rectOnTopFace(s0, s0 + w, t0, t0 + h), topFill);
   }
 
   return png;
 }
-
+// terrain-04-urban
 function makeTileUrban1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -786,7 +850,7 @@ function makeTileUrban1024() {
 
   return png;
 }
-
+// terrain-05-hill
 function makeTileHill1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -834,7 +898,7 @@ function makeTileHill1024() {
 
   return png;
 }
-
+// terrain-06-water
 function makeTileWater1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -857,17 +921,20 @@ function makeTileWater1024() {
   const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
   const left2 = { x: left.x + down.x, y: left.y + down.y };
 
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-  const bandA = [214, 214, 210, 255];
-  const bandB = [206, 206, 202, 255];
+  // Water needs to read as water even on a mostly-concrete board.
+  // Keep it diagrammatic: flat, hard-edged, no curves, no gradients.
+  const topFill = [219, 232, 242, 255]; // pale operational blue (opaque)
+  const sideFillRight = [198, 214, 226, 255];
+  const sideFillLeft = [190, 206, 218, 255];
+  const bandDeep = [96, 162, 188, 255];
+  const bandMid = [152, 204, 224, 255];
+  const bandShine = [238, 248, 253, 255];
 
   fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
   fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
   fillPolygon(png, [top, right, bottom, left], topFill);
 
-  // WATER: controlled banding with calm spacing, no curves; procedural surface.
+  // WATER: layered "current lanes" + hard-edged highlights (no curves, no noise).
   const a = { x: right.x - top.x, y: right.y - top.y };
   const b = { x: left.x - top.x, y: left.y - top.y };
 
@@ -881,34 +948,91 @@ function makeTileWater1024() {
   }
 
   const rng = makeRng(0x57415452); // "WATR"
-  const bandCount = 12;
-  let t = 0.10;
-  for (let i = 0; i < bandCount; i += 1) {
-    const h = rng.range(0.016, 0.026);
-    const gap = rng.range(0.010, 0.020);
-    const color = i % 2 === 0 ? bandA : bandB;
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
+  }
 
-    // Slight angle: t offset varies with s.
-    const skew = rng.pick([-0.03, -0.02, 0.02, 0.03]);
-    const sSteps = 6;
-    const sSpan = 0.82;
-    const s0Base = 0.10;
-    const step = sSpan / sSteps;
-    for (let sIdx = 0; sIdx < sSteps; sIdx += 1) {
-      const s0 = s0Base + sIdx * step;
-      const s1 = s0Base + (sIdx + 1) * step;
-      const t0 = t + skew * (sIdx / (sSteps - 1));
-      const t1 = t0 + h;
-      fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), color);
+  function drawLaneSegment({ s0, s1, t0, t1 }) {
+    const sMin = clamp01(Math.min(s0, s1));
+    const sMax = clamp01(Math.max(s0, s1));
+    const tMin = clamp01(Math.min(t0, t1));
+    const tMax = clamp01(Math.max(t0, t1));
+
+    if (sMax - sMin < 0.006 || tMax - tMin < 0.006) return;
+
+    // Base water band + thin hard-edged highlight rails (avoid "outlined boxes").
+    fillPolygon(png, rectOnTopFace(sMin, sMax, tMin, tMax), bandMid);
+
+    const h = tMax - tMin;
+    const edgeH = Math.min(0.010, Math.max(0.006, h * 0.18));
+    const railOffset = rng.range(0.0, 0.18) * (h - edgeH);
+    fillPolygon(
+      png,
+      rectOnTopFace(sMin, sMax, tMin + railOffset, tMin + railOffset + edgeH),
+      bandShine
+    );
+    fillPolygon(
+      png,
+      rectOnTopFace(sMin, sMax, tMax - edgeH - railOffset, tMax - railOffset),
+      bandDeep
+    );
+
+    // Notches: cut small gaps back to topFill to imply chop/ripple without curves/noise.
+    const notchCount = rng.int(0, 2);
+    for (let i = 0; i < notchCount; i += 1) {
+      const notchW = rng.range(0.020, 0.045);
+      const notchH = rng.range(0.010, 0.020);
+      const notchS0 = rng.range(sMin + 0.01, sMax - 0.01 - notchW);
+      const notchT0 = rng.range(tMin + 0.01, tMax - 0.01 - notchH);
+      fillPolygon(png, rectOnTopFace(notchS0, notchS0 + notchW, notchT0, notchT0 + notchH), topFill);
     }
+  }
 
-    t += h + gap;
-    if (t > 0.86) break;
+  // Main current lanes (wide, readable at board zoom).
+  const laneBases = [0.16, 0.34, 0.52, 0.70];
+  for (const base of laneBases) {
+    const laneH = rng.range(0.060, 0.088);
+    let s = 0.08 + rng.range(-0.02, 0.02);
+    let t = base + rng.range(-0.025, 0.025);
+    const segments = rng.int(7, 10);
+
+    for (let i = 0; i < segments; i += 1) {
+      const segW = rng.range(0.10, 0.18);
+      const gapW = rng.range(0.012, 0.032);
+      const drift = rng.pick([-0.016, -0.010, -0.006, 0.006, 0.010, 0.016]);
+
+      // Leave occasional holes so the surface doesn't become a barcode slab.
+      if (rng.float() > 0.16) {
+        drawLaneSegment({ s0: s, s1: s + segW, t0: t, t1: t + laneH });
+      }
+
+      s += segW + gapW;
+      t = clamp01(t + drift);
+
+      if (s > 0.92) break;
+    }
+  }
+
+  // Secondary micro-caps (short slashes) for "ripples" without curves/noise.
+  const microCount = 20;
+  for (let i = 0; i < microCount; i += 1) {
+    const w = rng.range(0.028, 0.060);
+    const h = rng.range(0.010, 0.020);
+    const s0 = rng.range(0.10, 0.90 - w);
+    const t0 = rng.range(0.10, 0.90 - h);
+    const fill = rng.pick([bandMid, bandShine]);
+
+    // Bias some ripples to align with the current lanes.
+    if (rng.float() < 0.55) {
+      fillPolygon(png, rectOnTopFace(s0, s0 + w, t0, t0 + h), fill);
+    } else {
+      fillPolygon(png, rectOnTopFace(s0, s0 + h, t0, t0 + w), fill);
+    }
   }
 
   return png;
 }
-
+// terrain-10-industrial
 function makeTileIndustrial1024() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
@@ -935,17 +1059,20 @@ function makeTileIndustrial1024() {
   const sideFillRight = [210, 210, 206, 255];
   const sideFillLeft = [204, 204, 200, 255];
 
-  const padA = [220, 220, 216, 255];
-  const padB = [214, 214, 210, 255];
-  const padC = [206, 206, 202, 255];
-  const channel = [200, 200, 196, 255];
+  // Industrial needs higher contrast than urban/rough: it should read as "hard plant/facility".
+  // Still diagrammatic: flat plates + seams, no curves, no gradients.
+  const padLight = [218, 218, 214, 255];
+  const padMid = [198, 198, 194, 255];
+  const padDark = [172, 172, 168, 255];
+  const seam = [132, 132, 128, 255];
+  const channel = [150, 150, 146, 255];
 
   fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
   fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
   fillPolygon(png, [top, right, bottom, left], topFill);
 
-  // INDUSTRIAL: heavy asymmetric machinery footprint logic:
-  // chunky rectangles, offsets, dense clusters + a few small “service channel” lines.
+  // INDUSTRIAL: hard facility footprint with plate fields, a few heavy modules,
+  // and service corridors / rails. Mostly structured; only micro-variation.
   const a = { x: right.x - top.x, y: right.y - top.y };
   const b = { x: left.x - top.x, y: left.y - top.y };
 
@@ -959,75 +1086,63 @@ function makeTileIndustrial1024() {
   }
 
   const rng = makeRng(0x494e4455); // "INDU"
-  const palette = [padA, padB, padC];
-
-  // Main dense cluster biased toward one quadrant to read asymmetric.
-  const cluster = { s0: 0.16, s1: 0.78, t0: 0.18, t1: 0.76 };
-  const chunkyCount = 18;
-  for (let i = 0; i < chunkyCount; i += 1) {
-    const w = rng.range(0.08, 0.22);
-    const h = rng.range(0.06, 0.16);
-    let s0 = rng.range(cluster.s0, Math.max(cluster.s0, cluster.s1 - w));
-    let t0 = rng.range(cluster.t0, Math.max(cluster.t0, cluster.t1 - h));
-
-    // Offset logic: snap-ish to a coarse grid, then nudge.
-    const snap = 0.02;
-    s0 = Math.round(s0 / snap) * snap + rng.pick([-0.01, 0, 0.01]);
-    t0 = Math.round(t0 / snap) * snap + rng.pick([-0.01, 0, 0.01]);
-    s0 = Math.max(0.10, Math.min(0.86 - w, s0));
-    t0 = Math.max(0.10, Math.min(0.86 - h, t0));
-
-    const s1 = s0 + w;
-    const t1 = t0 + h;
-    fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), rng.pick(palette));
-
-    // Occasional “baseplate” underlay: slightly larger faint pad behind a block.
-    if (rng.float() < 0.22) {
-      const pad = rng.range(0.008, 0.016);
-      fillPolygon(
-        png,
-        rectOnTopFace(Math.max(0.08, s0 - pad), Math.min(0.92, s1 + pad), Math.max(0.08, t0 - pad), Math.min(0.92, t1 + pad)),
-        padC,
-      );
-      fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), rng.pick(palette));
-    }
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
   }
 
-  // Secondary sparse blocks to imply equipment sprawl beyond the main cluster.
-  const sparseCount = 7;
-  for (let i = 0; i < sparseCount; i += 1) {
-    const w = rng.range(0.06, 0.14);
-    const h = rng.range(0.05, 0.12);
-    const s0 = rng.range(0.10, 0.86 - w);
-    const t0 = rng.range(0.10, 0.86 - h);
-    if (s0 > cluster.s0 && s0 < cluster.s1 && t0 > cluster.t0 && t0 < cluster.t1) continue;
-    fillPolygon(png, rectOnTopFace(s0, s0 + w, t0, t0 + h), rng.pick(palette));
+  function drawPlate(s0, s1, t0, t1, fill, inset = 0) {
+    const sMin = clamp01(Math.min(s0, s1) + inset);
+    const sMax = clamp01(Math.max(s0, s1) - inset);
+    const tMin = clamp01(Math.min(t0, t1) + inset);
+    const tMax = clamp01(Math.max(t0, t1) - inset);
+    if (sMax <= sMin || tMax <= tMin) return;
+    fillPolygon(png, rectOnTopFace(sMin, sMax, tMin, tMax), fill);
   }
 
-  // Service channel lines: thin, hard-edged, short runs.
-  const channelCount = 5;
-  for (let i = 0; i < channelCount; i += 1) {
-    const isHorizontal = rng.float() < 0.5;
-    const thicknessT = rng.range(0.010, 0.016);
-    if (isHorizontal) {
-      const t0 = rng.range(0.18, 0.80);
-      const s0 = rng.range(0.16, 0.70);
-      const s1 = Math.min(0.90, s0 + rng.range(0.14, 0.26));
-      fillPolygon(png, rectOnTopFace(s0, s1, t0, t0 + thicknessT), channel);
-    } else {
-      const s0 = rng.range(0.18, 0.80);
-      const t0 = rng.range(0.16, 0.70);
-      const t1 = Math.min(0.90, t0 + rng.range(0.14, 0.24));
-      fillPolygon(png, rectOnTopFace(s0, s0 + thicknessT, t0, t1), channel);
-    }
+  // Foundation field (slightly darker than topFill).
+  drawPlate(0.10, 0.90, 0.10, 0.90, padLight);
+
+  // Two long bays (reads like factory halls) + one heavy core block.
+  drawPlate(0.16, 0.52, 0.18, 0.34, padMid, 0.004);
+  drawPlate(0.30, 0.86, 0.40, 0.56, padMid, 0.004);
+  drawPlate(0.58, 0.86, 0.18, 0.38, padDark, 0.004);
+
+  // Cutouts (service voids) to avoid a monolithic slab.
+  drawPlate(0.44, 0.56, 0.22, 0.32, topFill, 0);
+  drawPlate(0.66, 0.80, 0.44, 0.52, topFill, 0);
+  drawPlate(0.22, 0.34, 0.44, 0.52, topFill, 0);
+
+  // Perimeter service corridor ring (thin seams).
+  const seamT = 0.012;
+  drawPlate(0.12, 0.88, 0.12, 0.12 + seamT, seam);
+  drawPlate(0.12, 0.88, 0.88 - seamT, 0.88, seam);
+  drawPlate(0.12, 0.12 + seamT, 0.12, 0.88, seam);
+  drawPlate(0.88 - seamT, 0.88, 0.12, 0.88, seam);
+
+  // Rail pairs (two parallel channels) across the tile.
+  const railW = 0.010;
+  const railGap = 0.018;
+  const railT = 0.62;
+  drawPlate(0.14, 0.88, railT, railT + railW, channel);
+  drawPlate(0.14, 0.88, railT + railGap, railT + railGap + railW, channel);
+
+  // Small vents/bolts: sparse micro-squares within bays (very restrained).
+  const boltCount = 10;
+  for (let i = 0; i < boltCount; i += 1) {
+    const w = rng.range(0.016, 0.026);
+    const h = rng.range(0.016, 0.026);
+    const s0 = rng.pick([rng.range(0.18, 0.48), rng.range(0.34, 0.82), rng.range(0.60, 0.82)]);
+    const t0 = rng.pick([rng.range(0.20, 0.32), rng.range(0.42, 0.54), rng.range(0.64, 0.78)]);
+    drawPlate(s0, s0 + w, t0, t0 + h, rng.pick([seam, channel]), 0.002);
   }
 
-  // One heavier diagonal spine (still orthogonal in param space, reads oblique on tile).
-  fillPolygon(png, rectOnTopFace(0.22, 0.78, 0.44, 0.50), padB);
+  // One oblique spine to break strict orthogonality (reads in iso as a diagonal run).
+  drawPlate(0.18, 0.86, 0.34, 0.36, seam);
+  drawPlate(0.18, 0.86, 0.38, 0.40, seam);
 
   return png;
 }
-
+// main ground tile
 function makeMainGroundTile() {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });

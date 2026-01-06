@@ -1,6 +1,11 @@
 /// <reference lib="webworker" />
 
-import { generateTerrainNetworks } from "@/lib/engine/terrain";
+import {
+  formatTerrainStats,
+  generateTerrainBiomes,
+  generateTerrainNetworks,
+} from "@/lib/engine/terrain";
+import type { TerrainBiomeStats, TerrainType } from "@/lib/engine/gameState";
 import type { TerrainSquarePenalties } from "@/lib/settings";
 
 type TerrainWorkerRequest = {
@@ -11,12 +16,15 @@ type TerrainWorkerRequest = {
   riverDensity: number;
   maxBridges?: number;
   penalties: TerrainSquarePenalties;
+  debugTerrain?: boolean;
 };
 
 type TerrainWorkerResponse = {
   terrain: {
     road: { x: number; y: number }[];
     river: { x: number; y: number }[];
+    biomes: TerrainType[][];
+    stats: TerrainBiomeStats;
     nextSeed: number;
   };
 };
@@ -24,8 +32,9 @@ type TerrainWorkerResponse = {
 const ctx: DedicatedWorkerGlobalScope = self as DedicatedWorkerGlobalScope;
 
 ctx.onmessage = (event: MessageEvent<TerrainWorkerRequest>) => {
-  const { width, height, seed, roadDensity, riverDensity, maxBridges, penalties } = event.data;
-  const terrain = generateTerrainNetworks({
+  const { width, height, seed, roadDensity, riverDensity, maxBridges, penalties, debugTerrain } =
+    event.data;
+  const networks = generateTerrainNetworks({
     width,
     height,
     seed,
@@ -34,6 +43,24 @@ ctx.onmessage = (event: MessageEvent<TerrainWorkerRequest>) => {
     maxBridges,
     penalties,
   });
-  const response: TerrainWorkerResponse = { terrain };
+  const biomes = generateTerrainBiomes({
+    width,
+    height,
+    seed: networks.nextSeed,
+    rivers: networks.river,
+    roads: networks.road,
+  });
+  if (debugTerrain) {
+    console.info("Terrain biome stats\n" + formatTerrainStats(biomes.stats));
+  }
+  const response: TerrainWorkerResponse = {
+    terrain: {
+      road: networks.road,
+      river: networks.river,
+      biomes: biomes.biomes,
+      stats: biomes.stats,
+      nextSeed: biomes.nextSeed,
+    },
+  };
   ctx.postMessage(response);
 };

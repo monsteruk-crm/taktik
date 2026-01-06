@@ -16,6 +16,20 @@ export type UnitType = "INFANTRY" | "VEHICLE" | "SPECIAL";
 
 export type BoardCell = { x: number; y: number };
 
+export type TerrainType =
+    | "PLAIN"
+    | "ROUGH"
+    | "FOREST"
+    | "URBAN"
+    | "INDUSTRIAL"
+    | "HILL"
+    | "WATER";
+
+export type TerrainBiomeStats = {
+    counts: Record<TerrainType, number>;
+    regions: Record<TerrainType, number>;
+};
+
 export type Unit = {
     id: string;
     owner: Player;
@@ -122,6 +136,8 @@ export type GameState = {
     terrain: {
         road: BoardCell[];
         river: BoardCell[];
+        biomes: TerrainType[][];
+        stats: TerrainBiomeStats | null;
         params: TerrainParams;
         seed: number;
     };

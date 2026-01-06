@@ -7,7 +7,7 @@ export type TerrainParams = {
 };
 
 export const initialTerrainParams: TerrainParams = {
-  roadDensity: 0.3,
+  roadDensity: 0.15,
   riverDensity: 0.2,
   maxBridges: 10,
 };
@@ -56,4 +56,16 @@ export type TerrainSquarePenalties = {
 export const initialTerrainSquarePenalties: TerrainSquarePenalties = {
   roadSquarePenaltyNew: 3.5,
   roadSquarePenaltyExisting: 8.5,
+};
+
+export type CardDrawOverlayTiming = {
+  holdMs: number;
+  tweenMs: number;
+  exitBufferMs: number;
+};
+
+export const cardDrawOverlayTiming: CardDrawOverlayTiming = {
+  holdMs: 3000,
+  tweenMs: 600,
+  exitBufferMs: 300,
 };
