@@ -8,7 +8,8 @@ const OUT_DIR = path.join(ROOT, "public", "assets", "tiles");
 const NETWORK_DIR = path.join(OUT_DIR, "networks");
 const TEMP_DIR = path.join(ROOT, "temp");
 const TEMP_NETWORK_DIR = path.join(TEMP_DIR, "networks");
-const SCALE = 3;
+const TERRAIN_TOP_DIR = path.join(TEMP_DIR, "terrain-tops");
+const SCALE = 1;
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -17,6 +18,24 @@ function ensureDir(dir) {
 function writePng(filePath, png) {
   const buffer = PNG.sync.write(png);
   fs.writeFileSync(filePath, buffer);
+}
+
+function rasterizeSvgToPng(svgPath, sizePx) {
+  const buffer = execFileSync("convert", [
+    svgPath,
+    "-background",
+    "none",
+    "-trim",
+    "+repage",
+    "-resize",
+    `${sizePx}x${sizePx}`,
+    "-gravity",
+    "center",
+    "-extent",
+    `${sizePx}x${sizePx}`,
+    "png:-",
+  ]);
+  return PNG.sync.read(buffer);
 }
 
 function cropTileWithImagemagick(inputPath, outputPath) {
@@ -33,7 +52,7 @@ function cropTileWithImagemagick(inputPath, outputPath) {
       "-gravity",
       "North",
       "-extent",
-      "1918x1190",
+      "640x396",
       outputPath,
     ],
     { stdio: "inherit" }
@@ -47,6 +66,59 @@ function setPixel(png, x, y, color) {
   png.data[idx + 1] = color[1];
   png.data[idx + 2] = color[2];
   png.data[idx + 3] = color[3];
+}
+
+function blendPixel(png, x, y, color) {
+  if (x < 0 || y < 0 || x >= png.width || y >= png.height) return;
+  const idx = (y * png.width + x) * 4;
+  const srcA = color[3] / 255;
+  const dstA = png.data[idx + 3] / 255;
+  const outA = srcA + dstA * (1 - srcA);
+  if (outA <= 0) {
+    png.data[idx] = 0;
+    png.data[idx + 1] = 0;
+    png.data[idx + 2] = 0;
+    png.data[idx + 3] = 0;
+    return;
+  }
+  const srcR = color[0];
+  const srcG = color[1];
+  const srcB = color[2];
+  const dstR = png.data[idx];
+  const dstG = png.data[idx + 1];
+  const dstB = png.data[idx + 2];
+  png.data[idx] = Math.round((srcR * srcA + dstR * dstA * (1 - srcA)) / outA);
+  png.data[idx + 1] = Math.round((srcG * srcA + dstG * dstA * (1 - srcA)) / outA);
+  png.data[idx + 2] = Math.round((srcB * srcA + dstB * dstA * (1 - srcA)) / outA);
+  png.data[idx + 3] = Math.round(outA * 255);
+}
+
+function applyColorKey(texture, colors, tolerance = 4) {
+  if (!colors || colors.length === 0) {
+    return;
+  }
+  for (let y = 0; y < texture.height; y += 1) {
+    for (let x = 0; x < texture.width; x += 1) {
+      const idx = (y * texture.width + x) * 4;
+      const alpha = texture.data[idx + 3];
+      if (alpha === 0) {
+        continue;
+      }
+      const r = texture.data[idx];
+      const g = texture.data[idx + 1];
+      const b = texture.data[idx + 2];
+      for (const color of colors) {
+        if (
+          Math.abs(r - color[0]) <= tolerance &&
+          Math.abs(g - color[1]) <= tolerance &&
+          Math.abs(b - color[2]) <= tolerance
+        ) {
+          texture.data[idx + 3] = 0;
+          break;
+        }
+      }
+    }
+  }
 }
 
 const EDGE_ORDER = ["N", "E", "S", "W"];
@@ -109,6 +181,51 @@ function applyTopFaceMask(png, cx, cy, tileW, tileH) {
           png.data[idx + 3] = 0;
         }
       }
+    }
+  }
+}
+
+function textureOnTopFace(png, texture, top, a, b, tileW, tileH, offset = { s: 0, t: 0 }) {
+  const det = a.x * b.y - a.y * b.x;
+  if (Math.abs(det) < 1e-6) {
+    return;
+  }
+
+  const halfW = tileW / 2;
+  const halfH = tileH / 2;
+  const minX = Math.floor(top.x - halfW);
+  const maxX = Math.ceil(top.x + halfW);
+  const minY = Math.floor(top.y);
+  const maxY = Math.ceil(top.y + tileH);
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const vX = x - top.x;
+      const vY = y - top.y;
+      const s = (vX * b.y - vY * b.x) / det + offset.s;
+      const t = (a.x * vY - a.y * vX) / det + offset.t;
+      if (s < 0 || s > 1 || t < 0 || t > 1) {
+        continue;
+      }
+      const tx = Math.min(
+        texture.width - 1,
+        Math.max(0, Math.floor(s * (texture.width - 1)))
+      );
+      const ty = Math.min(
+        texture.height - 1,
+        Math.max(0, Math.floor(t * (texture.height - 1)))
+      );
+      const idx = (ty * texture.width + tx) * 4;
+      const alpha = texture.data[idx + 3];
+      if (alpha === 0) {
+        continue;
+      }
+      blendPixel(png, x, y, [
+        texture.data[idx],
+        texture.data[idx + 1],
+        texture.data[idx + 2],
+        alpha,
+      ]);
     }
   }
 }
@@ -414,8 +531,8 @@ function makeBridgeOverlayTopFace({ widthPx, color }) {
 
   return png;
 }
-//terrain-01-plain
-function makeTilePlain1024() {
+
+function makeTileFromTopSvg(svgName, options = {}) {
   const size = 1024 * SCALE;
   const png = new PNG({ width: size, height: size });
   png.data.fill(0);
@@ -440,31 +557,35 @@ function makeTilePlain1024() {
   const topFill = [232, 232, 228, 255];
   const sideFillRight = [210, 210, 206, 255];
   const sideFillLeft = [204, 204, 200, 255];
-  const insetFill = [206, 206, 202, 255];
 
   // Draw side faces first so the top face cleanly overwrites shared edges.
   fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
   fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
   fillPolygon(png, [top, right, bottom, left], topFill);
 
-  // PLAIN markings: 2–4 thin insets / micro-blocks aligned to the isometric axes.
   const a = { x: right.x - top.x, y: right.y - top.y };
   const b = { x: left.x - top.x, y: left.y - top.y };
-
-  function rectOnTopFace(s0, s1, t0, t1) {
-    return [
-      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
-      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
-    ];
+  const svgPath = path.join(TERRAIN_TOP_DIR, svgName);
+  const texture = rasterizeSvgToPng(svgPath, 1024 * SCALE);
+  if (options.maskColors) {
+    applyColorKey(texture, options.maskColors, options.tolerance ?? 4);
   }
-
-  fillPolygon(png, rectOnTopFace(0.12, 0.20, 0.08, 0.12), insetFill);
-  fillPolygon(png, rectOnTopFace(0.76, 0.88, 0.12, 0.16), insetFill);
-  fillPolygon(png, rectOnTopFace(0.46, 0.54, 0.80, 0.83), insetFill);
+  textureOnTopFace(
+    png,
+    texture,
+    top,
+    a,
+    b,
+    tileW,
+    tileH,
+    options.sampleOffset ?? { s: 0, t: 0 }
+  );
 
   return png;
+}
+//terrain-01-plain
+function makeTilePlain1024() {
+  return makeTileFromTopSvg("terrain-01-plain.svg");
 }
 
 function makeRng(seed) {
@@ -491,657 +612,38 @@ function makeRng(seed) {
 }
 // terrain-02-rough
 function makeTileRough1024() {
-  const size = 1024 * SCALE;
-  const png = new PNG({ width: size, height: size });
-  png.data.fill(0);
-
-  const cx = size / 2;
-  const cy = 430 * SCALE;
-
-  const tileW = 640 * SCALE;
-  const tileH = 320 * SCALE;
-  const thickness = Math.round(tileW * 0.12);
-
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-  const fragA = [214, 214, 210, 255];
-  const fragB = [206, 206, 202, 255];
-  const fragC = [220, 220, 216, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  // ROUGH pattern: broken rectangular fragments + offsets + gaps.
-  const a = { x: right.x - top.x, y: right.y - top.y };
-  const b = { x: left.x - top.x, y: left.y - top.y };
-
-  function rectOnTopFace(s0, s1, t0, t1) {
-    return [
-      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
-      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
-    ];
-  }
-
-  const rng = makeRng(0x54414b54); // "TAKT"
-  const palette = [fragA, fragB, fragC];
-
-  // Base fragments: medium rectangles with occasional micro-splits.
-  const fragmentCount = 26;
-  for (let i = 0; i < fragmentCount; i += 1) {
-    const w = rng.range(0.05, 0.14);
-    const h = rng.range(0.03, 0.10);
-    let s0 = rng.range(0.06, 0.92 - w);
-    let t0 = rng.range(0.06, 0.92 - h);
-
-    // Offset/misalignment: nudge along the isometric axes.
-    if (rng.float() < 0.55) s0 += rng.pick([-0.012, -0.008, 0.008, 0.012]);
-    if (rng.float() < 0.55) t0 += rng.pick([-0.012, -0.008, 0.008, 0.012]);
-
-    s0 = Math.max(0.03, Math.min(0.95 - w, s0));
-    t0 = Math.max(0.03, Math.min(0.95 - h, t0));
-
-    const s1 = s0 + w;
-    const t1 = t0 + h;
-    fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), rng.pick(palette));
-
-    // Occasional split to imply breaks without “debris”.
-    if (rng.float() < 0.25) {
-      const gap = rng.range(0.006, 0.014);
-      const split = rng.range(0.35, 0.65);
-      const sMid = s0 + w * split;
-      const leftW = Math.max(0.012, sMid - s0 - gap / 2);
-      const rightW = Math.max(0.012, s1 - sMid - gap / 2);
-      const sL1 = s0 + leftW;
-      const sR0 = s1 - rightW;
-      fillPolygon(png, rectOnTopFace(s0, sL1, t0, t1), rng.pick(palette));
-      fillPolygon(png, rectOnTopFace(sR0, s1, t0, t1), rng.pick(palette));
-    }
-  }
-
-  // A few “gaps” by leaving thin void lanes: paint over with transparent by not drawing;
-  // instead, add sparse clear lanes via long thin fragments that align but skip sections.
-  for (let i = 0; i < 3; i += 1) {
-    const laneT = rng.range(0.18, 0.78);
-    const laneH = rng.range(0.014, 0.022);
-    const segmentCount = rng.int(2, 4);
-    let cursor = 0.08;
-    for (let j = 0; j < segmentCount; j += 1) {
-      const segW = rng.range(0.12, 0.22);
-      const gapW = rng.range(0.04, 0.10);
-      const s0 = Math.min(0.90, cursor + rng.pick([-0.01, 0, 0.01]));
-      const s1 = Math.min(0.92, s0 + segW);
-      fillPolygon(png, rectOnTopFace(s0, s1, laneT, laneT + laneH), rng.pick(palette));
-      cursor = s1 + gapW;
-    }
-  }
-
-  return png;
+  return makeTileFromTopSvg("terrain-02-rough.svg");
 }
+
 // terrain-03-forest
 function makeTileForest1024() {
-  const size = 1024 * SCALE;
-  const png = new PNG({ width: size, height: size });
-  png.data.fill(0);
-
-  const cx = size / 2;
-  const cy = 430 * SCALE;
-
-  const tileW = 640 * SCALE;
-  const tileH = 320 * SCALE;
-  const thickness = Math.round(tileW * 0.12);
-
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-  // Forest should read as "vegetation mass" in a diagrammatic, hard-edged way.
-  // Keep it restrained: desaturated field-green plates over the concrete slab.
-  const canopyLight = [220, 228, 220, 255];
-  const canopyMid = [178, 200, 178, 255];
-  const canopyDark = [126, 160, 128, 255];
-  const trunkDark = [92, 128, 96, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  // FOREST: clustered canopy plates + sparse trunk marks + a few clearings.
-  // No curves, no gradients, no noise — just orthogonal plates on the top face.
-  const a = { x: right.x - top.x, y: right.y - top.y };
-  const b = { x: left.x - top.x, y: left.y - top.y };
-
-  function rectOnTopFace(s0, s1, t0, t1) {
-    return [
-      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
-      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
-    ];
-  }
-
-  const rng = makeRng(0x464f5245); // "FORE"
-
-  const margin = 0.06;
-  const span = 0.88;
-  const cols = 18;
-  const rows = 12;
-  const cellW = span / cols;
-  const cellH = span / rows;
-  const occupancy = Array.from({ length: rows }, () => Array.from({ length: cols }, () => false));
-
-  function markCanopyCluster({ cxCell, cyCell, rx, ry }) {
-    for (let y = 0; y < rows; y += 1) {
-      for (let x = 0; x < cols; x += 1) {
-        const dx = (x - cxCell) / rx;
-        const dy = (y - cyCell) / ry;
-        const d = Math.abs(dx) + Math.abs(dy); // diamond metric for hard-edged clusters
-        if (d > 1.02) continue;
-
-        // Break the perimeter slightly so clusters don't read as a perfect stamp.
-        if (d > 0.82 && rng.float() < 0.35) continue;
-        occupancy[y][x] = true;
-      }
-    }
-  }
-
-  // 4–6 canopy clusters that read as "forest patches" at zoom.
-  const clusterCount = rng.int(4, 6);
-  for (let i = 0; i < clusterCount; i += 1) {
-    markCanopyCluster({
-      cxCell: rng.int(3, cols - 4),
-      cyCell: rng.int(2, rows - 3),
-      rx: rng.range(2.6, 4.6),
-      ry: rng.range(2.2, 4.0),
-    });
-  }
-
-  function areaFillRatio(x0, x1, y0, y1) {
-    const xs = Math.max(0, Math.floor(x0));
-    const xe = Math.min(cols - 1, Math.ceil(x1));
-    const ys = Math.max(0, Math.floor(y0));
-    const ye = Math.min(rows - 1, Math.ceil(y1));
-    let filled = 0;
-    let total = 0;
-    for (let y = ys; y <= ye; y += 1) {
-      for (let x = xs; x <= xe; x += 1) {
-        total += 1;
-        if (occupancy[y][x]) filled += 1;
-      }
-    }
-    return total ? filled / total : 0;
-  }
-
-  // Ensure the canopy reaches all edges. The NE edge is easy to under-fill when
-  // clusters land mostly center/left; add a deterministic corrective cluster if needed.
-  const neRatio = areaFillRatio(cols - 6, cols - 1, 0, 3);
-  if (neRatio < 0.18) {
-    markCanopyCluster({ cxCell: cols - 3, cyCell: 2, rx: 3.6, ry: 2.8 });
-  }
-
-  // Paint canopy plates (blocky, restrained palette).
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < cols; x += 1) {
-      if (!occupancy[y][x]) continue;
-
-      const s0 = margin + x * cellW + cellW * 0.06;
-      const s1 = margin + (x + 1) * cellW - cellW * 0.06;
-      const t0 = margin + y * cellH + cellH * 0.06;
-      const t1 = margin + (y + 1) * cellH - cellH * 0.06;
-
-      const fill = rng.pick([canopyMid, canopyMid, canopyLight, canopyDark]);
-      fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), fill);
-
-      // Occasional intra-cell notch: a tiny clearing to avoid solid carpets.
-      if (rng.float() < 0.10) {
-        const notchW = cellW * rng.range(0.22, 0.34);
-        const notchH = cellH * rng.range(0.22, 0.34);
-        const ns0 = s0 + cellW * rng.range(0.08, 0.55);
-        const nt0 = t0 + cellH * rng.range(0.10, 0.55);
-        fillPolygon(png, rectOnTopFace(ns0, ns0 + notchW, nt0, nt0 + notchH), topFill);
-      }
-
-      // Trunk marks: thin dark plates inside canopy cells (sparingly).
-      if (rng.float() < 0.30) {
-        const trunkS0 = s0 + (s1 - s0) * rng.range(0.35, 0.55);
-        const trunkS1 = trunkS0 + (s1 - s0) * rng.range(0.14, 0.20);
-        const trunkT0 = t0 + (t1 - t0) * rng.range(0.10, 0.20);
-        const trunkT1 = t0 + (t1 - t0) * rng.range(0.78, 0.92);
-        fillPolygon(png, rectOnTopFace(trunkS0, trunkS1, trunkT0, trunkT1), trunkDark);
-      }
-    }
-  }
-
-  // A few clearings (explicit, readable voids).
-  const clearingCount = rng.int(2, 3);
-  for (let i = 0; i < clearingCount; i += 1) {
-    const w = rng.range(0.12, 0.22);
-    const h = rng.range(0.08, 0.16);
-    const s0 = rng.range(0.12, 0.88 - w);
-    const t0 = rng.range(0.12, 0.88 - h);
-    fillPolygon(png, rectOnTopFace(s0, s0 + w, t0, t0 + h), topFill);
-  }
-
-  return png;
+  return makeTileFromTopSvg("terrain-03-forest.svg");
 }
+
 // terrain-04-urban
 function makeTileUrban1024() {
-  const size = 1024 * SCALE;
-  const png = new PNG({ width: size, height: size });
-  png.data.fill(0);
-
-  const cx = size / 2;
-  const cy = 430 * SCALE;
-
-  const tileW = 640 * SCALE;
-  const tileH = 320 * SCALE;
-  const thickness = Math.round(tileW * 0.12);
-
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-  const blockA = [214, 214, 210, 255];
-  const blockB = [206, 206, 202, 255];
-  const blockC = [220, 220, 216, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  // URBAN: rigid orthogonal structure with corridors like streets.
-  const a = { x: right.x - top.x, y: right.y - top.y };
-  const b = { x: left.x - top.x, y: left.y - top.y };
-
-  function rectOnTopFace(s0, s1, t0, t1) {
-    return [
-      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
-      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
-    ];
-  }
-
-  const rng = makeRng(0x5552424e); // "URBN"
-  const palette = [blockA, blockB, blockC];
-
-  // Establish “streets” as fixed gaps in a grid.
-  const streetsS = [0.22, 0.48, 0.74];
-  const streetsT = [0.24, 0.52, 0.78];
-  const streetW = 0.030;
-
-  function isStreetSpan(s0, s1, t0, t1) {
-    const midS = (s0 + s1) / 2;
-    const midT = (t0 + t1) / 2;
-    return (
-      streetsS.some((s) => Math.abs(midS - s) <= streetW / 2) ||
-      streetsT.some((t) => Math.abs(midT - t) <= streetW / 2)
-    );
-  }
-
-  // Fill “building footprints” in each cell, leaving streets clear.
-  const cells = [
-    { s0: 0.08, s1: 0.42, t0: 0.08, t1: 0.42 },
-    { s0: 0.08, s1: 0.42, t0: 0.42, t1: 0.92 },
-    { s0: 0.42, s1: 0.92, t0: 0.08, t1: 0.42 },
-    { s0: 0.42, s1: 0.92, t0: 0.42, t1: 0.92 },
-  ];
-
-  for (const cell of cells) {
-    const pad = 0.018;
-    const sStart = cell.s0 + pad;
-    const sEnd = cell.s1 - pad;
-    const tStart = cell.t0 + pad;
-    const tEnd = cell.t1 - pad;
-
-    const buildingCount = rng.int(4, 7);
-    for (let i = 0; i < buildingCount; i += 1) {
-      const w = rng.range(0.06, 0.16);
-      const h = rng.range(0.05, 0.14);
-      const s0 = rng.range(sStart, Math.max(sStart, sEnd - w));
-      const t0 = rng.range(tStart, Math.max(tStart, tEnd - h));
-      const s1 = s0 + w;
-      const t1 = t0 + h;
-
-      if (isStreetSpan(s0, s1, t0, t1)) continue;
-      fillPolygon(png, rectOnTopFace(s0, s1, t0, t1), rng.pick(palette));
-    }
-  }
-
-  // Add a few long corridor edges as crisp orthogonal bars.
-  const corridorColor = blockB;
-  for (const s of streetsS) {
-    fillPolygon(png, rectOnTopFace(s - streetW / 2, s + streetW / 2, 0.10, 0.90), corridorColor);
-  }
-  for (const t of streetsT) {
-    fillPolygon(png, rectOnTopFace(0.10, 0.90, t - streetW / 2, t + streetW / 2), corridorColor);
-  }
-
-  return png;
+  return makeTileFromTopSvg("base_04-urban.svg", {
+    maskColors: [[210, 210, 203]],
+    tolerance: 6,
+    sampleOffset: { s: 0.012, t: 0.012 },
+  });
 }
+
 // terrain-05-hill
 function makeTileHill1024() {
-  const size = 1024 * SCALE;
-  const png = new PNG({ width: size, height: size });
-  png.data.fill(0);
-
-  const cx = size / 2;
-  const cy = 430 * SCALE;
-
-  const tileW = 640 * SCALE;
-  const tileH = 320 * SCALE;
-  const thickness = Math.round(tileW * 0.12);
-
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-  const bandA = [220, 220, 216, 255];
-  const bandB = [214, 214, 210, 255];
-  const bandC = [206, 206, 202, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  // HILL: 3–5 nested diamond / angular contour plates (discrete steps).
-  const bands = [bandA, bandB, bandC, bandB, bandA];
-  const levels = 5;
-  for (let i = 0; i < levels; i += 1) {
-    const inset = 0.08 + i * 0.09;
-    const pTop = { x: top.x + (right.x - top.x) * inset, y: top.y + (right.y - top.y) * inset };
-    const pRight = { x: right.x + (bottom.x - right.x) * inset, y: right.y + (bottom.y - right.y) * inset };
-    const pBottom = { x: bottom.x + (left.x - bottom.x) * inset, y: bottom.y + (left.y - bottom.y) * inset };
-    const pLeft = { x: left.x + (top.x - left.x) * inset, y: left.y + (top.y - left.y) * inset };
-    fillPolygon(png, [pTop, pRight, pBottom, pLeft], bands[i]);
-  }
-
-  return png;
+  return makeTileFromTopSvg("terrain-05-hill.svg");
 }
+
 // terrain-06-water
 function makeTileWater1024() {
-  const size = 1024 * SCALE;
-  const png = new PNG({ width: size, height: size });
-  png.data.fill(0);
-
-  const cx = size / 2;
-  const cy = 430 * SCALE;
-
-  const tileW = 640 * SCALE;
-  const tileH = 320 * SCALE;
-  const thickness = Math.round(tileW * 0.12);
-
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  // Water needs to read as water even on a mostly-concrete board.
-  // Keep it diagrammatic: flat, hard-edged, no curves, no gradients.
-  const topFill = [219, 232, 242, 255]; // pale operational blue (opaque)
-  const sideFillRight = [198, 214, 226, 255];
-  const sideFillLeft = [190, 206, 218, 255];
-  const bandDeep = [96, 162, 188, 255];
-  const bandMid = [152, 204, 224, 255];
-  const bandShine = [238, 248, 253, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  // WATER: layered "current lanes" + hard-edged highlights (no curves, no noise).
-  const a = { x: right.x - top.x, y: right.y - top.y };
-  const b = { x: left.x - top.x, y: left.y - top.y };
-
-  function rectOnTopFace(s0, s1, t0, t1) {
-    return [
-      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
-      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
-    ];
-  }
-
-  const rng = makeRng(0x57415452); // "WATR"
-  function clamp01(v) {
-    return Math.max(0, Math.min(1, v));
-  }
-
-  function drawLaneSegment({ s0, s1, t0, t1 }) {
-    const sMin = clamp01(Math.min(s0, s1));
-    const sMax = clamp01(Math.max(s0, s1));
-    const tMin = clamp01(Math.min(t0, t1));
-    const tMax = clamp01(Math.max(t0, t1));
-
-    if (sMax - sMin < 0.006 || tMax - tMin < 0.006) return;
-
-    // Base water band + thin hard-edged highlight rails (avoid "outlined boxes").
-    fillPolygon(png, rectOnTopFace(sMin, sMax, tMin, tMax), bandMid);
-
-    const h = tMax - tMin;
-    const edgeH = Math.min(0.010, Math.max(0.006, h * 0.18));
-    const railOffset = rng.range(0.0, 0.18) * (h - edgeH);
-    fillPolygon(
-      png,
-      rectOnTopFace(sMin, sMax, tMin + railOffset, tMin + railOffset + edgeH),
-      bandShine
-    );
-    fillPolygon(
-      png,
-      rectOnTopFace(sMin, sMax, tMax - edgeH - railOffset, tMax - railOffset),
-      bandDeep
-    );
-
-    // Notches: cut small gaps back to topFill to imply chop/ripple without curves/noise.
-    const notchCount = rng.int(0, 2);
-    for (let i = 0; i < notchCount; i += 1) {
-      const notchW = rng.range(0.020, 0.045);
-      const notchH = rng.range(0.010, 0.020);
-      const notchS0 = rng.range(sMin + 0.01, sMax - 0.01 - notchW);
-      const notchT0 = rng.range(tMin + 0.01, tMax - 0.01 - notchH);
-      fillPolygon(png, rectOnTopFace(notchS0, notchS0 + notchW, notchT0, notchT0 + notchH), topFill);
-    }
-  }
-
-  // Main current lanes (wide, readable at board zoom).
-  const laneBases = [0.16, 0.34, 0.52, 0.70];
-  for (const base of laneBases) {
-    const laneH = rng.range(0.060, 0.088);
-    let s = 0.08 + rng.range(-0.02, 0.02);
-    let t = base + rng.range(-0.025, 0.025);
-    const segments = rng.int(7, 10);
-
-    for (let i = 0; i < segments; i += 1) {
-      const segW = rng.range(0.10, 0.18);
-      const gapW = rng.range(0.012, 0.032);
-      const drift = rng.pick([-0.016, -0.010, -0.006, 0.006, 0.010, 0.016]);
-
-      // Leave occasional holes so the surface doesn't become a barcode slab.
-      if (rng.float() > 0.16) {
-        drawLaneSegment({ s0: s, s1: s + segW, t0: t, t1: t + laneH });
-      }
-
-      s += segW + gapW;
-      t = clamp01(t + drift);
-
-      if (s > 0.92) break;
-    }
-  }
-
-  // Secondary micro-caps (short slashes) for "ripples" without curves/noise.
-  const microCount = 20;
-  for (let i = 0; i < microCount; i += 1) {
-    const w = rng.range(0.028, 0.060);
-    const h = rng.range(0.010, 0.020);
-    const s0 = rng.range(0.10, 0.90 - w);
-    const t0 = rng.range(0.10, 0.90 - h);
-    const fill = rng.pick([bandMid, bandShine]);
-
-    // Bias some ripples to align with the current lanes.
-    if (rng.float() < 0.55) {
-      fillPolygon(png, rectOnTopFace(s0, s0 + w, t0, t0 + h), fill);
-    } else {
-      fillPolygon(png, rectOnTopFace(s0, s0 + h, t0, t0 + w), fill);
-    }
-  }
-
-  return png;
+  return makeTileFromTopSvg("terrain-06-water.svg");
 }
+
 // terrain-10-industrial
 function makeTileIndustrial1024() {
-  const size = 1024 * SCALE;
-  const png = new PNG({ width: size, height: size });
-  png.data.fill(0);
-
-  const cx = size / 2;
-  const cy = 430 * SCALE;
-
-  const tileW = 640 * SCALE;
-  const tileH = 320 * SCALE;
-  const thickness = Math.round(tileW * 0.12);
-
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-
-  // Industrial needs higher contrast than urban/rough: it should read as "hard plant/facility".
-  // Still diagrammatic: flat plates + seams, no curves, no gradients.
-  const padLight = [218, 218, 214, 255];
-  const padMid = [198, 198, 194, 255];
-  const padDark = [172, 172, 168, 255];
-  const seam = [132, 132, 128, 255];
-  const channel = [150, 150, 146, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  // INDUSTRIAL: hard facility footprint with plate fields, a few heavy modules,
-  // and service corridors / rails. Mostly structured; only micro-variation.
-  const a = { x: right.x - top.x, y: right.y - top.y };
-  const b = { x: left.x - top.x, y: left.y - top.y };
-
-  function rectOnTopFace(s0, s1, t0, t1) {
-    return [
-      { x: top.x + a.x * s0 + b.x * t0, y: top.y + a.y * s0 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t0, y: top.y + a.y * s1 + b.y * t0 },
-      { x: top.x + a.x * s1 + b.x * t1, y: top.y + a.y * s1 + b.y * t1 },
-      { x: top.x + a.x * s0 + b.x * t1, y: top.y + a.y * s0 + b.y * t1 },
-    ];
-  }
-
-  const rng = makeRng(0x494e4455); // "INDU"
-  function clamp01(v) {
-    return Math.max(0, Math.min(1, v));
-  }
-
-  function drawPlate(s0, s1, t0, t1, fill, inset = 0) {
-    const sMin = clamp01(Math.min(s0, s1) + inset);
-    const sMax = clamp01(Math.max(s0, s1) - inset);
-    const tMin = clamp01(Math.min(t0, t1) + inset);
-    const tMax = clamp01(Math.max(t0, t1) - inset);
-    if (sMax <= sMin || tMax <= tMin) return;
-    fillPolygon(png, rectOnTopFace(sMin, sMax, tMin, tMax), fill);
-  }
-
-  // Foundation field (slightly darker than topFill).
-  drawPlate(0.10, 0.90, 0.10, 0.90, padLight);
-
-  // Two long bays (reads like factory halls) + one heavy core block.
-  drawPlate(0.16, 0.52, 0.18, 0.34, padMid, 0.004);
-  drawPlate(0.30, 0.86, 0.40, 0.56, padMid, 0.004);
-  drawPlate(0.58, 0.86, 0.18, 0.38, padDark, 0.004);
-
-  // Cutouts (service voids) to avoid a monolithic slab.
-  drawPlate(0.44, 0.56, 0.22, 0.32, topFill, 0);
-  drawPlate(0.66, 0.80, 0.44, 0.52, topFill, 0);
-  drawPlate(0.22, 0.34, 0.44, 0.52, topFill, 0);
-
-  // Perimeter service corridor ring (thin seams).
-  const seamT = 0.012;
-  drawPlate(0.12, 0.88, 0.12, 0.12 + seamT, seam);
-  drawPlate(0.12, 0.88, 0.88 - seamT, 0.88, seam);
-  drawPlate(0.12, 0.12 + seamT, 0.12, 0.88, seam);
-  drawPlate(0.88 - seamT, 0.88, 0.12, 0.88, seam);
-
-  // Rail pairs (two parallel channels) across the tile.
-  const railW = 0.010;
-  const railGap = 0.018;
-  const railT = 0.62;
-  drawPlate(0.14, 0.88, railT, railT + railW, channel);
-  drawPlate(0.14, 0.88, railT + railGap, railT + railGap + railW, channel);
-
-  // Small vents/bolts: sparse micro-squares within bays (very restrained).
-  const boltCount = 10;
-  for (let i = 0; i < boltCount; i += 1) {
-    const w = rng.range(0.016, 0.026);
-    const h = rng.range(0.016, 0.026);
-    const s0 = rng.pick([rng.range(0.18, 0.48), rng.range(0.34, 0.82), rng.range(0.60, 0.82)]);
-    const t0 = rng.pick([rng.range(0.20, 0.32), rng.range(0.42, 0.54), rng.range(0.64, 0.78)]);
-    drawPlate(s0, s0 + w, t0, t0 + h, rng.pick([seam, channel]), 0.002);
-  }
-
-  // One oblique spine to break strict orthogonality (reads in iso as a diagonal run).
-  drawPlate(0.18, 0.86, 0.34, 0.36, seam);
-  drawPlate(0.18, 0.86, 0.38, 0.40, seam);
-
-  return png;
+  return makeTileFromTopSvg("base_10-industrial.svg");
 }
+
 // main ground tile
 function makeMainGroundTile() {
   const size = 1024 * SCALE;

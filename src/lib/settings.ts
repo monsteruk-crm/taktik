@@ -18,14 +18,14 @@ export type UnitComposition = {
 
 export const initialUnitComposition: UnitComposition = {
   PLAYER_A: {
-    INFANTRY: 3,
-    VEHICLE: 3,
-    SPECIAL: 1,
+    INFANTRY: 0,
+    VEHICLE: 1,
+    SPECIAL: 0,
   },
   PLAYER_B: {
-    INFANTRY: 3,
+    INFANTRY: 0,
     VEHICLE: 3,
-    SPECIAL: 2,
+    SPECIAL: 0,
   },
 };
 

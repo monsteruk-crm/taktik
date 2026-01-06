@@ -3717,3 +3717,151 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/app/page.tsx`, `src/components/OpsConsole.tsx`, `src/components/ui/CardDrawOverlay.tsx`, `src/lib/ui/CardArt.tsx`
 - Docs: `docs/card-draw-overlay.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Terrain tile tops from SVG sources
+
+### BEFORE
+- Terrain tiles used procedural top-face patterns baked directly in `scripts/gen_terrain_tiles.mjs`.
+- Each terrain type had its own bespoke top-face drawing logic and color recipes.
+
+### NOW
+- Terrain top designs are loaded from square SVGs in `temp/terrain-tops/` and projected onto the isometric top face.
+- All terrain tiles share a single extruded base (side faces + neutral top slab), with the SVG artwork providing the unique surface look.
+
+### NEXT
+- Validate the perspective mapping against the authored SVGs and adjust the source art if any edges feel clipped or stretched.
+
+### Known limitations / TODOs
+- The generator assumes ImageMagick `convert` is available to rasterize SVGs.
+- Top textures are sampled nearest-neighbor; if banding appears, add optional bilinear sampling.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Refresh urban + industrial tile tops
+
+### BEFORE
+- Urban tiles showed missing dark blocks on one axis, and the industrial top used the prior SVG design.
+
+### NOW
+- Regenerated `terrain-04-urban.png` and `terrain-10-industrial.png` from the updated SVG sources in `temp/terrain-tops/` (`base_04-urban.svg` and `base_10-industrial.svg`).
+
+### NEXT
+- Review the new tiles at board zoom and adjust the source SVGs if any elements still clip at the isometric edges.
+
+### Known limitations / TODOs
+- Tile generation still depends on ImageMagick `convert` for SVG rasterization.
+- Urban tops that hug the square edges may still require source padding if clipping persists.
+
+### Files touched
+- Assets: `public/assets/tiles/terrain-04-urban.png`, `public/assets/tiles/terrain-10-industrial.png`
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Center/pad SVG tops before projection
+
+### BEFORE
+- Urban tops could lose edge rectangles if the SVG viewport wasn’t perfectly centered or padded.
+
+### NOW
+- SVG rasterization centers and pads to the target square size before projection, preventing edge clipping for urban tops.
+
+### NEXT
+- Verify the updated urban tile against the new SVG and adjust the source art if any shapes still fall outside the safe region.
+
+### Known limitations / TODOs
+- ImageMagick `convert` is still required for SVG rasterization.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Trim SVG tops before projection
+
+### BEFORE
+- Urban tops that included translated layers could still clip because the SVG viewBox did not bound the artwork.
+
+### NOW
+- SVG rasterization trims to the artwork bounds, then centers and pads to the target square size before projection.
+
+### NEXT
+- Confirm all SVG sources use consistent margins so trimming does not hide intended edge touches.
+
+### Known limitations / TODOs
+- ImageMagick `convert` remains a required dependency for rasterization.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Re-export urban top (centered)
+
+### BEFORE
+- The urban top projection used an older SVG that left the central block offset.
+
+### NOW
+- Regenerated `terrain-04-urban.png` from the simplified, centered `base_04-urban.svg`.
+
+### NEXT
+- Review the urban tile at board zoom and confirm the center block alignment.
+
+### Known limitations / TODOs
+- ImageMagick `convert` remains required for SVG rasterization.
+
+### Files touched
+- Assets: `public/assets/tiles/terrain-04-urban.png`
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-06 — Mask urban top background fill
+
+### BEFORE
+- The urban SVG included the base slab fill, which projected as unintended stripes on the isometric top.
+
+### NOW
+- The generator masks the urban base fill color (`#d2d2cb`) so only the grid + block elements render on the slab.
+
+### NEXT
+- If other tops include base fills, decide whether they should be masked similarly or baked into the SVG.
+
+### Known limitations / TODOs
+- Masking uses a small RGB tolerance; if the SVG colors drift, update the mask color list.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-04-urban.png`
+- Docs: `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-06 — Nudge urban top alignment
+
+### BEFORE
+- The urban center block drifted slightly toward the SE after projection.
+
+### NOW
+- Applied a small sampling offset in the urban projection so the center block aligns correctly.
+
+### NEXT
+- Confirm alignment at board zoom and tune the offset if the SVG is updated again.
+
+### Known limitations / TODOs
+- Offset is hard-coded for urban; if the source art changes significantly, retune it.
+
+### Files touched
+- Generator: `scripts/gen_terrain_tiles.mjs`
+- Assets: `public/assets/tiles/terrain-04-urban.png`
+- Docs: `docs/terrain-tiles.md`, `docs/progress.md`
