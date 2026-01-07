@@ -1,9 +1,17 @@
+import type { ReactElement } from "react";
+import { useMemo } from "react";
 import Box from "@mui/material/Box";
 import type { GameState, TerrainType } from "@/lib/engine/gameState";
 import { posKey } from "@/lib/engine/selectors";
 import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_LAYOUT } from "@/lib/ui/iso";
 import { edgeKey, mergeNetworks } from "@/lib/ui/networks";
 import { TERRAIN_DEBUG_TILE_SRC, TERRAIN_TILE_SRC } from "@/lib/ui/terrain";
+
+const UNIT_SCALE_BY_TYPE = {
+  INFANTRY: 0.95,
+  VEHICLE: 1.05,
+  SPECIAL: 1,
+} as const;
 
 type IsometricBoardProps = {
   state: GameState;
@@ -26,239 +34,164 @@ export default function IsometricBoard({
 }: IsometricBoardProps) {
   const width = state.boardWidth;
   const height = state.boardHeight;
-  const { originX, originY } = getBoardOrigin(width, height);
-  const { boardPixelWidth, boardPixelHeight } = getBoardPixelSize(width, height);
-  const moveRangeKeys = new Set(moveRange.map(posKey));
+  const { originX, originY } = useMemo(() => getBoardOrigin(width, height), [width, height]);
+  const { boardPixelWidth, boardPixelHeight } = useMemo(
+    () => getBoardPixelSize(width, height),
+    [width, height]
+  );
+  const moveRangeKeys = useMemo(() => new Set(moveRange.map(posKey)), [moveRange]);
   const { width: TILE_W, height: TILE_H } = TILE_LAYOUT;
-  const connectorsByPos = mergeNetworks(state.terrain);
-  const roadKeys = new Set(state.terrain.road.map((cell) => `${cell.x},${cell.y}`));
-  const riverKeys = new Set(state.terrain.river.map((cell) => `${cell.x},${cell.y}`));
+  const { connectorsByPos, roadKeys, riverKeys } = useMemo(() => {
+    return {
+      connectorsByPos: mergeNetworks(state.terrain),
+      roadKeys: new Set(state.terrain.road.map((cell) => `${cell.x},${cell.y}`)),
+      riverKeys: new Set(state.terrain.river.map((cell) => `${cell.x},${cell.y}`)),
+    };
+  }, [state.terrain]);
   const UNIT_BASE_SIZE = TILE_W * 0.52;
-  const UNIT_SCALE_BY_TYPE = {
-    INFANTRY: 0.95,
-    VEHICLE: 1.05,
-    SPECIAL: 1,
-  } as const;
   const UNIT_OFFSET_X = 0;
   const UNIT_OFFSET_Y = TILE_H * 0.3;
   const REGISTRY_MARK_DISPLAY = { w: TILE_W, h: TILE_W };
 
-  const tiles = [];
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const { sx, sy } = gridToScreen({ x, y });
-      const left = originX + sx - TILE_W / 2;
-      const top = originY + sy - TILE_H / 2;
-      const connectors = connectorsByPos.get(`${x},${y}`);
-      const baseZ = (x + y) * 3;
-      const cellKey = `${x},${y}`;
-      const hasBridge = roadKeys.has(cellKey) && riverKeys.has(cellKey);
-      const roadKey = edgeKey(connectors?.road);
-      const riverKey = edgeKey(connectors?.river);
-      const roadSrc = roadKey ? `/assets/tiles/networks/road_${roadKey}.png` : null;
-      const riverSrc = riverKey ? `/assets/tiles/networks/river_${riverKey}.png` : null;
-      const terrainType =
-        state.terrain.biomes[y]?.[x] ?? ("PLAIN" as TerrainType);
-      const baseSrc = showTerrainDebug
-        ? TERRAIN_DEBUG_TILE_SRC[terrainType]
-        : TERRAIN_TILE_SRC[terrainType];
-      tiles.push(
-        <Box
-          key={`tile-${x}-${y}`}
-          component="img"
-          draggable={false}
-          alt="Ground tile"
-          src={baseSrc}
-          onDragStart={(event) => {
-            event.preventDefault();
-          }}
-          sx={{
-            position: "absolute",
-            left,
-            top,
-            width: TILE_W,
-            height: TILE_H,
-            zIndex: baseZ,
-            userSelect: "none",
-            WebkitUserDrag: "none",
-          }}
-        />
-      );
-      if (riverSrc) {
-        tiles.push(
-          <Box
-            key={`river-${x}-${y}`}
-            component="img"
-            draggable={false}
-            alt="River overlay"
-            src={riverSrc}
-            sx={{
-              position: "absolute",
-              left,
-              top,
-              width: TILE_W,
-              height: TILE_H,
-              zIndex: baseZ + 1,
-              pointerEvents: "none",
-              userSelect: "none",
-              WebkitUserDrag: "none",
-            }}
-          />
-        );
-      }
-      if (roadSrc) {
-        tiles.push(
-          <Box
-            key={`road-${x}-${y}`}
-            component="img"
-            draggable={false}
-            alt="Road overlay"
-            src={roadSrc}
-            sx={{
-              position: "absolute",
-              left,
-              top,
-              width: TILE_W,
-              height: TILE_H,
-              zIndex: baseZ + 2,
-              pointerEvents: "none",
-              userSelect: "none",
-              WebkitUserDrag: "none",
-            }}
-          />
-        );
-      }
-      if (hasBridge) {
-        tiles.push(
-          <Box
-            key={`bridge-${x}-${y}`}
-            component="img"
-            draggable={false}
-            alt="Bridge overlay"
-            src="/assets/tiles/networks/bridge_square.png"
-            sx={{
-              position: "absolute",
-              left,
-              top,
-              width: TILE_W,
-              height: TILE_H,
-              zIndex: baseZ + 3,
-              pointerEvents: "none",
-              userSelect: "none",
-              WebkitUserDrag: "none",
-            }}
-          />
-        );
-      }
-    }
-  }
-
-  const moveHighlights = moveRange.map((pos) => {
-    const { sx, sy } = gridToScreen(pos);
-    const left = originX + sx - TILE_W / 2;
-    const top = originY + sy - TILE_H / 2;
-    const zIndex = (pos.x + pos.y) * 3 + 5;
-    return (
-      <Box
-        key={`highlight-${posKey(pos)}`}
-        component="img"
-        draggable={false}
-        alt="Move highlight"
-        src="/assets/tiles/highlight_move_adv.png"
-        className="moveHighlight"
-        onError={(event) => {
-          event.currentTarget.src = "/assets/tiles/highlight_move.png";
-        }}
-        sx={{
-          position: "absolute",
-          left,
-          top,
-          width: TILE_W,
-          height: TILE_H,
-          zIndex,
-          pointerEvents: "none",
-          userSelect: "none",
-          WebkitUserDrag: "none",
-        }}
-      />
-    );
-  });
-
-  const targetHighlights = targetableTiles.map((pos) => {
-    const { sx, sy } = gridToScreen(pos);
-    const left = originX + sx - TILE_W / 2;
-    const top = originY + sy - TILE_H / 2;
-    const zIndex = (pos.x + pos.y) * 3 + 6;
-    return (
-      <Box
-        key={`target-highlight-${posKey(pos)}`}
-        component="img"
-        draggable={false}
-        alt="Target highlight"
-        src="/assets/tiles/highlight_target_confirm.png"
-        className="moveHighlight"
-        onError={(event) => {
-          event.currentTarget.src = "/assets/tiles/highlight_move.png";
-        }}
-        sx={{
-          position: "absolute",
-          left,
-          top,
-          width: TILE_W,
-          height: TILE_H,
-          zIndex,
-          pointerEvents: "none",
-          userSelect: "none",
-          WebkitUserDrag: "none",
-        }}
-      />
-    );
-  });
-
-  const attackHighlights = attackableTiles.map((pos) => {
-    const { sx, sy } = gridToScreen(pos);
-    const left = originX + sx - TILE_W / 2;
-    const top = originY + sy - TILE_H / 2;
-    const zIndex = (pos.x + pos.y) * 3 + 6;
-    return (
-      <Box
-        key={`attack-highlight-${posKey(pos)}`}
-        component="img"
-        draggable={false}
-        alt="Attack highlight"
-        src="/assets/tiles/highlight_move_adv.png"
-        className="moveHighlight"
-        onError={(event) => {
-          event.currentTarget.src = "/assets/tiles/highlight_move.png";
-        }}
-        sx={{
-          position: "absolute",
-          left,
-          top,
-          width: TILE_W,
-          height: TILE_H,
-          zIndex,
-          pointerEvents: "none",
-          userSelect: "none",
-          WebkitUserDrag: "none",
-        }}
-      />
-    );
-  });
-
-  const hoverHighlight = hoveredTile
-    ? (() => {
-        const { sx, sy } = gridToScreen(hoveredTile);
+  const tiles = useMemo(() => {
+    const result: ReactElement[] = [];
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const { sx, sy } = gridToScreen({ x, y });
         const left = originX + sx - TILE_W / 2;
         const top = originY + sy - TILE_H / 2;
-        const zIndex = (hoveredTile.x + hoveredTile.y) * 3 + 7;
-        return (
+        const connectors = connectorsByPos.get(`${x},${y}`);
+        const baseZ = (x + y) * 3;
+        const cellKey = `${x},${y}`;
+        const hasBridge = roadKeys.has(cellKey) && riverKeys.has(cellKey);
+        const roadKey = edgeKey(connectors?.road);
+        const riverKey = edgeKey(connectors?.river);
+        const roadSrc = roadKey ? `/assets/tiles/networks/road_${roadKey}.png` : null;
+        const riverSrc = riverKey ? `/assets/tiles/networks/river_${riverKey}.png` : null;
+        const terrainType =
+          state.terrain.biomes[y]?.[x] ?? ("PLAIN" as TerrainType);
+        const baseSrc = showTerrainDebug
+          ? TERRAIN_DEBUG_TILE_SRC[terrainType]
+          : TERRAIN_TILE_SRC[terrainType];
+        result.push(
           <Box
-            key={`hover-highlight-${posKey(hoveredTile)}`}
+            key={`tile-${x}-${y}`}
             component="img"
             draggable={false}
-            alt="Hover highlight"
-            src="/assets/tiles/highlight_move.png"
+            alt="Ground tile"
+            src={baseSrc}
+            onDragStart={(event) => {
+              event.preventDefault();
+            }}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex: baseZ,
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+        if (riverSrc) {
+          result.push(
+            <Box
+              key={`river-${x}-${y}`}
+              component="img"
+              draggable={false}
+              alt="River overlay"
+              src={riverSrc}
+              sx={{
+                position: "absolute",
+                left,
+                top,
+                width: TILE_W,
+                height: TILE_H,
+                zIndex: baseZ + 1,
+                pointerEvents: "none",
+                userSelect: "none",
+                WebkitUserDrag: "none",
+              }}
+            />
+          );
+        }
+        if (roadSrc) {
+          result.push(
+            <Box
+              key={`road-${x}-${y}`}
+              component="img"
+              draggable={false}
+              alt="Road overlay"
+              src={roadSrc}
+              sx={{
+                position: "absolute",
+                left,
+                top,
+                width: TILE_W,
+                height: TILE_H,
+                zIndex: baseZ + 2,
+                pointerEvents: "none",
+                userSelect: "none",
+                WebkitUserDrag: "none",
+              }}
+            />
+          );
+        }
+        if (hasBridge) {
+          result.push(
+            <Box
+              key={`bridge-${x}-${y}`}
+              component="img"
+              draggable={false}
+              alt="Bridge overlay"
+              src="/assets/tiles/networks/bridge_square.png"
+              sx={{
+                position: "absolute",
+                left,
+                top,
+                width: TILE_W,
+                height: TILE_H,
+                zIndex: baseZ + 3,
+                pointerEvents: "none",
+                userSelect: "none",
+                WebkitUserDrag: "none",
+              }}
+            />
+          );
+        }
+      }
+    }
+    return result;
+  }, [
+    TILE_H,
+    TILE_W,
+    connectorsByPos,
+    height,
+    originX,
+    originY,
+    riverKeys,
+    roadKeys,
+    showTerrainDebug,
+    state.terrain.biomes,
+    width,
+  ]);
+
+  const moveHighlights = useMemo(
+    () =>
+      moveRange.map((pos) => {
+        const { sx, sy } = gridToScreen(pos);
+        const left = originX + sx - TILE_W / 2;
+        const top = originY + sy - TILE_H / 2;
+        const zIndex = (pos.x + pos.y) * 3 + 5;
+        return (
+          <Box
+            key={`highlight-${posKey(pos)}`}
+            component="img"
+            draggable={false}
+            alt="Move highlight"
+            src="/assets/tiles/highlight_move_adv.png"
             className="moveHighlight"
             onError={(event) => {
               event.currentTarget.src = "/assets/tiles/highlight_move.png";
@@ -276,58 +209,171 @@ export default function IsometricBoard({
             }}
           />
         );
-      })()
-    : null;
+      }),
+    [TILE_H, TILE_W, moveRange, originX, originY]
+  );
 
-  const registryTile = {
-    x: Math.floor(width / 2),
-    y: Math.floor(height / 2),
-  };
-  const { sx: regSx, sy: regSy } = gridToScreen(registryTile);
-  const registryLeft = originX + regSx - REGISTRY_MARK_DISPLAY.w / 2;
-  const registryTop = originY + regSy + TILE_H / 2 - REGISTRY_MARK_DISPLAY.h;
+  const targetHighlights = useMemo(
+    () =>
+      targetableTiles.map((pos) => {
+        const { sx, sy } = gridToScreen(pos);
+        const left = originX + sx - TILE_W / 2;
+        const top = originY + sy - TILE_H / 2;
+        const zIndex = (pos.x + pos.y) * 3 + 6;
+        return (
+          <Box
+            key={`target-highlight-${posKey(pos)}`}
+            component="img"
+            draggable={false}
+            alt="Target highlight"
+            src="/assets/tiles/highlight_target_confirm.png"
+            className="moveHighlight"
+            onError={(event) => {
+              event.currentTarget.src = "/assets/tiles/highlight_move.png";
+            }}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex,
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      }),
+    [TILE_H, TILE_W, originX, originY, targetableTiles]
+  );
 
+  const attackHighlights = useMemo(
+    () =>
+      attackableTiles.map((pos) => {
+        const { sx, sy } = gridToScreen(pos);
+        const left = originX + sx - TILE_W / 2;
+        const top = originY + sy - TILE_H / 2;
+        const zIndex = (pos.x + pos.y) * 3 + 6;
+        return (
+          <Box
+            key={`attack-highlight-${posKey(pos)}`}
+            component="img"
+            draggable={false}
+            alt="Attack highlight"
+            src="/assets/tiles/highlight_move_adv.png"
+            className="moveHighlight"
+            onError={(event) => {
+              event.currentTarget.src = "/assets/tiles/highlight_move.png";
+            }}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: TILE_W,
+              height: TILE_H,
+              zIndex,
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      }),
+    [TILE_H, TILE_W, attackableTiles, originX, originY]
+  );
 
-  const units = state.units.map((unit) => {
-    const { sx, sy } = gridToScreen(unit.position);
-    const left = originX + sx + UNIT_OFFSET_X;
-    const top = originY + sy + UNIT_OFFSET_Y;
-    const isSelected = unit.id === selectedUnitId;
-    const isInMoveRange = moveRangeKeys.has(posKey(unit.position));
-    const unitVariant = unit.owner === "PLAYER_A" ? "a" : "b";
-    const unitSrc =
-      unit.type === "INFANTRY"
-        ? `/assets/units/light_${unitVariant}.png`
-        : unit.type === "VEHICLE"
-          ? `/assets/units/mechanized_${unitVariant}.png`
-          : `/assets/units/special_${unitVariant}.png`;
-    const spriteSize = UNIT_BASE_SIZE * UNIT_SCALE_BY_TYPE[unit.type];
-
+  const hoverHighlight = useMemo(() => {
+    if (!hoveredTile) {
+      return null;
+    }
+    const { sx, sy } = gridToScreen(hoveredTile);
+    const left = originX + sx - TILE_W / 2;
+    const top = originY + sy - TILE_H / 2;
+    const zIndex = (hoveredTile.x + hoveredTile.y) * 3 + 7;
     return (
       <Box
-        key={`unit-${unit.id}`}
+        key={`hover-highlight-${posKey(hoveredTile)}`}
         component="img"
         draggable={false}
-        alt={`${unit.type} unit`}
-        src={unitSrc}
+        alt="Hover highlight"
+        src="/assets/tiles/highlight_move.png"
+        className="moveHighlight"
+        onError={(event) => {
+          event.currentTarget.src = "/assets/tiles/highlight_move.png";
+        }}
         sx={{
           position: "absolute",
           left,
           top,
-          width: spriteSize,
-          height: spriteSize,
-          transform: "translate(-50%, -100%)",
-          zIndex: unit.position.x + unit.position.y + 1000,
-          outline: isSelected ? "3px solid #0f766e" : "none",
-          outlineOffset: 2,
-          opacity: isInMoveRange ? 0.85 : 1,
-          userSelect: "none",
+          width: TILE_W,
+          height: TILE_H,
+          zIndex,
           pointerEvents: "none",
+          userSelect: "none",
           WebkitUserDrag: "none",
         }}
       />
     );
-  });
+  }, [TILE_H, TILE_W, hoveredTile, originX, originY]);
+
+  const { registryLeft, registryTop, registryTile } = useMemo(() => {
+    const tile = {
+      x: Math.floor(width / 2),
+      y: Math.floor(height / 2),
+    };
+    const { sx, sy } = gridToScreen(tile);
+    return {
+      registryTile: tile,
+      registryLeft: originX + sx - REGISTRY_MARK_DISPLAY.w / 2,
+      registryTop: originY + sy + TILE_H / 2 - REGISTRY_MARK_DISPLAY.h,
+    };
+  }, [TILE_H, height, originX, originY, width]);
+
+  const units = useMemo(
+    () =>
+      state.units.map((unit) => {
+        const { sx, sy } = gridToScreen(unit.position);
+        const left = originX + sx + UNIT_OFFSET_X;
+        const top = originY + sy + UNIT_OFFSET_Y;
+        const isSelected = unit.id === selectedUnitId;
+        const isInMoveRange = moveRangeKeys.has(posKey(unit.position));
+        const unitVariant = unit.owner === "PLAYER_A" ? "a" : "b";
+        const unitSrc =
+          unit.type === "INFANTRY"
+            ? `/assets/units/light_${unitVariant}.png`
+            : unit.type === "VEHICLE"
+              ? `/assets/units/mechanized_${unitVariant}.png`
+              : `/assets/units/special_${unitVariant}.png`;
+        const spriteSize = UNIT_BASE_SIZE * UNIT_SCALE_BY_TYPE[unit.type];
+
+        return (
+          <Box
+            key={`unit-${unit.id}`}
+            component="img"
+            draggable={false}
+            alt={`${unit.type} unit`}
+            src={unitSrc}
+            sx={{
+              position: "absolute",
+              left,
+              top,
+              width: spriteSize,
+              height: spriteSize,
+              transform: "translate(-50%, -100%)",
+              zIndex: unit.position.x + unit.position.y + 1000,
+              outline: isSelected ? "3px solid #0f766e" : "none",
+              outlineOffset: 2,
+              opacity: isInMoveRange ? 0.85 : 1,
+              userSelect: "none",
+              pointerEvents: "none",
+              WebkitUserDrag: "none",
+            }}
+          />
+        );
+      }),
+    [UNIT_BASE_SIZE, UNIT_OFFSET_X, UNIT_OFFSET_Y, moveRangeKeys, originX, originY, selectedUnitId, state.units]
+  );
 
   return (
     <Box

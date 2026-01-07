@@ -1,6 +1,5 @@
 "use client";
 
-import type { RefObject } from "react";
 import {
   startTransition,
   useCallback,
@@ -36,8 +35,7 @@ import {
   initialTerrainSquarePenalties,
 } from "@/lib/settings";
 import { getMoveRange } from "@/lib/engine/movement";
-import BoardViewport from "@/components/BoardViewport";
-import IsometricBoard from "@/components/IsometricBoard";
+import BoardSurface from "@/components/BoardSurface";
 import CommandHeader from "@/components/CommandHeader";
 import EdgeCommandDock from "@/components/EdgeCommandDock";
 import MobileConsoleDrawer from "@/components/MobileConsoleDrawer";
@@ -51,7 +49,6 @@ import OverlayPanel from "@/components/ui/OverlayPanel";
 import StatusCapsule from "@/components/ui/StatusCapsule";
 import CardDrawOverlay from "@/components/ui/CardDrawOverlay";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
-import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
 import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
 import { semanticColors } from "@/lib/ui/semanticColors";
 import { buildContext } from "@/lib/engine/effects";
@@ -83,7 +80,6 @@ export default function Home() {
   const lastSeedRef = useRef<number>(initialSeed);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
-  const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
   const targetingContextRef = useRef<TargetingContext | null>(null);
   const [selectedTargetUnitIds, setSelectedTargetUnitIds] = useState<string[]>([]);
@@ -497,32 +493,6 @@ export default function Home() {
     }
     return map;
   }, [state.units]);
-  const { originX, originY } = useMemo(
-    () => getBoardOrigin(state.boardWidth, state.boardHeight),
-    [state.boardWidth, state.boardHeight]
-  );
-  const medianUnitPosition = useMemo(() => {
-    if (state.units.length === 0) {
-      return { x: Math.floor(state.boardWidth / 2), y: Math.floor(state.boardHeight / 2) };
-    }
-    const xs = state.units.map((unit) => unit.position.x).sort((a, b) => a - b);
-    const ys = state.units.map((unit) => unit.position.y).sort((a, b) => a - b);
-    const mid = Math.floor(xs.length / 2);
-    const medianX =
-      xs.length % 2 === 0 ? (xs[mid - 1] + xs[mid]) / 2 : xs[mid];
-    const medianY =
-      ys.length % 2 === 0 ? (ys[mid - 1] + ys[mid]) / 2 : ys[mid];
-    return { x: medianX, y: medianY };
-  }, [state.boardHeight, state.boardWidth, state.units]);
-  const initialPan = useMemo(() => {
-    const { sx, sy } = gridToScreen(medianUnitPosition);
-    const worldX = originX + sx;
-    const worldY = originY + sy;
-    return ({ width, height }: { width: number; height: number }) => ({
-      x: width / 2 - worldX,
-      y: height / 2 - worldY,
-    });
-  }, [medianUnitPosition, originX, originY]);
   const logRef = useRef<HTMLDivElement | null>(null);
   const logRowHeight = 18;
   const reducedMotion = useReducedMotion();
@@ -655,70 +625,6 @@ export default function Home() {
       setSelectedAttackerId(null);
     }
   }
-
-  function handleViewportClick(args: {
-    clientX: number;
-    clientY: number;
-    panX: number;
-    panY: number;
-    zoom: number;
-    viewportRef: RefObject<HTMLDivElement | null>;
-  }) {
-    if (!terrainReady) {
-      return;
-    }
-    if (!args.viewportRef.current) {
-      return;
-    }
-    const rect = args.viewportRef.current.getBoundingClientRect();
-    const localX = (args.clientX - rect.left - args.panX) / args.zoom;
-    const localY = (args.clientY - rect.top - args.panY) / args.zoom;
-    const { x, y } = screenToGrid(localX - originX, localY - originY);
-    if (x < 0 || x >= state.boardWidth || y < 0 || y >= state.boardHeight) {
-      return;
-    }
-    handleTileClick({ x, y });
-  }
-
-  const handleViewportHover = useCallback(
-    (args: {
-      clientX: number;
-      clientY: number;
-      panX: number;
-      panY: number;
-      zoom: number;
-      viewportRef: RefObject<HTMLDivElement | null>;
-      isPanning: boolean;
-    }) => {
-      if (!terrainReady) {
-        return;
-      }
-      if (!args.viewportRef.current) {
-        return;
-      }
-      if (args.isPanning) {
-        setHoveredTile((current) => (current ? null : current));
-        return;
-      }
-      const rect = args.viewportRef.current.getBoundingClientRect();
-      const localX = (args.clientX - rect.left - args.panX) / args.zoom;
-      const localY = (args.clientY - rect.top - args.panY) / args.zoom;
-      const { x, y } = screenToGrid(localX - originX, localY - originY);
-      if (x < 0 || x >= state.boardWidth || y < 0 || y >= state.boardHeight) {
-        setHoveredTile((current) => (current ? null : current));
-        return;
-      }
-      setHoveredTile((current) => {
-        if (current && current.x === x && current.y === y) {
-          return current;
-        }
-        return { x, y };
-      });
-    },
-    [originX, originY, state.boardHeight, state.boardWidth, terrainReady]
-  );
-
-
 
   const selectionLabel =
     mode === "MOVE" ? selectedUnitId ?? "None" : selectedAttackerId ?? "None";
@@ -1156,25 +1062,18 @@ export default function Home() {
           accentColor="#1B1B1B"
         >
           <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
-            <BoardViewport
-              onClick={handleViewportClick}
-              onHover={handleViewportHover}
-              onHoverEnd={() => setHoveredTile(null)}
-              sx={{ height: "100%" }}
-              initialPan={initialPan}
-            >
-              {() => (
-                <IsometricBoard
-                  state={state}
-                  selectedUnitId={mode === "MOVE" ? selectedUnitId : selectedAttackerId}
-                  hoveredTile={hoveredTile}
-                  moveRange={moveRange}
-                  targetableTiles={targetableTiles}
-                  attackableTiles={attackableTiles}
-                  showTerrainDebug={SHOW_TERRAIN_DEBUG}
-                />
-              )}
-            </BoardViewport>
+            <BoardSurface
+              state={state}
+              mode={mode}
+              selectedUnitId={selectedUnitId}
+              selectedAttackerId={selectedAttackerId}
+              moveRange={moveRange}
+              targetableTiles={targetableTiles}
+              attackableTiles={attackableTiles}
+              terrainReady={terrainReady}
+              showTerrainDebug={SHOW_TERRAIN_DEBUG}
+              onTileClick={handleTileClick}
+            />
             {SHOW_TERRAIN_DEBUG && terrainReady ? (
               <Box
                 sx={{

@@ -3865,3 +3865,45 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - Generator: `scripts/gen_terrain_tiles.mjs`
 - Assets: `public/assets/tiles/terrain-04-urban.png`
 - Docs: `docs/terrain-tiles.md`, `docs/progress.md`
+
+---
+
+## 2026-01-07 — Board hover performance pass
+
+### BEFORE
+- Hovering the map triggered full-page rerenders and rebuilt the isometric tile layer on every pointer move, which caused visible stutter and delayed rollover in other UI.
+
+### NOW
+- Hover state is localized inside a new `BoardSurface` wrapper so pointer moves no longer rerender the entire page.
+- Hover updates are throttled to animation frames, reducing per-move work while keeping the highlight responsive.
+- The isometric board caches terrain tiles, overlays, highlights, and units so hover changes only update the hover layer.
+
+### NEXT
+- Profile pan/zoom on low-end devices and consider virtualization or canvas rendering if terrain sizes increase.
+
+### Known limitations / TODOs
+- Hover rendering still uses DOM image layers; very large boards may still need a deeper rendering pipeline change.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `src/app/page.tsx`, `src/components/BoardSurface.tsx`, `src/components/IsometricBoard.tsx`
+
+---
+
+## 2026-01-07 — Fix JSX namespace typing in board renderer
+
+### BEFORE
+- `IsometricBoard` used `JSX.Element[]`, which failed to typecheck in the current TS configuration.
+
+### NOW
+- `IsometricBoard` uses `ReactElement[]` from `react` for the tile array type, restoring `tsc` compatibility.
+
+### NEXT
+- Re-run the TypeScript check after any future TS config changes that may affect JSX typing.
+
+### Known limitations / TODOs
+- None.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `src/components/IsometricBoard.tsx`
