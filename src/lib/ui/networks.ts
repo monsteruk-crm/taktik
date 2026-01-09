@@ -1,10 +1,6 @@
-export type Edge = "N" | "E" | "S" | "W";
-export type Cell = { x: number; y: number };
+import type { Cell, Edge, NetworkConnectors } from "@/types/networks";
 
-export type NetworkConnectors = {
-  road?: Edge[];
-  river?: Edge[];
-};
+export type { Cell, Edge, NetworkConnectors } from "@/types/networks";
 
 const ORDER: Edge[] = ["N", "E", "S", "W"];
 

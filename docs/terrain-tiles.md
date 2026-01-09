@@ -14,11 +14,9 @@ The manual establishes distinct terrain features on the play surface. This syste
 - Urban/Industrial are seeded clusters placed near roads/bridges, never from noise.
 - Roads/rivers remain visually dominant; terrain is the “paper,” networks are the “ink.”
 - Debug overlay uses flat, opaque legend colors and is gated by `NEXT_PUBLIC_TERRAIN_DEBUG=true`.
-- Terrain tops are authored as square SVGs in `temp/terrain-tops/` (including `base_04-urban.svg` and `base_10-industrial.svg`) and projected onto the isometric top face during tile generation.
-- SVG rasterization trims to artwork bounds, then centers and pads to the target square size before projection to avoid edge clipping.
-- Urban tops mask the base fill color (`#d2d2cb`) so only the grid and block elements appear on the slab.
-- Urban tops use a small sampling offset during projection to keep the central block aligned.
-- All terrain tiles share the same extruded base (side faces + neutral top slab).
+- Terrain tops are authored as 100×100mm square SVGs in `temp/terrain-tops/` (e.g., `base_01-plain.svg` through `base_06-water.svg`, plus `base_10-industrial.svg`) and projected onto the isometric top face during tile generation.
+- SVG rasterization for terrain tops does **not** trim; the full square is resized to the target resolution so it fully covers the top face.
+- All terrain tiles share the same extruded base (side faces + neutral top slab) and include a beveled top edge for consistent depth.
 
 ## Edge cases
 - Small isolated regions of FOREST/ROUGH/HILL are dissolved to the dominant neighboring terrain (or `PLAIN` if no neighbor dominates).

@@ -6,6 +6,7 @@ import { posKey } from "@/lib/engine/selectors";
 import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_LAYOUT } from "@/lib/ui/iso";
 import { edgeKey, mergeNetworks } from "@/lib/ui/networks";
 import { TERRAIN_DEBUG_TILE_SRC, TERRAIN_TILE_SRC } from "@/lib/ui/terrain";
+import { initialUnitDisplayConfig } from "@/lib/settings";
 
 const UNIT_SCALE_BY_TYPE = {
   INFANTRY: 0.95,
@@ -51,7 +52,6 @@ export default function IsometricBoard({
   const UNIT_BASE_SIZE = TILE_W * 0.52;
   const UNIT_OFFSET_X = 0;
   const UNIT_OFFSET_Y = TILE_H * 0.3;
-  const REGISTRY_MARK_DISPLAY = { w: TILE_W, h: TILE_W };
 
   const tiles = useMemo(() => {
     const result: ReactElement[] = [];
@@ -317,25 +317,14 @@ export default function IsometricBoard({
     );
   }, [TILE_H, TILE_W, hoveredTile, originX, originY]);
 
-  const { registryLeft, registryTop, registryTile } = useMemo(() => {
-    const tile = {
-      x: Math.floor(width / 2),
-      y: Math.floor(height / 2),
-    };
-    const { sx, sy } = gridToScreen(tile);
-    return {
-      registryTile: tile,
-      registryLeft: originX + sx - REGISTRY_MARK_DISPLAY.w / 2,
-      registryTop: originY + sy + TILE_H / 2 - REGISTRY_MARK_DISPLAY.h,
-    };
-  }, [TILE_H, height, originX, originY, width]);
 
   const units = useMemo(
     () =>
       state.units.map((unit) => {
         const { sx, sy } = gridToScreen(unit.position);
-        const left = originX + sx + UNIT_OFFSET_X;
-        const top = originY + sy + UNIT_OFFSET_Y;
+        const displayTweak = initialUnitDisplayConfig[unit.type];
+        const left = originX + sx + UNIT_OFFSET_X + displayTweak.offsetX;
+        const top = originY + sy + UNIT_OFFSET_Y + displayTweak.offsetY;
         const isSelected = unit.id === selectedUnitId;
         const isInMoveRange = moveRangeKeys.has(posKey(unit.position));
         const unitVariant = unit.owner === "PLAYER_A" ? "a" : "b";
@@ -345,7 +334,10 @@ export default function IsometricBoard({
             : unit.type === "VEHICLE"
               ? `/assets/units/mechanized_${unitVariant}.png`
               : `/assets/units/special_${unitVariant}.png`;
-        const spriteSize = UNIT_BASE_SIZE * UNIT_SCALE_BY_TYPE[unit.type];
+        const spriteSize =
+          UNIT_BASE_SIZE *
+          UNIT_SCALE_BY_TYPE[unit.type] *
+          (1 + displayTweak.scale);
 
         return (
           <Box
@@ -388,23 +380,6 @@ export default function IsometricBoard({
       {targetHighlights}
       {attackHighlights}
       {hoverHighlight}
-      <Box
-        component="img"
-        alt="Registry marker"
-        src="/assets/tiles/registry.png"
-        draggable={false}
-        sx={{
-          position: "absolute",
-          left: registryLeft,
-          top: registryTop,
-          width: REGISTRY_MARK_DISPLAY.w,
-          height: REGISTRY_MARK_DISPLAY.h,
-          zIndex: registryTile.x + registryTile.y + 900,
-          userSelect: "none",
-          pointerEvents: "none",
-          WebkitUserDrag: "none",
-        }}
-      />
       {units}
     </Box>
   );

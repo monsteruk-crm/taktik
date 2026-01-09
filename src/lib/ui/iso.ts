@@ -1,10 +1,10 @@
 export const TILE_LAYOUT = {
-  width: 128,
-  height: 64,
+  width: 640/5,
+  height: 396/5,
   originYOffset: 0,
-  rowOverlap: 6,
+  rowOverlap: 7.5,
 } as const;
-
+//128:640=x:396
 export const TILE_W = TILE_LAYOUT.width;
 export const TILE_H = TILE_LAYOUT.height;
 

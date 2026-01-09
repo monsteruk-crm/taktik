@@ -399,11 +399,91 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Known limitations / TODOs
 - Hover feedback is intentionally disabled while panning to avoid visual noise.
 
+---
+
+## 2026-01-07 — Rebuild terrain tiles from square tops + beveled base
+
+### BEFORE
+- Terrain tiles projected a mix of older SVGs (some trimmed/masked) onto the isometric face, and the base slab had no bevel edge.
+- The generator relied on trim-based rasterization, which could shrink square tops and create edge mismatches.
+
+### NOW
+- Terrain tiles now use the new 100×100mm square `base_0*-*.svg` tops, projected directly (no trim) so the artwork covers the full top face.
+- A shared extruded-base helper draws the side faces plus a beveled top edge, keeping all terrain tiles visually consistent.
+
+### NEXT
+- Run the generator and visually validate the new beveled tops across the board at typical zoom to confirm the square art aligns cleanly with roads/rivers.
+
+### Known limitations / TODOs
+- Tile generation has not been re-run in this step, so regenerated PNGs still need to be reviewed after `node scripts/gen_terrain_tiles.mjs`.
+
 ### Files touched
-- Docs: `docs/progress.md`, `docs/board-hover.md`
-- UI: `components/BoardViewport.tsx`, `components/IsometricBoard.tsx`, `app/page.tsx`
+- Docs: `docs/progress.md`, `docs/terrain-tiles.md`
+- Generator: `scripts/gen_terrain_tiles.mjs`
+
+## 2026-01-07 — Remove registry marker overlay
+
+### BEFORE
+- The isometric board rendered a `registry.png` marker over the center tile so unit offsets could be aligned via `temp/map.png`.
+
+### NOW
+- The registry marker is gone; the board now renders only the tiles, highlights, and units that players see in-game.
+
+### NEXT
+- If we ever need a debug alignment target again, consider a dev-only toggle that can be flipped on without shipping the asset to players.
+
+### Known limitations / TODOs
+- None; the alignment marker was never part of gameplay.
+
+### Files touched
+- Docs: `docs/progress.md`
+- UI: `src/components/IsometricBoard.tsx`
 
 ---
+
+## 2026-01-08 — Add configurable unit layout tweaks
+
+### BEFORE
+- Unit sprites sat `TILE_H * 0.3` pixels below their tile centers with no knobs to adjust their alignment or apparent scale, so every atlas refresh required editing the renderer itself.
+
+### NOW
+- Added `initialUnitDisplayConfig` to `src/lib/settings.ts` to publish `offsetX`, `offsetY`, and `scale` adjustments that default to zero so the current layout stays unchanged.
+- `IsometricBoard` now reads the new config and adds those offsets/scale changes when computing each sprite’s left/top positions and size.
+
+### NEXT
+- Surface these tuning values in the dev console or a configuration menu so artists can tweak placements without touching source code.
+
+### Known limitations / TODOs
+- The scale tweak multiplies by `1 + value`, so values ≤ -1 still collapse the sprite; consider clamping once we expose the knobs.
+- There is no UI to edit the settings yet; edits must still happen in the settings file.
+
+### Files touched
+- Config: `src/lib/settings.ts`
+- UI: `src/components/IsometricBoard.tsx`
+- Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-08 — Support unit-type-specific layout tweaks
+
+### BEFORE
+- Every unit type shared the same global offset/scale, so any per-art differences required editing the renderer and risked affecting all units simultaneously.
+
+### NOW
+- `initialUnitDisplayConfig` is a per-`UnitType` map in `src/lib/settings.ts`, letting INFANTRY/VEHICLE/SPECIAL each supply their own `offsetX`, `offsetY`, and `scale` adjustments (zeros keep the existing layout).
+- `IsometricBoard` uses each unit’s tweak when computing left/top and sprite size, so the renderer can honor the specific offsets while still keeping the engine deterministic.
+
+### NEXT
+- Add tooling (console knobs, config screen, or JSON editor) to edit these per-type tweaks without touching source code.
+
+### Known limitations / TODOs
+- The tweaks remain handwritten in `settings.ts`; a UI or preset system would make iteration safer.
+- Negative scale tweaks still multiply by `1 + value`, so values ≤ -1 collapse the sprite unless the UI guards against them.
+
+### Files touched
+- Config: `src/lib/settings.ts`
+- UI: `src/components/IsometricBoard.tsx`
+- Docs: `docs/engine.md`, `docs/progress.md`
 
 ## 2026-01-01 — Fix board hover tracking
 
@@ -3907,3 +3987,67 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - Docs: `docs/progress.md`
 - UI: `src/components/IsometricBoard.tsx`
+
+---
+
+## 2026-01-08 — Scatter placement onto plain tiles
+
+### BEFORE
+- Armies always started on the tight center columns and the nearest-clear scan could land a unit on roads, rivers, or other biomes, so the opening fight felt constrained and sometimes placed forces on impossible tiles.
+
+### NOW
+- The reducer now jitters every anchor column/row by the seeded scatter radii (`bootstrapUnitPlacement.columnScatter` / `.rowScatter`), feeding that same LCG stream into `findNearestClearCell`.
+- Unit placement will reject any tile whose biome is not `PLAIN`, so every army member now starts on plain ground even when the anchor is near a river or road.
+
+### NEXT
+- Explore whether scenario presets should swap the scatter radii or whether we should add additional anchors to push the units toward specific terrain features without breaking determinism.
+
+### Known limitations / TODOs
+- The scatter still begins from the original anchor rows, so extremely blocked center columns may still push the entire line en masse; future work could add mirror anchors or multiple candidate rows.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`, `src/lib/settings.ts`
+- Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-08 — Radial move range + scale pulse
+
+### BEFORE
+- Movement highlights covered a square (Chebyshev) range and only faded in/out, so the possible moves looked boxy and the pulse felt flat.
+
+### NOW
+- Movement range uses Manhattan distance again, producing a radial diamond around the unit for both highlight and legality checks.
+- The highlight pulse now scales in/out while fading, and reduced-motion disables the animation.
+
+### NEXT
+- Evaluate whether terrain or card effects should override the radial range shape (e.g., road-based boosts) without breaking determinism.
+
+### Known limitations / TODOs
+- The pulse still uses a simple 1s step animation; if it feels too harsh, we can switch to a brief eased keyframe set.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`, `src/lib/engine/movement.ts`
+- UI: `src/app/globals.css`
+- Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-08 — Highlight pulse settings
+
+### BEFORE
+- The move highlight pulse used hard-coded timing and easing in CSS, so tuning required editing `globals.css` directly.
+
+### NOW
+- Added `moveHighlightPulse` to `src/lib/settings.ts` and wired CSS variables through `BoardSurface`, so pulse duration and easing (plus scale/opacity bounds) are adjustable via settings.
+
+### NEXT
+- Decide whether to expose these settings in a debug UI panel for on-the-fly tuning.
+
+### Known limitations / TODOs
+- These values are applied to all highlight types via the shared `.moveHighlight` class; per-mode tuning would need additional CSS variables.
+
+### Files touched
+- UI: `src/components/BoardSurface.tsx`, `src/app/globals.css`
+- Settings: `src/lib/settings.ts`
+- Docs: `docs/progress.md`

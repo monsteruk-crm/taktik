@@ -60,12 +60,15 @@ Defined in `lib/engine/gameState.ts`:
   - `terrain.stats`: counts + region totals per terrain type for debug tuning (dev-only visibility).
   - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus an optional `maxBridges` cap that limits how many river crossings/bridges are allowed; this comes from `initialTerrainParams`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
-- Initial unit placement is driven by the global `initialUnitComposition` map (`src/lib/settings.ts`); the reducer instantiates each player’s configured number of `INFANTRY`, `VEHICLE`, and `SPECIAL` units as IDs `A*`/`B*`, lines them up across the centre columns (using centerX ± offsets for each row), positions Player A on the northern anchor and Player B on the southern anchor so `bootstrapUnitPlacement.enemyDistance` cells separate them when possible, and then snaps every unit to the nearest clear tile while keeping the road/river collision rules and occupied set intact.
+- Initial unit placement is driven by the global `initialUnitComposition` map (`src/lib/settings.ts`); the reducer instantiates each player’s configured number of `INFANTRY`, `VEHICLE`, and `SPECIAL` units as IDs `A*`/`B*` and starts them on the two anchor rows separated by `bootstrapUnitPlacement.enemyDistance`.
+- Before snapping into the final spot, each anchor column and row is jittered by the seeded scatter radii (`bootstrapUnitPlacement.columnScatter` / `.rowScatter`), which draws from the same LCG seed stream used throughout the engine so placement remains reproducible.
+- `findNearestClearCell` now accepts an `isAllowedCell` guard, and placement will only resolve to tiles whose biome is `PLAIN`, so no army starts on a road, river, or other terrain type even when the nearest collision-free tile would otherwise disagree.
 - River paths apply axis-run persistence during generation (runAxis/runLen with a minimum run before turns plus anti-ABAB filtering) and avoid forming 2x2 lattice squares; even at tributary joins, 2x2 squares that include existing river cells are rejected to prevent checkerboard clusters.
 - Road pruning is single-pass only, removing short spurs without recursive cascades.
   - Road routing penalizes 2x2 squares, with a heavier penalty when the square touches existing road cells, to prevent lattice/checkerboard clusters while still allowing paths to complete.
 - Road lattice penalties are sourced from `initialTerrainSquarePenalties` (`src/lib/settings.ts`) so tuning happens at a single config point for both main-thread fallback and the worker.
   - Initial terrain params are defined in `src/lib/settings.ts`.
+- The renderer now reads per-`UnitType` tweaks in `initialUnitDisplayConfig` (`src/lib/settings.ts`) when placing unit sprites above the tiles so each type can have its own offset (X/Y) and `scale` while the engine state and deterministic layout stay untouched.
 - Decks/cards:
   - `commonDeck`: the draw pile for the turn card.
   - `tacticalDeck`: shuffled list of available tactic cards (data-only, not drawn).
@@ -123,7 +126,7 @@ From `GameAction` in `lib/engine/reducer.ts`:
 
 ### Movement
 - Board bounds are fixed at 20×30 and stored in state as `boardWidth` / `boardHeight`.
-- Distance uses 8-directional movement (Chebyshev distance).
+- Distance uses Manhattan movement (radial diamond) via `dx + dy`.
 - A unit may move at most once per turn (`hasMoved`).
 - A player may move at most 5 units per turn (`movesThisTurn`).
 - Units cannot move onto occupied tiles.

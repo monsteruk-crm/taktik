@@ -6,6 +6,7 @@ import type { GameState } from "@/lib/engine/gameState";
 import BoardViewport from "@/components/BoardViewport";
 import IsometricBoard from "@/components/IsometricBoard";
 import { getBoardOrigin, gridToScreen, screenToGrid } from "@/lib/ui/iso";
+import { moveHighlightPulse } from "@/lib/settings";
 
 type BoardSurfaceProps = {
   state: GameState;
@@ -171,7 +172,15 @@ export default function BoardSurface({
       onClick={handleViewportClick}
       onHover={handleViewportHover}
       onHoverEnd={handleHoverEnd}
-      sx={{ height: "100%" }}
+      sx={{
+        height: "100%",
+        "--move-highlight-duration": `${moveHighlightPulse.durationMs}ms`,
+        "--move-highlight-easing": moveHighlightPulse.easing,
+        "--move-highlight-scale-min": `${moveHighlightPulse.scaleMin}`,
+        "--move-highlight-scale-max": `${moveHighlightPulse.scaleMax}`,
+        "--move-highlight-opacity-min": `${moveHighlightPulse.opacityMin}`,
+        "--move-highlight-opacity-max": `${moveHighlightPulse.opacityMax}`,
+      }}
       initialPan={initialPan}
     >
       {() => (

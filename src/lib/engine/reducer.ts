@@ -11,6 +11,7 @@ import type {
   Unit,
   UnitType,
 } from "./gameState";
+import type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
 import { cardById, commonDeckCards, tacticalDeckCards } from "./cards";
 import { buildContext, instantiateEffect, validateTargets } from "./effects";
 import type { ReactionPlay } from "./reactions";
@@ -29,6 +30,8 @@ import {
   initialUnitComposition,
 } from "@/lib/settings";
 
+export type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
+
 function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed: number } {
   const shuffled = [...items];
   let nextSeed = seed;
@@ -41,35 +44,6 @@ function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed
   }
   return { shuffled, nextSeed };
 }
-
-export type TerrainResult = {
-  road: BoardCell[];
-  river: BoardCell[];
-  biomes: TerrainType[][];
-  stats: TerrainBiomeStats;
-  nextSeed: number;
-};
-
-export type GameBootstrap = {
-  seed: number;
-  commonDeck: CardDefinition[];
-  tacticalDeck: CardDefinition[];
-  terrainSeed: number;
-};
-
-export type GameAction =
-  | { type: "NEXT_PHASE" }
-  | { type: "TURN_START" }
-  | { type: "END_TURN" }
-  | { type: "RESET_GAME"; seed?: number }
-  | { type: "LOAD_STATE"; state: GameState }
-  | { type: "DRAW_CARD" }
-  | { type: "STORE_BONUS" }
-  | { type: "PLAY_CARD"; cardId: string; targets?: { unitIds?: string[] } }
-  | { type: "ATTACK_SELECT"; attackerId: string; targetId: string }
-  | { type: "ROLL_DICE"; reaction?: ReactionPlay }
-  | { type: "RESOLVE_ATTACK"; reaction?: ReactionPlay }
-  | { type: "MOVE_UNIT"; unitId: string; to: { x: number; y: number }; reaction?: ReactionPlay };
 
 const phaseOrder: GamePhase[] = [
   "TURN_START",
@@ -98,10 +72,11 @@ function findNearestClearCell(args: {
   height: number;
   blocked: Set<string>;
   occupied: Set<string>;
+  isAllowedCell: (cell: { x: number; y: number }) => boolean;
 }): { x: number; y: number } {
-  const { start, width, height, blocked, occupied } = args;
+  const { start, width, height, blocked, occupied, isAllowedCell } = args;
   const key = `${start.x},${start.y}`;
-  if (!blocked.has(key) && !occupied.has(key)) return start;
+  if (!blocked.has(key) && !occupied.has(key) && isAllowedCell(start)) return start;
 
   const maxRadius = Math.max(width, height);
   for (let r = 1; r <= maxRadius; r += 1) {
@@ -116,9 +91,19 @@ function findNearestClearCell(args: {
           continue;
         }
         const candidateKey = `${candidate.x},${candidate.y}`;
-        if (blocked.has(candidateKey) || occupied.has(candidateKey)) continue;
+        if (blocked.has(candidateKey) || occupied.has(candidateKey) || !isAllowedCell(candidate)) continue;
         return candidate;
       }
+    }
+  }
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const fallbackKey = `${x},${y}`;
+      const candidate = { x, y };
+      if (blocked.has(fallbackKey) || occupied.has(fallbackKey)) continue;
+      if (!isAllowedCell(candidate)) continue;
+      return candidate;
     }
   }
 
@@ -213,8 +198,16 @@ export function createInitialGameStateFromBootstrap(args: {
   const occupied = new Set<string>();
   const centerX = Math.floor(boardWidth / 2);
   const centerY = Math.floor(boardHeight / 2);
-  const enemyDistance = Math.max(1, bootstrapUnitPlacement.enemyDistance);
+  const {
+    enemyDistance: rawEnemyDistance,
+    columnScatter: rawColumnScatter,
+    rowScatter: rawRowScatter,
+  } = bootstrapUnitPlacement;
+  const enemyDistance = Math.max(1, rawEnemyDistance);
+  const columnScatter = Math.max(0, Math.floor(rawColumnScatter));
+  const rowScatter = Math.max(0, Math.floor(rawRowScatter));
   const clampRow = (value: number) => Math.max(0, Math.min(boardHeight - 1, value));
+  const clampColumn = (value: number) => Math.max(0, Math.min(boardWidth - 1, value));
   const halfDistance = Math.floor(enemyDistance / 2);
   let rowA = clampRow(centerY - halfDistance);
   let rowB = clampRow(centerY + (enemyDistance - halfDistance));
@@ -233,6 +226,19 @@ export function createInitialGameStateFromBootstrap(args: {
   const playerOrder: Player[] = ["PLAYER_A", "PLAYER_B"];
   const unitTypeOrder: UnitType[] = ["INFANTRY", "VEHICLE", "SPECIAL"];
   const units: Unit[] = [];
+  const biomesGrid = terrain.biomes;
+  const isPlainTile = ({ x, y }: BoardCell) => biomesGrid[y][x] === "PLAIN";
+  let placementSeed = terrain.nextSeed;
+  const advancePlacementSeed = () => {
+    placementSeed = (placementSeed * 1664525 + 1013904223) >>> 0;
+    return placementSeed;
+  };
+  const randomOffset = (radius: number) => {
+    if (radius <= 0) return 0;
+    const range = radius * 2 + 1;
+    const offset = advancePlacementSeed() % range;
+    return offset - radius;
+  };
   for (const player of playerOrder) {
     const prefix = player === "PLAYER_A" ? "A" : "B";
     const specs: { id: string; type: UnitType }[] = [];
@@ -249,13 +255,20 @@ export function createInitialGameStateFromBootstrap(args: {
     const columns = getCenteredColumns(specs.length, centerX, boardWidth);
     const row = rowForPlayer[player];
     specs.forEach((spec, specIndex) => {
-      const start = { x: columns[specIndex], y: row };
+      const baseColumn = columns[specIndex] ?? centerX;
+      const offsetX = randomOffset(columnScatter);
+      const startColumn = clampColumn(baseColumn + offsetX);
+      const rowDirection = player === "PLAYER_A" ? -1 : 1;
+      const offsetY = Math.abs(randomOffset(rowScatter));
+      const startRow = clampRow(row + rowDirection * offsetY);
+      const start = { x: startColumn, y: startRow };
       const position = findNearestClearCell({
         start,
         width: boardWidth,
         height: boardHeight,
         blocked: terrainBlocked,
         occupied,
+        isAllowedCell: isPlainTile,
       });
       occupied.add(`${position.x},${position.y}`);
       units.push({
@@ -294,7 +307,7 @@ export function createInitialGameStateFromBootstrap(args: {
     storedBonuses: [],
     activeEffects: [],
     nextEffectId: 1,
-    rngSeed: terrain.nextSeed,
+    rngSeed: placementSeed,
     lastRoll: null,
     winner: null,
     log: ["", "", "", "", ""],
@@ -678,7 +691,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     const effectiveMovement = getEffectiveMovement(preMoveState, unit.id, unit.movement);
     const dx = Math.abs(unit.position.x - action.to.x);
     const dy = Math.abs(unit.position.y - action.to.y);
-    const distance = Math.max(dx, dy);
+    const distance = dx + dy;
     if (distance === 0 || distance > effectiveMovement) {
       return {
         ...state,

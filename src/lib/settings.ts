@@ -1,40 +1,75 @@
-import type { Player, UnitType } from "@/lib/engine/gameState";
+import type {
+  BootstrapUnitPlacementConfig,
+  CardDrawOverlayTiming,
+  MoveHighlightPulseConfig,
+  TerrainParams,
+  TerrainSquarePenalties,
+  UnitComposition,
+  UnitDisplayConfig,
+  UnitDisplayTweak,
+} from "@/types/settings";
 
-export type TerrainParams = {
-  roadDensity: number;
-  riverDensity: number;
-  maxBridges?: number;
-};
+export type {
+  BootstrapUnitPlacementConfig,
+  CardDrawOverlayTiming,
+  MoveHighlightPulseConfig,
+  TerrainParams,
+  TerrainSquarePenalties,
+  UnitComposition,
+  UnitDisplayConfig,
+  UnitDisplayTweak,
+} from "@/types/settings";
 
 export const initialTerrainParams: TerrainParams = {
-  roadDensity: 0.15,
-  riverDensity: 0.2,
+  roadDensity: 0.2,
+  riverDensity: 0.1,
   maxBridges: 10,
-};
-
-export type UnitComposition = {
-  [player in Player]: Record<UnitType, number>;
 };
 
 export const initialUnitComposition: UnitComposition = {
   PLAYER_A: {
-    INFANTRY: 0,
-    VEHICLE: 1,
-    SPECIAL: 0,
+    INFANTRY: 5,
+    VEHICLE: 3,
+    SPECIAL: 2,
   },
   PLAYER_B: {
-    INFANTRY: 0,
+    INFANTRY: 5,
     VEHICLE: 3,
-    SPECIAL: 0,
+    SPECIAL: 2,
   },
-};
-
-export type BootstrapUnitPlacementConfig = {
-  enemyDistance: number;
 };
 
 export const bootstrapUnitPlacement: BootstrapUnitPlacementConfig = {
   enemyDistance: 4,
+  columnScatter: 3,
+  rowScatter: 1,
+};
+
+export const initialUnitDisplayConfig: UnitDisplayConfig = {
+  INFANTRY: {
+    offsetX: 0,
+    offsetY: 8,
+    scale: 0.5,
+  },
+  VEHICLE: {
+    offsetX: 5,
+    offsetY: 14,
+    scale: 0.5,
+  },
+  SPECIAL: {
+    offsetX: 0,
+    offsetY: 8,
+    scale: 0.5,
+  },
+};
+
+export const moveHighlightPulse: MoveHighlightPulseConfig = {
+  durationMs: 1000,
+  easing: "steps(2, end)",
+  scaleMin: 0.9,
+  scaleMax: 1.05,
+  opacityMin: 0.35,
+  opacityMax: 0.85,
 };
 
 export function getInitialRngSeed(): number {
@@ -48,20 +83,9 @@ export function getInitialRngSeed(): number {
   return 1;
 }
 
-export type TerrainSquarePenalties = {
-  roadSquarePenaltyNew: number;
-  roadSquarePenaltyExisting: number;
-};
-
 export const initialTerrainSquarePenalties: TerrainSquarePenalties = {
   roadSquarePenaltyNew: 3.5,
   roadSquarePenaltyExisting: 8.5,
-};
-
-export type CardDrawOverlayTiming = {
-  holdMs: number;
-  tweenMs: number;
-  exitBufferMs: number;
 };
 
 export const cardDrawOverlayTiming: CardDrawOverlayTiming = {

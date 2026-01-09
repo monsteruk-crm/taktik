@@ -1,11 +1,8 @@
 import type { CardDefinition, Effect, GameState, ReactionWindow } from "./gameState";
+import type { ReactionPlay } from "@/types/reactions";
 import { buildContext, instantiateEffect, validateTargets } from "./effects";
 
-export type ReactionPlay = {
-  cardId: string;
-  window: ReactionWindow;
-  targets?: { unitIds?: string[] };
-};
+export type { ReactionPlay } from "@/types/reactions";
 
 type ValidationOptions = {
   expectedWindows?: ReactionWindow[];

@@ -1,13 +1,12 @@
 "use client";
 
+import type { EdgeDockTab } from "@/types/ui";
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import ObliqueKey from "@/components/ui/ObliqueKey";
 import ObliqueTabBar from "@/components/ui/ObliqueTabBar";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
-
-export type EdgeDockTab = "cmd" | "console";
 
 type EdgeCommandDockProps = {
   open: boolean;

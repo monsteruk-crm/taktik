@@ -20,21 +20,22 @@ function writePng(filePath, png) {
   fs.writeFileSync(filePath, buffer);
 }
 
-function rasterizeSvgToPng(svgPath, sizePx) {
-  const buffer = execFileSync("convert", [
-    svgPath,
-    "-background",
-    "none",
-    "-trim",
-    "+repage",
+function rasterizeSvgToPng(svgPath, sizePx, options = {}) {
+  const { trim = true } = options;
+  const args = [svgPath, "-background", "none"];
+  if (trim) {
+    args.push("-trim", "+repage");
+  }
+  args.push(
     "-resize",
     `${sizePx}x${sizePx}`,
     "-gravity",
     "center",
     "-extent",
     `${sizePx}x${sizePx}`,
-    "png:-",
-  ]);
+    "png:-"
+  );
+  const buffer = execFileSync("convert", args);
   return PNG.sync.read(buffer);
 }
 
@@ -159,6 +160,66 @@ function fillPolygon(png, points, color) {
       }
     }
   }
+}
+
+function clampByte(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function adjustColor(color, delta) {
+  return [
+    clampByte(color[0] + delta),
+    clampByte(color[1] + delta),
+    clampByte(color[2] + delta),
+    color[3],
+  ];
+}
+
+function insetPoint(point, center, ratio) {
+  return {
+    x: point.x + (center.x - point.x) * ratio,
+    y: point.y + (center.y - point.y) * ratio,
+  };
+}
+
+function drawExtrudedBase(png, { cx, cy, tileW, tileH, thickness, colors, bevelPx }) {
+  const top = { x: cx, y: cy - tileH / 2 };
+  const right = { x: cx + tileW / 2, y: cy };
+  const bottom = { x: cx, y: cy + tileH / 2 };
+  const left = { x: cx - tileW / 2, y: cy };
+
+  const down = { x: 0, y: thickness };
+  const right2 = { x: right.x + down.x, y: right.y + down.y };
+  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
+  const left2 = { x: left.x + down.x, y: left.y + down.y };
+
+  const topFill = colors.top;
+  const sideFillRight = colors.right;
+  const sideFillLeft = colors.left;
+  const bevelFill = colors.bevel ?? adjustColor(topFill, -14);
+  const bevelInset = bevelPx ?? Math.round(tileW * 0.018);
+  const insetRatio = Math.max(0, Math.min(0.08, bevelInset / Math.max(tileW, tileH)));
+
+  // Draw side faces first so the top face cleanly overwrites shared edges.
+  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
+  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
+
+  // Beveled top face.
+  fillPolygon(png, [top, right, bottom, left], bevelFill);
+  if (insetRatio > 0) {
+    const innerTop = insetPoint(top, { x: cx, y: cy }, insetRatio);
+    const innerRight = insetPoint(right, { x: cx, y: cy }, insetRatio);
+    const innerBottom = insetPoint(bottom, { x: cx, y: cy }, insetRatio);
+    const innerLeft = insetPoint(left, { x: cx, y: cy }, insetRatio);
+    fillPolygon(png, [innerTop, innerRight, innerBottom, innerLeft], topFill);
+  } else {
+    fillPolygon(png, [top, right, bottom, left], topFill);
+  }
+
+  const a = { x: right.x - top.x, y: right.y - top.y };
+  const b = { x: left.x - top.x, y: left.y - top.y };
+
+  return { top, right, bottom, left, a, b };
 }
 
 function applyTopFaceMask(png, cx, cy, tileW, tileH) {
@@ -544,29 +605,22 @@ function makeTileFromTopSvg(svgName, options = {}) {
   const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-
-  // Draw side faces first so the top face cleanly overwrites shared edges.
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
-
-  const a = { x: right.x - top.x, y: right.y - top.y };
-  const b = { x: left.x - top.x, y: left.y - top.y };
+  const { top, a, b } = drawExtrudedBase(png, {
+    cx,
+    cy,
+    tileW,
+    tileH,
+    thickness,
+    colors: {
+      top: [232, 232, 228, 255],
+      right: [210, 210, 206, 255],
+      left: [204, 204, 200, 255],
+    },
+  });
   const svgPath = path.join(TERRAIN_TOP_DIR, svgName);
-  const texture = rasterizeSvgToPng(svgPath, 1024 * SCALE);
+  const texture = rasterizeSvgToPng(svgPath, 1024 * SCALE, {
+    trim: options.trim ?? true,
+  });
   if (options.maskColors) {
     applyColorKey(texture, options.maskColors, options.tolerance ?? 4);
   }
@@ -585,7 +639,7 @@ function makeTileFromTopSvg(svgName, options = {}) {
 }
 //terrain-01-plain
 function makeTilePlain1024() {
-  return makeTileFromTopSvg("terrain-01-plain.svg");
+  return makeTileFromTopSvg("base_01-plain.svg", { trim: false });
 }
 
 function makeRng(seed) {
@@ -612,36 +666,32 @@ function makeRng(seed) {
 }
 // terrain-02-rough
 function makeTileRough1024() {
-  return makeTileFromTopSvg("terrain-02-rough.svg");
+  return makeTileFromTopSvg("base_02-rough.svg", { trim: false });
 }
 
 // terrain-03-forest
 function makeTileForest1024() {
-  return makeTileFromTopSvg("terrain-03-forest.svg");
+  return makeTileFromTopSvg("base_03-forest.svg", { trim: false });
 }
 
 // terrain-04-urban
 function makeTileUrban1024() {
-  return makeTileFromTopSvg("base_04-urban.svg", {
-    maskColors: [[210, 210, 203]],
-    tolerance: 6,
-    sampleOffset: { s: 0.012, t: 0.012 },
-  });
+  return makeTileFromTopSvg("base_04-urban.svg", { trim: false });
 }
 
 // terrain-05-hill
 function makeTileHill1024() {
-  return makeTileFromTopSvg("terrain-05-hill.svg");
+  return makeTileFromTopSvg("base_05-hill.svg", { trim: false });
 }
 
 // terrain-06-water
 function makeTileWater1024() {
-  return makeTileFromTopSvg("terrain-06-water.svg");
+  return makeTileFromTopSvg("base_06-water.svg", { trim: false });
 }
 
 // terrain-10-industrial
 function makeTileIndustrial1024() {
-  return makeTileFromTopSvg("base_10-industrial.svg");
+  return makeTileFromTopSvg("base_10-industrial.svg", { trim: false });
 }
 
 // main ground tile
@@ -657,24 +707,18 @@ function makeMainGroundTile() {
   const tileH = 320 * SCALE;
   const thickness = Math.round(tileW * 0.12);
 
-  const top = { x: cx, y: cy - tileH / 2 };
-  const right = { x: cx + tileW / 2, y: cy };
-  const bottom = { x: cx, y: cy + tileH / 2 };
-  const left = { x: cx - tileW / 2, y: cy };
-
-  const down = { x: 0, y: thickness };
-  const right2 = { x: right.x + down.x, y: right.y + down.y };
-  const bottom2 = { x: bottom.x + down.x, y: bottom.y + down.y };
-  const left2 = { x: left.x + down.x, y: left.y + down.y };
-
-  // TERRAIN: FLAT GROUND — top face completely empty, neutral slab tones.
-  const topFill = [232, 232, 228, 255];
-  const sideFillRight = [210, 210, 206, 255];
-  const sideFillLeft = [204, 204, 200, 255];
-
-  fillPolygon(png, [right, bottom, bottom2, right2], sideFillRight);
-  fillPolygon(png, [bottom, left, left2, bottom2], sideFillLeft);
-  fillPolygon(png, [top, right, bottom, left], topFill);
+  drawExtrudedBase(png, {
+    cx,
+    cy,
+    tileW,
+    tileH,
+    thickness,
+    colors: {
+      top: [232, 232, 228, 255],
+      right: [210, 210, 206, 255],
+      left: [204, 204, 200, 255],
+    },
+  });
 
   return png;
 }

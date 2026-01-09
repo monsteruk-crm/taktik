@@ -1,6 +1,7 @@
 import type { GameState } from "./gameState";
+import type { GridPos } from "@/types/positions";
 
-export type GridPos = { x: number; y: number };
+export type { GridPos } from "@/types/positions";
 
 export function posKey(pos: GridPos) {
   return `${pos.x},${pos.y}`;

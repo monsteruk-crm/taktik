@@ -30,7 +30,7 @@ export function getMoveRange(state: GameState, unitId: string) {
       }
       const dx = Math.abs(unit.position.x - x);
       const dy = Math.abs(unit.position.y - y);
-      const distance = Math.max(dx, dy);
+      const distance = dx + dy;
       if (distance <= movement) {
         positions.push(pos);
       }
