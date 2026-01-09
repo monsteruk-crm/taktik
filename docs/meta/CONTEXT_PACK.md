@@ -1,36 +1,55 @@
 # Taktik — Context Pack (Compressed)
 
-Read this first. It exists to avoid token waste.
+This file is a briefing to avoid token waste.
+It does NOT replace the full manual.
+
+---
 
 ## Project
-Deterministic, turn-based, grid-based tactical board game in Next.js + TS.
-Engine must remain UI-agnostic. MVP correctness > polish.
+Deterministic, turn-based, grid-based tactical board game.
+Engine is UI-agnostic. Correctness > completeness > polish.
 
-## Engine invariants (do not violate)
-- Phase order (engine truth):
+---
+
+## Engine invariants (DO NOT VIOLATE)
+- Phase order:
   TURN_START → CARD_DRAW → CARD_RESOLUTION → MOVEMENT → ATTACK → DICE_RESOLUTION → END_TURN
-- Common deck:
-    - Malus: resolves immediately unless canceled
-    - Bonus: play now OR store face-down (max 6)
-- Movement cap: max 5 units moved per turn
-- RNG: seeded + replayable (server-authoritative long term)
+
+- Movement:
+  Max 5 units may move per turn.
+
+- RNG:
+  Seeded, deterministic, replayable.
+
+---
+
+## Cards (summary only)
+- Single common deck.
+- Malus cards:
+  - Resolve immediately unless canceled.
+- Bonus cards:
+  - May be played immediately OR stored face-down.
+  - Max stored bonus cards: 6.
+
+Canonical rules live in:
+- docs/cards-system.md
+- docs/tactics-cards.md
+
+---
 
 ## UI doctrine (summary)
 - Brutalist + Constructivist command console
-- No gradients, glow, blur, soft shadows, rounded corners
-- Hierarchy via frames/plates/borders only
-- Semantic colors are meaning (MOVE blue, ATTACK red, cards/dice yellow)
+- No gradients, glow, blur, bevels, or rounded corners
+- Hierarchy via frames, plates, borders
+- Color = semantic meaning (MOVE, ATTACK, DICE, CARDS)
 
-Authoritative UI rules:
+Authoritative UI docs:
 - docs/design/UI_GLOBAL_RULES.md
-- docs/implementation/TOP_BAR_PHASE_WIREFRAMES.md
+- docs/ui/COMMAND_UI_WIREFRAMES.md
 
-## Where to update docs
-- System truths: docs/engine.md
-- Cards: docs/cards-system.md + docs/tactics-cards.md
-- UI rules: docs/design/**
+---
 
-## “Default files to read” for any Codex task
+## Default files Codex should read
 - AGENTS.md
 - docs/meta/CONTEXT_PACK.md
-- plus the 1–3 feature files involved
+- The 1–3 canonical docs relevant to the task

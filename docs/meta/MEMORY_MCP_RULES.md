@@ -35,3 +35,4 @@ One observation = one fact. No paragraphs.
 ## Operational rule
 If it’s not in docs, don’t store it in memory.
 Docs first, memory second.
+****

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactElement } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { GameState, TerrainType } from "@/lib/engine/gameState";
@@ -10,6 +10,7 @@ import { getBoardOrigin, getBoardPixelSize, gridToScreen, TILE_LAYOUT } from "@/
 import { edgeKey, mergeNetworks } from "@/lib/ui/networks";
 import { TERRAIN_DEBUG_TILE_SRC, TERRAIN_TILE_SRC } from "@/lib/ui/terrain";
 import { initialUnitDisplayConfig, moveHighlightSweep } from "@/lib/settings";
+import BoardFxLayer from "@/components/BoardFxLayer";
 
 const UNIT_SCALE_BY_TYPE = {
   INFANTRY: 0.95,
@@ -71,6 +72,7 @@ export default function IsometricBoard({
   }, [moveRangeDistances]);
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const [sweepRadius, setSweepRadius] = useState(0);
+  const hasMountedRef = useRef(false);
   const { width: TILE_W, height: TILE_H } = TILE_LAYOUT;
   const { connectorsByPos, roadKeys, riverKeys } = useMemo(() => {
     return {
@@ -82,6 +84,10 @@ export default function IsometricBoard({
   const UNIT_BASE_SIZE = TILE_W * 0.52;
   const UNIT_OFFSET_X = 0;
   const UNIT_OFFSET_Y = TILE_H * 0.3;
+
+  useEffect(() => {
+    hasMountedRef.current = true;
+  }, []);
 
   useEffect(() => {
     if (prefersReducedMotion) {
@@ -331,7 +337,7 @@ export default function IsometricBoard({
             component="img"
             draggable={false}
             alt="Attack highlight"
-            src="/assets/tiles/highlight_move_adv.png"
+            src="/assets/tiles/highlight_attack.png"
             className="moveHighlight"
             onError={(event) => {
               event.currentTarget.src = "/assets/tiles/highlight_move.png";
@@ -397,6 +403,7 @@ export default function IsometricBoard({
         const top = originY + sy + UNIT_OFFSET_Y + displayTweak.offsetY;
         const isSelected = unit.id === selectedUnitId;
         const isInMoveRange = moveRangeKeys.has(posKey(unit.position));
+        const canAnimate = hasMountedRef.current && !prefersReducedMotion;
         const unitVariant = unit.owner === "PLAYER_A" ? "a" : "b";
         const unitSrc =
           unit.type === "INFANTRY"
@@ -427,6 +434,7 @@ export default function IsometricBoard({
               outline: isSelected ? "3px solid #0f766e" : "none",
               outlineOffset: 2,
               opacity: isInMoveRange ? 0.85 : 1,
+              transition: canAnimate ? "left 200ms linear, top 200ms linear" : "none",
               userSelect: "none",
               pointerEvents: "none",
               WebkitUserDrag: "none",
@@ -451,6 +459,15 @@ export default function IsometricBoard({
       {attackHighlights}
       {hoverHighlight}
       {units}
+      <BoardFxLayer
+        state={state}
+        originX={originX}
+        originY={originY}
+        tileW={TILE_W}
+        tileH={TILE_H}
+        unitOffsetY={UNIT_OFFSET_Y}
+        reducedMotion={prefersReducedMotion}
+      />
     </Box>
   );
 }

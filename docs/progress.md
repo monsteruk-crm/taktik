@@ -4345,3 +4345,28 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 
 ### Files touched
 - Docs: `docs/progress.md`, `docs/Taktik_Manual_EN.md`
+
+---
+
+## 2026-01-09 — Board FX animations (attack/effects/move slide)
+
+### BEFORE
+- Attacks and effects used static board highlights only; no aim/lock line, tracer, impact, or resolve feedback.
+- Unit positions snapped instantly with no movement slide.
+- Effect application had no visual acknowledgement on the board.
+
+### NOW
+- Added a dedicated board FX layer that renders attack aim/lock, tracer + impact flashes on roll, and a resolve marker on attack completion (even if the target unit disappears).
+- New active effects now trigger a short yellow pulse on affected units for immediate feedback.
+- Unit sprites slide between tiles using linear left/top transitions when motion is allowed; reduced-motion keeps movements static.
+- Attackable tiles now use the attack highlight asset for clearer semantic color.
+
+### NEXT
+- Validate FX timing/legibility on larger boards and at different zoom levels; tune sizes if needed.
+
+### Known limitations / TODOs
+- FX timing is currently token-based; may need per-phase tuning once we start polishing VFX balance.
+
+### Files touched
+- UI: `src/components/BoardFxLayer.tsx`, `src/components/IsometricBoard.tsx`
+- Docs: `docs/progress.md`, `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`

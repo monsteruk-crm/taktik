@@ -7,6 +7,19 @@ IMPORTANT: The game manual source-of-truth is: `docs/Taktik_Manual_EN.md`
 
 ---
 
+## Token Discipline (HARD GATE)
+Codex MUST follow:
+- docs/meta/TOKEN_DISCIPLINE.md
+- docs/meta/DOCS_INDEX.md
+- docs/meta/CONTEXT_PACK.md
+- docs/meta/CODEX_BOOTSTRAP_PROMPT.md
+
+If a task adds or edits docs:
+- It MUST update docs/README.md AND docs/meta/DOCS_INDEX.md
+- It MUST NOT create docs in ignored folders (see docs/meta/DOCS_INDEX.md)
+
+---
+
 ## 0. Core Principles (always on)
 
 - MVP first: correctness > completeness > polish

@@ -71,6 +71,7 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
    - Click `Confirm`.
    - Verify the log includes `Card played: ...`.
    - Verify `Pending Card` becomes `None`.
+   - Verify a yellow “unit affected” pulse flashes on the targeted unit(s).
 6. Verify invalid targets are ignored:
    - With a friendly-targeting card active, click an enemy unit and confirm it is not selected.
 7. Verify storing works (bonus only):
@@ -102,14 +103,17 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 3. Click a friendly unit as attacker, then click an enemy unit in range:
    - Verify the log includes `Attack selected: A? -> B?`.
    - Verify `Pending Attack` shows `A? -> B?`.
+   - Verify a red aim/lock line connects attacker → target with a hard-edged target bracket.
 4. Click `Next Phase` until `Phase: DICE_RESOLUTION`.
 5. Verify `Roll Dice` is enabled and `Resolve Attack` is disabled.
 6. Click `Roll Dice`:
    - Verify `Last Roll` shows a number 1–6 and `HIT`/`MISS`.
    - Verify the log includes `Rolled <n> -> <clamped> (HIT/MISS) (A? vs B?)`.
+   - Verify a tracer line, muzzle flash, and impact flash play on the board.
 7. Verify `Resolve Attack` is now enabled and click it:
    - Verify the log includes `Attack resolved: A? -> B? (<value> HIT/MISS)`.
    - If `HIT`, the target unit disappears from the board.
+   - Verify a resolve marker appears at the target location (red X on HIT, MISS capsule on MISS).
 
 ## Tactics — Reaction Windows (New)
 
@@ -128,6 +132,7 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
    - Verify the log includes `Commander's Luck reroll: ...`.
 7. ESC behavior:
    - While selecting tactic targets, press `Esc` and confirm targeting cancels.
+8. When a tactic or card applies an effect to targeted units, verify the yellow “unit affected” pulse flashes.
 
 ## End Turn
 
@@ -141,3 +146,10 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 2. Verify `Phase: VICTORY` is reached and `Winner: PLAYER_A` or `Winner: PLAYER_B` is displayed.
 3. Verify the log includes `Victory: <PLAYER> wins by annihilation`.
 4. Verify all action buttons are disabled and no further state changes occur.
+
+## Reduced Motion Check
+
+1. Enable `prefers-reduced-motion: reduce` in the OS/browser settings.
+2. Repeat a single attack from selection through resolution:
+   - Verify there is no tracer movement or scaling pulses.
+   - Verify aim line/bracket and quick impact flashes still appear for clarity.

@@ -6,7 +6,7 @@ import { PNG } from "pngjs";
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, "public", "assets", "tiles");
 const NETWORK_DIR = path.join(OUT_DIR, "networks");
-const TEMP_DIR = path.join(ROOT, "temp");
+const TEMP_DIR = path.join(ROOT, "docs/design/svg");
 const TEMP_NETWORK_DIR = path.join(TEMP_DIR, "networks");
 const TERRAIN_TOP_DIR = path.join(TEMP_DIR, "terrain-tops");
 const SCALE = 1;
