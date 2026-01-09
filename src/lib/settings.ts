@@ -6,6 +6,7 @@ import type {
   TerrainSquarePenalties,
   UnitComposition,
   UnitDisplayConfig,
+  UnitAttackConfig,
   UnitMovementConfig,
   UnitDisplayTweak,
 } from "@/types/settings";
@@ -18,6 +19,7 @@ export type {
   TerrainSquarePenalties,
   UnitComposition,
   UnitDisplayConfig,
+  UnitAttackConfig,
   UnitMovementConfig,
   UnitDisplayTweak,
 } from "@/types/settings";
@@ -69,6 +71,12 @@ export const initialUnitMovementByType: UnitMovementConfig = {
   INFANTRY: 3,
   VEHICLE: 2,
   SPECIAL: 2,
+};
+
+export const initialUnitAttackByType: UnitAttackConfig = {
+  INFANTRY: 1,
+  VEHICLE: 2,
+  SPECIAL: 3,
 };
 
 export const moveHighlightSweep: MoveHighlightSweepConfig = {

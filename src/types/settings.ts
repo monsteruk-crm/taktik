@@ -30,6 +30,10 @@ export type UnitMovementConfig = {
   [unitType in UnitType]: number;
 };
 
+export type UnitAttackConfig = {
+  [unitType in UnitType]: number;
+};
+
 export type MoveHighlightSweepConfig = {
   msPerRing: number;
   holdMs: number;

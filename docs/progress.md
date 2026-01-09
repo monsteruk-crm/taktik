@@ -4095,3 +4095,24 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - Engine: `src/lib/engine/reducer.ts`
 - Settings: `src/lib/settings.ts`, `src/types/settings.ts`
 - Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Configurable base attack by unit type
+
+### BEFORE
+- Base attack values lived inside the reducer and could not be tuned without editing engine code.
+
+### NOW
+- Base attack per unit type is defined in settings (`initialUnitAttackByType`) and consumed by the reducer for unit stats.
+
+### NEXT
+- Replace placeholder values with the manual-aligned attack stats once the unit taxonomy is finalized.
+
+### Known limitations / TODOs
+- Manual hit modifiers by range are still not implemented.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`
+- Settings: `src/lib/settings.ts`, `src/types/settings.ts`
+- Docs: `docs/engine.md`, `docs/progress.md`

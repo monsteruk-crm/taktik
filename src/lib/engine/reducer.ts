@@ -25,6 +25,7 @@ import { generateTerrainBiomes, generateTerrainNetworks } from "./terrain";
 import {
   bootstrapUnitPlacement,
   getInitialRngSeed,
+  initialUnitAttackByType,
   initialTerrainParams,
   initialTerrainSquarePenalties,
   initialUnitComposition,
@@ -112,9 +113,18 @@ function findNearestClearCell(args: {
 }
 
 const unitStatsByType: Record<UnitType, { movement: number; attack: number }> = {
-  INFANTRY: { movement: initialUnitMovementByType.INFANTRY, attack: 1 },
-  VEHICLE: { movement: initialUnitMovementByType.VEHICLE, attack: 2 },
-  SPECIAL: { movement: initialUnitMovementByType.SPECIAL, attack: 3 },
+  INFANTRY: {
+    movement: initialUnitMovementByType.INFANTRY,
+    attack: initialUnitAttackByType.INFANTRY,
+  },
+  VEHICLE: {
+    movement: initialUnitMovementByType.VEHICLE,
+    attack: initialUnitAttackByType.VEHICLE,
+  },
+  SPECIAL: {
+    movement: initialUnitMovementByType.SPECIAL,
+    attack: initialUnitAttackByType.SPECIAL,
+  },
 };
 
 function getCenteredColumns(count: number, centerX: number, width: number): number[] {
