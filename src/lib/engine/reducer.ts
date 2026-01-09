@@ -5,7 +5,7 @@ import type {
   Effect,
   GamePhase,
   GameState,
-  Player, 
+  Player,
   TerrainType,
   Unit,
   UnitType,
