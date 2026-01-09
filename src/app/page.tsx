@@ -8,6 +8,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -48,11 +49,17 @@ import Plate from "@/components/ui/Plate";
 import OverlayPanel from "@/components/ui/OverlayPanel";
 import StatusCapsule from "@/components/ui/StatusCapsule";
 import CardDrawOverlay from "@/components/ui/CardDrawOverlay";
+import PhaseStatusStrip from "@/components/ui/PhaseStatusStrip";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
-import { shortKey, shortUnit } from "@/lib/ui/headerFormat";
+import { shortKey, shortPhase, shortUnit } from "@/lib/ui/headerFormat";
+import { GAP_SM } from "@/lib/ui/layoutTokens";
 import { semanticColors } from "@/lib/ui/semanticColors";
 import { buildContext } from "@/lib/engine/effects";
 import { TERRAIN_DEBUG_COLORS, TERRAIN_ORDER } from "@/lib/ui/terrain";
+import ElectricBoltIcon from "@mui/icons-material/ElectricBolt";
+import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import StopCircleIcon from "@mui/icons-material/StopCircle";
 
 export default function Home() {
   type TargetingContext =
@@ -78,6 +85,7 @@ export default function Home() {
   >("loading");
   const terrainWorkerRef = useRef<Worker | null>(null);
   const lastSeedRef = useRef<number>(initialSeed);
+  const terrainStartDelayRef = useRef<number | null>(null);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
@@ -89,7 +97,20 @@ export default function Home() {
   const isTiny = useMediaQuery("(max-width:420px)");
   const isLandscape = useMediaQuery("(orientation: landscape)");
   const isShort = useMediaQuery("(max-height:520px)");
-  const landscapeMode = isNarrow && isLandscape && isShort;
+  const [mediaReady, setMediaReady] = useState(false);
+  const [uiReveal, setUiReveal] = useState(false);
+  const terrainReady = terrainStatus === "ready";
+  const uiRevealMs = 400;
+  const uiIsNarrow = mediaReady ? isNarrow : true;
+  const uiIsTiny = mediaReady ? isTiny : true;
+  const uiIsLandscape = mediaReady ? isLandscape : false;
+  const uiIsShort = mediaReady ? isShort : false;
+  const landscapeMode = uiIsNarrow && uiIsLandscape && uiIsShort;
+  const headerVp = "--";
+  const showMobileStatsOverlay = uiIsNarrow && !landscapeMode && terrainReady;
+  const showHeaderExtras = !uiIsNarrow || terrainReady;
+  const showVpInOverlay = !uiIsTiny;
+  const mobilePhaseLabel = shortPhase(state.phase);
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleTab, setConsoleTab] = useState<"cards" | "tactics" | "log">("cards");
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -103,7 +124,6 @@ export default function Home() {
   const lastPhaseRef = useRef<string | null>(null);
   const dockInteractedRef = useRef(false);
   const isGameOver = state.phase === "VICTORY";
-  const terrainReady = terrainStatus === "ready";
   const canMove = terrainReady && state.phase === "MOVEMENT" && !isGameOver;
   const canAttack = terrainReady && state.phase === "ATTACK" && !isGameOver;
   const canRollDice =
@@ -140,7 +160,7 @@ export default function Home() {
   const SHOW_TERRAIN_DEBUG = process.env.NEXT_PUBLIC_TERRAIN_DEBUG === "true";
   const resolvedConsoleTab =
     !SHOW_DEV_LOGS && consoleTab === "log" ? "cards" : consoleTab;
-  const consoleOpen = isNarrow && !landscapeMode ? isConsoleOpen : false;
+  const consoleOpen = uiIsNarrow && !landscapeMode ? isConsoleOpen : false;
   const playerStripe =
     state.activePlayer === "PLAYER_A" ? semanticColors.playerA : semanticColors.playerB;
   const resolvedQueuedTactic = useMemo(() => {
@@ -298,7 +318,13 @@ export default function Home() {
       const bootstrap = prepareGameBootstrap(seed >>> 0);
       lastSeedRef.current = seed >>> 0;
       dispatch({ type: "LOAD_STATE", state: createLoadingGameState(bootstrap) });
-      startTerrainWorker(bootstrap);
+      if (terrainStartDelayRef.current) {
+        window.clearTimeout(terrainStartDelayRef.current);
+      }
+      terrainStartDelayRef.current = window.setTimeout(() => {
+        startTerrainWorker(bootstrap);
+        terrainStartDelayRef.current = null;
+      }, 1000);
     },
     [startTerrainWorker]
   );
@@ -331,6 +357,9 @@ export default function Home() {
     return () => {
       if (terrainWorkerRef.current) {
         terrainWorkerRef.current.terminate();
+      }
+      if (terrainStartDelayRef.current) {
+        window.clearTimeout(terrainStartDelayRef.current);
       }
     };
   }, []);
@@ -428,7 +457,7 @@ export default function Home() {
 
   const triggerDockAutoOpen = useCallback(
     (tab: "cmd" | "console") => {
-      if (!landscapeMode || dockPinned) {
+      if (!landscapeMode || dockPinned || !terrainReady) {
         return;
       }
       dockInteractedRef.current = false;
@@ -441,7 +470,7 @@ export default function Home() {
         scheduleDockAutoClose();
       }, 0);
     },
-    [dockPinned, landscapeMode, scheduleDockAutoClose]
+    [dockPinned, landscapeMode, scheduleDockAutoClose, terrainReady]
   );
 
   const handleDockInteract = useCallback(() => {
@@ -485,6 +514,34 @@ export default function Home() {
       }
     }
   }, [landscapeMode, state.phase, triggerDockAutoOpen]);
+
+  useEffect(() => {
+    setMediaReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!terrainReady) {
+      setUiReveal(false);
+      return;
+    }
+    const raf = window.requestAnimationFrame(() => {
+      setUiReveal(true);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [terrainReady]);
+
+  useEffect(() => {
+    if (terrainReady) {
+      return;
+    }
+    if (isNarrow && !landscapeMode) {
+      setIsConsoleOpen(false);
+    }
+    if (landscapeMode) {
+      setDockOpen(false);
+      setDockPinned(false);
+    }
+  }, [isNarrow, landscapeMode, terrainReady]);
 
   const unitByPosition = useMemo(() => {
     const map = new Map<string, string>();
@@ -638,8 +695,21 @@ export default function Home() {
   const isTacticTargeting = resolvedTargetingContext?.source === "tactic";
   const dockShort = useCallback((label: string) => shortKey(label), []);
   const dockValue = useCallback((value: string) => shortUnit(value), []);
+  type DockKey = {
+    id: string;
+    label: string;
+    onClick: () => void;
+    disabled: boolean;
+    tone: "neutral" | "blue" | "red" | "yellow" | "black";
+    active?: boolean;
+    accentColor?: string;
+    cutout?: "move" | "attack";
+    startIcon?: ReactNode;
+    endIcon?: ReactNode;
+  };
+
   const commandDockContent = useMemo(() => {
-    const keys = [
+    const keys: DockKey[] = [
       {
         id: "move",
         label: dockShort("MOVE"),
@@ -650,7 +720,7 @@ export default function Home() {
         disabled: isGameOver,
         tone: "blue" as const,
         active: mode === "MOVE",
-        cutout: "move" as const,
+        startIcon: <KeyboardDoubleArrowRightIcon fontSize="small" />,
       },
       {
         id: "attack",
@@ -662,7 +732,7 @@ export default function Home() {
         disabled: isGameOver,
         tone: "red" as const,
         active: mode === "ATTACK",
-        cutout: "attack" as const,
+        startIcon: <ElectricBoltIcon fontSize="small" />,
       },
       {
         id: "end",
@@ -672,6 +742,7 @@ export default function Home() {
         tone: "black" as const,
         accentColor: semanticColors.attack,
         active: !isGameOver,
+        startIcon: <StopCircleIcon fontSize="small" />,
       },
       {
         id: "draw",
@@ -686,6 +757,7 @@ export default function Home() {
         onClick: () => dispatch({ type: "NEXT_PHASE" }),
         disabled: isGameOver,
         tone: "neutral" as const,
+        startIcon: <PlayCircleOutlineIcon fontSize="small" />,
       },
       {
         id: "roll",
@@ -757,7 +829,7 @@ export default function Home() {
             gap: 1,
           }}
         >
-          {keys.map((key) => (
+          {keys.map((key: DockKey) => (
             <ObliqueKey
               key={key.id}
               label={key.label}
@@ -767,6 +839,8 @@ export default function Home() {
               active={key.active}
               accentColor={key.accentColor}
               cutout={key.cutout}
+              startIcon={key.startIcon}
+              endIcon={key.endIcon}
               size="sm"
             />
           ))}
@@ -951,96 +1025,104 @@ export default function Home() {
         overflow: "hidden",
       }}
     >
-      <Box
-        component="header"
-        ref={headerRef}
-        sx={{
-          px: 0,
-          py: 0,
-          display: "grid",
-          gap: 0,
-          position: isNarrow ? "sticky" : "relative",
-          top: 0,
-          zIndex: 20,
-          backgroundColor: "var(--surface2)",
-        }}
-      >
-        <CommandHeader
-          variant={landscapeMode ? "landscape" : "default"}
-          isNarrow={isNarrow}
-          isTiny={isTiny}
-          player={state.activePlayer}
-          turn={state.turn}
-          phase={state.phase}
-          vp="--"
-          mode={mode}
-          status="READY"
-          selectionLabel={selectionLabel}
-          pendingAttackLabel={pendingAttackLabel}
-          lastRollLabel={lastRollLabel}
-          canDrawCard={canDrawCard}
-          canRollDice={canRollDice}
-          canResolveAttack={canResolveAttack}
-          isGameOver={isGameOver}
-          hasSelection={Boolean(selectedUnitId || selectedAttackerId || state.pendingAttack)}
-          showConsoleToggle={isNarrow}
-          onToggleConsole={() => setIsConsoleOpen((prev) => !prev)}
-          onOpenDockCmd={openDockCmd}
-          onOpenDockConsole={openDockConsole}
-          onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
-          onMove={() => {
-            setMode("MOVE");
-            setSelectedAttackerId(null);
+      {terrainReady ? (
+        <Box
+          component="header"
+          ref={headerRef}
+          sx={{
+            px: 0,
+            py: 0,
+            display: "grid",
+            gap: 0,
+            position: uiIsNarrow ? "sticky" : "relative",
+            top: 0,
+            zIndex: 20,
+            backgroundColor: "var(--surface2)",
+            opacity: uiReveal ? 1 : 0,
+            transition: reducedMotion ? "none" : `opacity ${uiRevealMs}ms ${EASE.stiff}`,
+            pointerEvents: uiReveal ? "auto" : "none",
           }}
-          onAttack={() => {
-            setMode("ATTACK");
-            setSelectedUnitId(null);
-          }}
-          onNextPhase={() => dispatch({ type: "NEXT_PHASE" })}
-          onEndTurn={() => dispatch({ type: "END_TURN" })}
-          onRollDice={() => {
-            const reaction =
-              resolvedQueuedTactic?.window === "beforeAttackRoll"
-                ? {
-                    cardId: resolvedQueuedTactic.cardId,
-                    window: resolvedQueuedTactic.window,
-                    ...(resolvedQueuedTactic.targets
-                      ? { targets: resolvedQueuedTactic.targets }
-                      : {}),
-                  }
-                : undefined;
-            dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
-            if (reaction) {
-              setQueuedTactic(null);
-            }
-          }}
-          onResolveAttack={() => {
-            const reaction =
-              resolvedQueuedTactic &&
-              (resolvedQueuedTactic.window === "afterAttackRoll" ||
-                resolvedQueuedTactic.window === "beforeDamage")
-                ? {
-                    cardId: resolvedQueuedTactic.cardId,
-                    window: resolvedQueuedTactic.window,
-                    ...(resolvedQueuedTactic.targets
-                      ? { targets: resolvedQueuedTactic.targets }
-                      : {}),
-                  }
-                : undefined;
-            dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
-            if (reaction) {
-              setQueuedTactic(null);
-            }
-          }}
-          onClearSelection={() => {
-            setSelectedUnitId(null);
-            setSelectedAttackerId(null);
-          }}
-        />
-        {!landscapeMode ? (
-          <PhaseRuler phase={state.phase} compact={isNarrow} hideTopBorder />
-        ) : null}
-      </Box>
+        >
+          <CommandHeader
+            variant={landscapeMode ? "landscape" : "default"}
+            isNarrow={uiIsNarrow}
+            isTiny={uiIsTiny}
+            player={state.activePlayer}
+            turn={state.turn}
+            phase={state.phase}
+            vp={headerVp}
+            mode={mode}
+            status="READY"
+            selectionLabel={selectionLabel}
+            pendingAttackLabel={pendingAttackLabel}
+            lastRollLabel={lastRollLabel}
+            canDrawCard={canDrawCard}
+            canRollDice={canRollDice}
+            canResolveAttack={canResolveAttack}
+            isGameOver={isGameOver}
+            hasSelection={Boolean(selectedUnitId || selectedAttackerId || state.pendingAttack)}
+            showStatusStrip={showHeaderExtras && !showMobileStatsOverlay}
+            showPhaseControls={showHeaderExtras && !showMobileStatsOverlay}
+            showCommandPanels={showHeaderExtras}
+            showConsoleToggle={uiIsNarrow && terrainReady}
+            onToggleConsole={() => setIsConsoleOpen((prev) => !prev)}
+            onOpenDockCmd={openDockCmd}
+            onOpenDockConsole={openDockConsole}
+            onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
+            onMove={() => {
+              setMode("MOVE");
+              setSelectedAttackerId(null);
+            }}
+            onAttack={() => {
+              setMode("ATTACK");
+              setSelectedUnitId(null);
+            }}
+            onNextPhase={() => dispatch({ type: "NEXT_PHASE" })}
+            onEndTurn={() => dispatch({ type: "END_TURN" })}
+            onRollDice={() => {
+              const reaction =
+                resolvedQueuedTactic?.window === "beforeAttackRoll"
+                  ? {
+                      cardId: resolvedQueuedTactic.cardId,
+                      window: resolvedQueuedTactic.window,
+                      ...(resolvedQueuedTactic.targets
+                        ? { targets: resolvedQueuedTactic.targets }
+                        : {}),
+                    }
+                  : undefined;
+              dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+              if (reaction) {
+                setQueuedTactic(null);
+              }
+            }}
+            onResolveAttack={() => {
+              const reaction =
+                resolvedQueuedTactic &&
+                (resolvedQueuedTactic.window === "afterAttackRoll" ||
+                  resolvedQueuedTactic.window === "beforeDamage")
+                  ? {
+                      cardId: resolvedQueuedTactic.cardId,
+                      window: resolvedQueuedTactic.window,
+                      ...(resolvedQueuedTactic.targets
+                        ? { targets: resolvedQueuedTactic.targets }
+                        : {}),
+                    }
+                  : undefined;
+              dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+              if (reaction) {
+                setQueuedTactic(null);
+              }
+            }}
+            onClearSelection={() => {
+              setSelectedUnitId(null);
+              setSelectedAttackerId(null);
+            }}
+          />
+          {!landscapeMode && showHeaderExtras ? (
+            <PhaseRuler phase={state.phase} compact={uiIsNarrow} hideTopBorder />
+          ) : null}
+        </Box>
+      ) : null}
 
       <Box
         sx={{
@@ -1125,6 +1207,63 @@ export default function Home() {
                 </OverlayPanel>
               </Box>
             ) : null}
+            {showMobileStatsOverlay ? (
+              <Box
+                sx={{
+                  position: "absolute",
+                  bottom: 16,
+                  right: 16,
+                  zIndex: 13,
+                  pointerEvents: "none",
+                  width: "min(260px, calc(100% - 32px))",
+                  opacity: uiReveal ? 1 : 0,
+                  transition: reducedMotion ? "none" : `opacity ${uiRevealMs}ms ${EASE.stiff}`,
+                }}
+              >
+                <PhaseStatusStrip
+                  vp={headerVp}
+                  showVp={showVpInOverlay}
+                  turn={state.turn}
+                  phaseLabel={mobilePhaseLabel}
+                  compact
+                  wrap
+                />
+              </Box>
+            ) : null}
+            {showMobileStatsOverlay ? (
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 16,
+                  left: 16,
+                  zIndex: 13,
+                  pointerEvents: "auto",
+                  display: "flex",
+                  gap: `${GAP_SM}px`,
+                  opacity: uiReveal ? 1 : 0,
+                  transition: reducedMotion ? "none" : `opacity ${uiRevealMs}ms ${EASE.stiff}`,
+                }}
+              >
+                <ObliqueKey
+                  label={shortKey("NEXT PHASE")}
+                  onClick={() => dispatch({ type: "NEXT_PHASE" })}
+                  disabled={isGameOver}
+                  tone="neutral"
+                  size="sm"
+                  startIcon={<PlayCircleOutlineIcon fontSize="small" />}
+                />
+                <ObliqueKey
+                  label={shortKey("END TURN")}
+                  onClick={() => dispatch({ type: "END_TURN" })}
+                  disabled={isGameOver}
+                  tone="black"
+                  active={!isGameOver}
+                  accentColor={semanticColors.attack}
+                  size="sm"
+                  startIcon={<StopCircleIcon fontSize="small" />}
+                />
+              </Box>
+            ) : null}
             {terrainStatus !== "ready" ? (
               <Box
                 sx={{
@@ -1198,18 +1337,21 @@ export default function Home() {
         <Box
           sx={{
             width: 420,
-            display: isNarrow ? "none" : "flex",
+            display: !terrainReady || uiIsNarrow ? "none" : "flex",
             borderLeft: "2px solid #1B1B1B",
             minHeight: 0,
             height: "100%",
             overflow: "hidden",
+            opacity: uiReveal ? 1 : 0,
+            transition: reducedMotion ? "none" : `opacity ${uiRevealMs}ms ${EASE.stiff}`,
+            pointerEvents: uiReveal ? "auto" : "none",
           }}
         >
           {opsConsole(true)}
         </Box>
       </Box>
 
-      {landscapeMode ? (
+      {landscapeMode && terrainReady ? (
         <EdgeCommandDock
           open={dockOpen}
           pinned={dockPinned}
@@ -1244,7 +1386,7 @@ export default function Home() {
         />
       ) : null}
 
-      {isNarrow && !landscapeMode ? (
+      {uiIsNarrow && !landscapeMode && terrainReady ? (
         <MobileConsoleDrawer
           key={consoleOpen ? "open" : "closed"}
           open={consoleOpen}

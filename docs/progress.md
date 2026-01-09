@@ -4116,3 +4116,232 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - Engine: `src/lib/engine/reducer.ts`
 - Settings: `src/lib/settings.ts`, `src/types/settings.ts`
 - Docs: `docs/engine.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Data-driven terrain rules (movement + combat)
+
+### BEFORE
+- Terrain, roads, and rivers were visual-only; movement range used a simple Manhattan radius and combat ignored terrain entirely.
+
+### NOW
+- Added a data-driven terrain rule system with terrain/overlay/connector definitions and generic movement/combat resolvers.
+- Movement range is costed per tile, applying overlay modifiers and bridge overrides without terrain-specific engine logic.
+- Combat rolls apply terrain-based modifiers (attacker/defender terrain) before resolving HIT/MISS.
+
+### NEXT
+- Add card effects that temporarily override terrain rules (e.g., frozen rivers) using the same modifier pipeline.
+
+### Known limitations / TODOs
+- Combat modifiers affect roll results but do not yet incorporate line-of-sight overlays or unit abilities beyond tags.
+
+### Files touched
+- Engine: `src/lib/engine/terrainRules.ts`, `src/lib/engine/movement.ts`, `src/lib/engine/reducer.ts`
+- Settings: `src/lib/settings.ts`, `src/types/settings.ts`
+- Tests: `src/lib/engine/__tests__/terrainRules.test.ts`, `vitest.config.ts`
+- Docs: `docs/engine.md`, `docs/terrain-rules.md`, `docs/progress.md`
+- Tooling: `package.json`, `package-lock.json`, `AGENTS.md`
+---
+
+## 2026-01-09 — Manual markdown polish
+
+### BEFORE
+- `docs/Taktik_Manual_EN.md` used inline escapes, stray numbering, and inconsistent section structure that made the manual harder to scan and reference from the code/system requirements.
+
+### NOW
+- Rebuilt the manual with clear Markdown headings, grouped subsections, numbered victory conditions, structured tables, and consistent lists so each rule block is easier to read and validate.
+
+### NEXT
+- Review the refreshed manual against the engine and card rules to ensure nothing was lost in the formatting update and capture any missing clarifications in the manual or docs.
+
+### Known limitations / TODOs
+- The rewrite focused only on formatting; the underlying content still needs manual verification against the latest engine behavior.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/Taktik_Manual_EN.md`
+
+---
+
+## 2026-01-09 — Move/Attack key refresh
+
+### BEFORE
+- The MOVE and ATTACK keys used vector cutouts, making them visually distinct from NEXT PHASE/END TURN and harder to align with the command-grid styling.
+
+### NOW
+- Refreshed the MOVE/ATTACK keys so they use the same ObliqueKey treatment as NEXT PHASE/END TURN (no cutouts) while keeping the blue/red tones and introducing `KeyboardDoubleArrowRight`/`ElectricBolt` icons on both the header and the edge dock commands.
+
+### NEXT
+- Verify the icon styling on narrow screens to make sure the command grid stays stable and the icons do not overlap the text.
+
+### Known limitations / TODOs
+- None beyond the potential mobile spacing validation.
+
+### Files touched
+- UI: `src/components/CommandHeader.tsx`, `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Next/End icon alignment
+
+### BEFORE
+- NEXT PHASE and END TURN used plain text glyphs while other action keys used MUI icons, creating a mixed visual language in the command grid and edge dock.
+
+### NOW
+- Added `PlayCircleOutline` and `StopCircle` start icons to NEXT PHASE and END TURN in both the command header and the edge command dock, matching the ObliqueKey styling used by MOVE/ATTACK while keeping existing tones.
+
+### NEXT
+- Quick pass on small-screen layouts to ensure the new icons don’t crowd the labels.
+
+### Known limitations / TODOs
+- None beyond the pending small-screen verification.
+
+### Files touched
+- UI: `src/components/CommandHeader.tsx`, `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Oblique icon fix
+
+### BEFORE
+- ObliqueKey skewed the start/end icons, so the new NEXT/END icons appeared slanted even though the labels remained straight.
+
+### NOW
+- Wrapped start/end icons in a counter-skew container inside `ObliqueKey`, keeping icons upright while the key frame retains its oblique silhouette.
+
+### NEXT
+- Visual check on all icon-bearing keys to confirm upright rendering across sizes.
+
+### Known limitations / TODOs
+- None; relies on CSS transforms only.
+
+### Files touched
+- UI: `src/components/ui/ObliqueKey.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Mobile header stats overlay
+
+### BEFORE
+- On mobile, the VP/TURN/PHASE row remained in the sticky header, making the values disappear once the header scrolled offscreen.
+
+### NOW
+- When the layout is mobile (`isNarrow` + not `landscapeMode`), a pointer-events-none overlay in the board’s bottom-right duplicates the VP, turn, and phase capsules with the same values and padding, keeping the status visible even while the map fills the screen.
+
+### NEXT
+- Confirm the overlay behaves well when the mobile console/dock is visible so it never obscures urgent controls.
+
+### Known limitations / TODOs
+- The overlay is read-only (pointer-events are disabled) and will need revisiting if we ever want it interactive.
+
+### Files touched
+- UI: `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Phase status strip component
+
+### BEFORE
+- The VP/TURN/PHASE capsules were assembled inline in multiple places, and the overlay padding drifted from the header’s spacing, leading to inconsistent capsule gutters.
+
+### NOW
+- Added a reusable `PhaseStatusStrip` component with consistent padding/gap rules and used it for the mobile overlay; the header now hides the strip on mobile and keeps the status in the overlay only.
+
+### NEXT
+- Validate the strip’s spacing on both mobile and desktop sizes, especially when phase names shorten.
+
+### Known limitations / TODOs
+- The component is UI-only; if VP becomes dynamic later, we’ll still need a data source for it.
+
+### Files touched
+- UI: `src/components/ui/PhaseStatusStrip.tsx`, `src/components/CommandHeader.tsx`, `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Mobile phase control overlay
+
+### BEFORE
+- NEXT PHASE and END TURN remained in the header on mobile, while the status strip was moved onto the board, leading to split control surfaces.
+
+### NOW
+- On mobile only, NEXT PHASE and END TURN are rendered as a top-left board overlay (no extra panel framing), and the header hides those controls to keep the map the primary surface.
+
+### NEXT
+- Validate that the overlay does not conflict with terrain debug panels or other top-left overlays.
+
+### Known limitations / TODOs
+- The overlay uses small keys; revisit spacing if additional mobile buttons are introduced.
+
+### Files touched
+- UI: `src/components/CommandHeader.tsx`, `src/app/page.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Hide mobile panels during map render
+
+### BEFORE
+- On mobile during initial terrain generation, console and dock panels could appear or auto-open, causing the layout to look garbled while the map was still rendering.
+
+### NOW
+- Mobile console/dock panels stay hidden until the terrain is ready; console toggles and auto-open behaviors are suppressed during rendering, and the header action panels plus status strip remain hidden until the map is ready to avoid stacked UI noise. Terrain generation now starts after a 1s delay so the initial mobile layout settles before the render worker spins up.
+ - On mobile, the entire header (including the phase ruler) stays hidden until terrain is ready so the map render overlay is the only visible UI during boot.
+ - Mobile breakpoints now treat the UI as “narrow” until media queries resolve, preventing a desktop-first render that flashes header/panels before hydration.
+ - During terrain boot, the header and side console are suppressed across all layouts so only the map render overlay is visible until the map is ready.
+- Once terrain is ready, the header, overlays, and desktop console fade in with a short opacity transition to avoid a hard snap-in.
+- The fade-in duration is now fixed at 400ms via `uiRevealMs` in the page component so the reveal feels deliberate.
+
+### NEXT
+- Re-check the first-load experience on both portrait and landscape mobile layouts to confirm the render overlay is the only visible panel.
+
+### Known limitations / TODOs
+- The console remains closed until terrain is ready; if we later need pre-render diagnostics, we may need a separate debug toggle.
+
+### Files touched
+- UI: `src/app/page.tsx`, `src/components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Mobile move/attack stacking
+
+### BEFORE
+- MOVE and ATTACK keys overlapped on very small screens because the two-column grid did not leave enough width for the oblique buttons.
+
+### NOW
+- Switched the command row to explicit grid columns: mobile uses 7/5 and hides the right-side phase controls entirely; desktop uses 4/4/4.
+
+### NEXT
+- Verify the new column ratios on a variety of device widths to ensure the action row never overlaps.
+
+### Known limitations / TODOs
+- The stacked layout increases header height on very small screens; revisit if it crowds other controls.
+
+### Files touched
+- UI: `src/components/CommandHeader.tsx`
+- Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Terrain system contract
+
+### BEFORE
+- The manual described terrain effects in prose without stating the structured layers or design contract that the engine relies on.
+
+### NOW
+- Added explicit Tile Layers (Base Terrain, Overlays, Connectors) in Section 2 and described how each layer contributes movement/combat modifiers.
+- Replaced the Movement/Combat section with an additive rule pipeline and documented the Terrain Overlays + Bridge Connectors behaviors so designers know where to plug new features.
+- Added the Design Contract to forbid implementation-breaking rewrites and keep new terrains/configurations modular.
+
+### NEXT
+- Review the engine configuration and terrain rule sources so the manual and code stay aligned, and capture any new overlays/connectors that emerge from ongoing features.
+
+### Known limitations / TODOs
+- The entry focuses on the manual language; the engine still needs explicit reference tables for overlays or connectors beyond the current ones.
+
+### Files touched
+- Docs: `docs/progress.md`, `docs/Taktik_Manual_EN.md`

@@ -5,6 +5,7 @@ import type {
   TerrainParams,
   TerrainSquarePenalties,
   UnitComposition,
+  UnitCapabilitiesConfig,
   UnitDisplayConfig,
   UnitAttackConfig,
   UnitMovementConfig,
@@ -18,6 +19,7 @@ export type {
   TerrainParams,
   TerrainSquarePenalties,
   UnitComposition,
+  UnitCapabilitiesConfig,
   UnitDisplayConfig,
   UnitAttackConfig,
   UnitMovementConfig,
@@ -77,6 +79,12 @@ export const initialUnitAttackByType: UnitAttackConfig = {
   INFANTRY: 1,
   VEHICLE: 2,
   SPECIAL: 3,
+};
+
+export const initialUnitCapabilitiesByType: UnitCapabilitiesConfig = {
+  INFANTRY: { tags: ["infantry"] },
+  VEHICLE: { tags: ["vehicle"] },
+  SPECIAL: { tags: ["special"] },
 };
 
 export const moveHighlightSweep: MoveHighlightSweepConfig = {

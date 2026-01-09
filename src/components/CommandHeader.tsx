@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Collapse from "@mui/material/Collapse";
 import Stack from "@mui/material/Stack";
@@ -8,10 +8,15 @@ import Typography from "@mui/material/Typography";
 import ObliqueKey from "@/components/ui/ObliqueKey";
 import Plate from "@/components/ui/Plate";
 import StatusCapsule from "@/components/ui/StatusCapsule";
+import PhaseStatusStrip from "@/components/ui/PhaseStatusStrip";
 import { DUR, EASE, useReducedMotion } from "@/lib/ui/motion";
 import { shortKey, shortPhase, shortUnit } from "@/lib/ui/headerFormat";
 import { BORDER, GAP_MD, GAP_SM, PAD } from "@/lib/ui/layoutTokens";
 import { semanticColors } from "@/lib/ui/semanticColors";
+import ElectricBoltIcon from "@mui/icons-material/ElectricBolt";
+import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import StopCircleIcon from "@mui/icons-material/StopCircle";
 
 type KeyConfig = {
   id: string;
@@ -22,6 +27,8 @@ type KeyConfig = {
   active?: boolean;
   accentColor?: string;
   cutout?: "move" | "attack";
+  startIcon?: ReactNode;
+  endIcon?: ReactNode;
 };
 
 type CommandHeaderProps = {
@@ -42,6 +49,9 @@ type CommandHeaderProps = {
   canResolveAttack: boolean;
   isGameOver: boolean;
   hasSelection: boolean;
+  showStatusStrip?: boolean;
+  showPhaseControls?: boolean;
+  showCommandPanels?: boolean;
   showConsoleToggle: boolean;
   onToggleConsole: () => void;
   onOpenDockCmd?: () => void;
@@ -74,6 +84,9 @@ export default function CommandHeader({
   canResolveAttack,
   isGameOver,
   hasSelection,
+  showStatusStrip = true,
+  showPhaseControls = true,
+  showCommandPanels = true,
   showConsoleToggle,
   onToggleConsole,
   onOpenDockCmd,
@@ -117,7 +130,11 @@ export default function CommandHeader({
       disabled: isGameOver || !isActionPhase,
       tone: "blue",
       active: isActionPhase && mode === "MOVE",
-      cutout: "move",
+      startIcon: (
+        <KeyboardDoubleArrowRightIcon
+          fontSize={keySize === "sm" ? "small" : "medium"}
+        />
+      ),
     },
     {
       id: "attack",
@@ -126,7 +143,11 @@ export default function CommandHeader({
       disabled: isGameOver || !isActionPhase,
       tone: "red",
       active: isActionPhase && mode === "ATTACK",
-      cutout: "attack",
+      startIcon: (
+        <ElectricBoltIcon
+          fontSize={keySize === "sm" ? "small" : "medium"}
+        />
+      ),
     },
   ];
 
@@ -362,14 +383,14 @@ export default function CommandHeader({
                 onClick={onMove}
                 tone="blue"
                 size="sm"
-                cutout="move"
+                startIcon={<KeyboardDoubleArrowRightIcon fontSize="small" />}
               />
               <ObliqueKey
                 label="ATTACK"
                 onClick={onAttack}
                 tone="red"
                 size="sm"
-                cutout="attack"
+                startIcon={<ElectricBoltIcon fontSize="small" />}
               />
               <ObliqueKey
                 label="END"
@@ -411,29 +432,20 @@ export default function CommandHeader({
             PLAYER: {player}
           </Typography>
         </Plate>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: `${GAP_SM}px`,
-            minWidth: 0,
-            flexWrap: "nowrap",
-            overflow: "hidden",
-          }}
-        >
-          {showVp ? (
-            <StatusCapsule label="VP" value={vp} compact icon={null} />
-          ) : null}
-          <StatusCapsule label="TURN" value={turn} compact icon={null} />
-          <StatusCapsule
-            label="PHASE"
-            value={phaseLabel}
+        {showStatusStrip ? (
+          <PhaseStatusStrip
+            vp={vp}
+            showVp={showVp}
+            turn={turn}
+            phaseLabel={phaseLabel}
             compact
-            maxWidth={isNarrow ? 100 : 140}
-            icon={null}
+            maxPhaseWidth={isNarrow ? 100 : 140}
+            wrap={false}
+            framed={false}
           />
-        </Box>
+        ) : (
+          <Box />
+        )}
         {showConsoleToggle ? (
           <ObliqueKey
             label="CONSOLE"
@@ -446,52 +458,31 @@ export default function CommandHeader({
         )}
       </Box>
 
-      <Box
-        sx={{
-          border: `${BORDER}px solid #1B1B1B`,
-          backgroundColor: "var(--panel)",
-          px: `${PAD}px`,
-          py: `${PAD}px`,
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr) max-content",
-          gap: `${GAP_MD}px`,
-          alignItems: "stretch",
-        }}
-      >
+      {showCommandPanels ? (
         <Box
           sx={{
+            border: `${BORDER}px solid #1B1B1B`,
+            backgroundColor: "var(--panel)",
+            px: `${PAD}px`,
+            py: `${PAD}px`,
             display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: `${GAP_SM}px`,
-            alignContent: "center",
+            gridTemplateColumns: isNarrow
+              ? "minmax(0, 7fr) minmax(0, 5fr)"
+              : "minmax(0, 4fr) minmax(0, 4fr) minmax(0, 4fr)",
+            gap: `${GAP_MD}px`,
+            alignItems: "stretch",
           }}
         >
-          {rowA.map((key) => (
-            <ObliqueKey
-              key={key.id}
-              label={key.label}
-              onClick={key.onClick}
-              disabled={key.disabled}
-              tone={key.tone}
-              active={key.active}
-              accentColor={key.accentColor}
-              cutout={key.cutout}
-              size={keySize}
-            />
-          ))}
-        </Box>
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            alignContent: "center",
-            gap: `${GAP_SM}px`,
-            minHeight: keySize === "sm" ? 36 : 40,
-          }}
-        >
-          {rowB.length > 0 ? (
-            rowB.map((key) => (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: `${isNarrow ? 12 : GAP_SM}px`,
+              alignContent: "center",
+              minWidth: 0,
+            }}
+          >
+            {rowA.map((key) => (
               <ObliqueKey
                 key={key.id}
                 label={key.label}
@@ -501,154 +492,200 @@ export default function CommandHeader({
                 active={key.active}
                 accentColor={key.accentColor}
                 cutout={key.cutout}
+                startIcon={key.startIcon}
+                endIcon={key.endIcon}
                 size={keySize}
               />
-            ))
-          ) : (
-            <Box sx={{ textAlign: "center" }}>
-              <Typography variant="caption" fontWeight={700}>
-                NO ACTIONS
-              </Typography>
-            </Box>
-          )}
-        </Box>
-        <Box
-          sx={{
-            position: "relative",
-            backgroundColor: "transparent",
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: `${GAP_SM}px`,
-            px: 0,
-            minWidth: isTiny ? 200 : 240,
-            alignItems: "center",
-          }}
-        >
-          <ObliqueKey
-            label={shortLabel("NEXT PHASE")}
-            onClick={onNextPhase}
-            disabled={isGameOver}
-            tone="neutral"
-            size={keySize}
-            startIcon={<Box component="span">▸</Box>}
-          />
-          <ObliqueKey
-            label={shortLabel("END TURN")}
-            onClick={onEndTurn}
-            disabled={isGameOver}
-            tone="black"
-            active
-            accentColor={semanticColors.attack}
-            size={keySize}
-            startIcon={<Box component="span">■</Box>}
-          />
-        </Box>
-      </Box>
-
-      <Box
-        sx={{
-          border: `${BORDER}px solid #1B1B1B`,
-          backgroundColor: "var(--action-panel)",
-          px: `${PAD}px`,
-          py: `${GAP_SM}px`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: `${GAP_SM}px`,
-        }}
-      >
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <StatusCapsule
-            label="MODE"
-            value={mode}
-            compact
-            maxWidth={120}
-            icon={null}
-            tone={mode === "MOVE" ? "blue" : "red"}
-          />
-          <StatusCapsule
-            label={secondaryCollapsed.label}
-            value={capsuleValue(secondaryCollapsed.value)}
-            compact
-            maxWidth={160}
-            icon={null}
-          />
-        </Stack>
-        <ObliqueKey
-          label={moreOpen ? "LESS" : "MORE V"}
-          onClick={() => setMoreOpen((open) => !open)}
-          tone="neutral"
-          size="sm"
-        />
-      </Box>
-
-      <Collapse in={moreOpen} timeout={reducedMotion ? 0 : DUR.standard} easing={EASE.stiff}>
-        <Box
-          sx={{
-            border: `${BORDER}px solid #1B1B1B`,
-            borderTop: 0,
-            backgroundColor: "var(--panel)",
-            px: `${PAD}px`,
-            py: `${PAD}px`,
-            display: "grid",
-            gap: `${GAP_MD}px`,
-            maxHeight: 220,
-            overflowY: "auto",
-          }}
-        >
-          {overflow.length > 0 ? (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: `${GAP_SM}px`,
-              }}
-            >
-              {overflow.map((key) => (
+            ))}
+          </Box>
+          <Box
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              alignContent: "center",
+              gap: `${GAP_SM}px`,
+              minHeight: keySize === "sm" ? 36 : 40,
+            }}
+          >
+            {rowB.length > 0 ? (
+              rowB.map((key) => (
                 <ObliqueKey
-                  key={`overflow-${key.id}`}
+                  key={key.id}
                   label={key.label}
                   onClick={key.onClick}
                   disabled={key.disabled}
                   tone={key.tone}
-                  size="sm"
+                  active={key.active}
+                  accentColor={key.accentColor}
+                  cutout={key.cutout}
+                  startIcon={key.startIcon}
+                  endIcon={key.endIcon}
+                  size={keySize}
                 />
-              ))}
+              ))
+            ) : (
+              <Box sx={{ textAlign: "center" }}>
+                <Typography variant="caption" fontWeight={700}>
+                  NO ACTIONS
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          {showPhaseControls && !isNarrow ? (
+            <Box
+              sx={{
+                position: "relative",
+                backgroundColor: "transparent",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: `${GAP_SM}px`,
+                px: 0,
+                minWidth: isTiny ? 200 : 240,
+                alignItems: "center",
+              }}
+            >
+              <ObliqueKey
+                label={shortLabel("NEXT PHASE")}
+                onClick={onNextPhase}
+                disabled={isGameOver}
+                tone="neutral"
+                size={keySize}
+                startIcon={
+                  <PlayCircleOutlineIcon fontSize={keySize === "sm" ? "small" : "medium"} />
+                }
+              />
+              <ObliqueKey
+                label={shortLabel("END TURN")}
+                onClick={onEndTurn}
+                disabled={isGameOver}
+                tone="black"
+                active
+                accentColor={semanticColors.attack}
+                size={keySize}
+                startIcon={
+                  <StopCircleIcon fontSize={keySize === "sm" ? "small" : "medium"} />
+                }
+              />
             </Box>
+          ) : !isNarrow ? (
+            <Box />
           ) : null}
+        </Box>
+      ) : null}
+
+      {showCommandPanels ? (
+        <>
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              border: `${BORDER}px solid #1B1B1B`,
+              backgroundColor: "var(--action-panel)",
+              px: `${PAD}px`,
+              py: `${GAP_SM}px`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               gap: `${GAP_SM}px`,
             }}
           >
-            <StatusCapsule label="MODE" value={mode} compact maxWidth={140} icon={null} />
-            <StatusCapsule label="STATUS" value={status} compact maxWidth={140} icon={null} />
-            <StatusCapsule
-              label="SELECTED"
-              value={capsuleValue(selectionLabel)}
-              compact
-              maxWidth={160}
-              icon={null}
-            />
-            <StatusCapsule
-              label="PENDING"
-              value={capsuleValue(pendingAttackLabel)}
-              compact
-              maxWidth={160}
-              icon={null}
-            />
-            <StatusCapsule
-              label="LAST ROLL"
-              value={capsuleValue(lastRollLabel)}
-              compact
-              maxWidth={160}
-              icon={null}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <StatusCapsule
+                label="MODE"
+                value={mode}
+                compact
+                maxWidth={120}
+                icon={null}
+                tone={mode === "MOVE" ? "blue" : "red"}
+              />
+              <StatusCapsule
+                label={secondaryCollapsed.label}
+                value={capsuleValue(secondaryCollapsed.value)}
+                compact
+                maxWidth={160}
+                icon={null}
+              />
+            </Stack>
+            <ObliqueKey
+              label={moreOpen ? "LESS" : "MORE V"}
+              onClick={() => setMoreOpen((open) => !open)}
+              tone="neutral"
+              size="sm"
             />
           </Box>
-        </Box>
-      </Collapse>
+
+          <Collapse
+            in={moreOpen}
+            timeout={reducedMotion ? 0 : DUR.standard}
+            easing={EASE.stiff}
+          >
+            <Box
+              sx={{
+                border: `${BORDER}px solid #1B1B1B`,
+                borderTop: 0,
+                backgroundColor: "var(--panel)",
+                px: `${PAD}px`,
+                py: `${PAD}px`,
+                display: "grid",
+                gap: `${GAP_MD}px`,
+                maxHeight: 220,
+                overflowY: "auto",
+              }}
+            >
+              {overflow.length > 0 ? (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: `${GAP_SM}px`,
+                  }}
+                >
+                  {overflow.map((key) => (
+                    <ObliqueKey
+                      key={`overflow-${key.id}`}
+                      label={key.label}
+                      onClick={key.onClick}
+                      disabled={key.disabled}
+                      tone={key.tone}
+                      size="sm"
+                    />
+                  ))}
+                </Box>
+              ) : null}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: `${GAP_SM}px`,
+                }}
+              >
+                <StatusCapsule label="MODE" value={mode} compact maxWidth={140} icon={null} />
+                <StatusCapsule label="STATUS" value={status} compact maxWidth={140} icon={null} />
+                <StatusCapsule
+                  label="SELECTED"
+                  value={capsuleValue(selectionLabel)}
+                  compact
+                  maxWidth={160}
+                  icon={null}
+                />
+                <StatusCapsule
+                  label="PENDING"
+                  value={capsuleValue(pendingAttackLabel)}
+                  compact
+                  maxWidth={160}
+                  icon={null}
+                />
+                <StatusCapsule
+                  label="LAST ROLL"
+                  value={capsuleValue(lastRollLabel)}
+                  compact
+                  maxWidth={160}
+                  icon={null}
+                />
+              </Box>
+            </Box>
+          </Collapse>
+        </>
+      ) : null}
     </Box>
   );
 }

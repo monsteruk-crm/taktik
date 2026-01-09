@@ -69,6 +69,12 @@ Defined in `lib/engine/gameState.ts`:
 - Road lattice penalties are sourced from `initialTerrainSquarePenalties` (`src/lib/settings.ts`) so tuning happens at a single config point for both main-thread fallback and the worker.
   - Initial terrain params are defined in `src/lib/settings.ts`.
 - The renderer now reads per-`UnitType` tweaks in `initialUnitDisplayConfig` (`src/lib/settings.ts`) when placing unit sprites above the tiles so each type can have its own offset (X/Y) and `scale` while the engine state and deterministic layout stay untouched.
+- Terrain rules are data-driven via `src/lib/engine/terrainRules.ts`:
+  - `terrainDefinitions` map each `TerrainType` to movement cost, blocking, tags, and combat modifiers.
+  - `overlayDefinitions` describe movement graphs (roads/rivers) with cost rules and tags.
+  - `connectorDefinitions` describe bridge-like overrides that neutralize overlay effects.
+  - `movementRules` and `combatRules` are optional modifier lists that apply by tags/conditions rather than hard-coded terrain logic.
+- Unit capability tags are configured in `initialUnitCapabilitiesByType` (`src/lib/settings.ts`) and used by the terrain rule resolver to match movement/combat rules.
 - Decks/cards:
   - `commonDeck`: the draw pile for the turn card.
   - `tacticalDeck`: shuffled list of available tactic cards (data-only, not drawn).
@@ -126,7 +132,9 @@ From `GameAction` in `lib/engine/reducer.ts`:
 
 ### Movement
 - Board bounds are fixed at 20×30 and stored in state as `boardWidth` / `boardHeight`.
-- Distance uses Manhattan movement (radial diamond) via `dx + dy`.
+- Movement range is computed with a costed, Manhattan (4-direction) step resolver.
+- Base step cost comes from the destination terrain’s `movementCost`.
+- Overlay effects (roads/rivers) and connector overrides (bridges) apply via the data-driven rule pipeline in `terrainRules.ts`.
 - A unit may move at most once per turn (`hasMoved`).
 - A player may move at most 5 units per turn (`movesThisTurn`).
 - Units cannot move onto occupied tiles.
@@ -137,7 +145,7 @@ From `GameAction` in `lib/engine/reducer.ts`:
 Manual mismatch:
 - Manual movement stats (Infantry=1, Mechanized=3, Heavy Artillery=2) are not reflected in current unit stats (placeholders).
 - Base movement is configured via `initialUnitMovementByType` in settings; update these when manual-derived values are implemented.
- - Base attack is configured via `initialUnitAttackByType` in settings; update these when manual-derived values are implemented.
+- Base attack is configured via `initialUnitAttackByType` in settings; update these when manual-derived values are implemented.
 
 ### Attacks
 - Attack selection:
@@ -149,8 +157,9 @@ Manual mismatch:
     - requires `DICE_RESOLUTION` and a `pendingAttack`,
     - base roll is d6 from `rngSeed`,
     - effects can modify the roll (`modifyAttackRoll`),
+    - terrain rules apply roll modifiers based on attacker/defender terrain,
     - roll is clamped to 1..6,
-    - HIT threshold is `>= 4`,
+    - HIT threshold is `>= baseHitThreshold` (currently 4) from the terrain rule config,
     - stores `lastRoll` but does **not** apply damage.
   - `RESOLVE_ATTACK`:
     - requires a `pendingAttack` and `lastRoll`,

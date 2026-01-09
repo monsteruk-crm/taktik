@@ -5,8 +5,7 @@ import type {
   Effect,
   GamePhase,
   GameState,
-  Player,
-  TerrainBiomeStats,
+  Player, 
   TerrainType,
   Unit,
   UnitType,
@@ -14,7 +13,6 @@ import type {
 import type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
 import { cardById, commonDeckCards, tacticalDeckCards } from "./cards";
 import { buildContext, instantiateEffect, validateTargets } from "./effects";
-import type { ReactionPlay } from "./reactions";
 import {
   applyTacticReaction,
   validateAndApplyTacticReaction,
@@ -22,6 +20,8 @@ import {
 } from "./reactions";
 import { rollDie } from "./rng";
 import { generateTerrainBiomes, generateTerrainNetworks } from "./terrain";
+import { resolveCombatRollModifiers } from "./terrainRules";
+import { getMoveRange } from "./movement";
 import {
   bootstrapUnitPlacement,
   getInitialRngSeed,
@@ -699,11 +699,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, `Unit ${unit.id} cannot move due to active effects`],
       };
     }
-    const effectiveMovement = getEffectiveMovement(preMoveState, unit.id, unit.movement);
-    const dx = Math.abs(unit.position.x - action.to.x);
-    const dy = Math.abs(unit.position.y - action.to.y);
-    const distance = dx + dy;
-    if (distance === 0 || distance > effectiveMovement) {
+    const moveRange = getMoveRange(preMoveState, unit.id);
+    const canReach = moveRange.some(
+      (pos) => pos.x === action.to.x && pos.y === action.to.y
+    );
+    if (!canReach) {
       return {
         ...state,
         log: [...state.log, `Illegal move for ${unit.id} to (${action.to.x},${action.to.y})`],
@@ -820,9 +820,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
     const { result, nextSeed } = rollDie(rollState.rngSeed);
     const { attackerId, targetId } = pendingAttack;
+    const attacker = rollState.units.find((unit) => unit.id === attackerId);
+    const target = rollState.units.find((unit) => unit.id === targetId);
+    if (!attacker || !target) {
+      return { ...rollState, log: [...rollState.log, "Pending attack units are missing"] };
+    }
+    const terrainRoll = resolveCombatRollModifiers({
+      state: rollState,
+      attacker,
+      defender: target,
+    });
     const modifiedRoll = getModifiedAttackRoll(rollState, result, { attackerId, targetId });
-    const clampedRoll = Math.min(6, Math.max(1, modifiedRoll));
-    const outcome = clampedRoll >= 4 ? "HIT" : "MISS";
+    const rollWithTerrain =
+      modifiedRoll +
+      terrainRoll.rollModifiers.reduce((sum, value) => sum + value, 0);
+    const clampedRoll = Math.min(6, Math.max(1, rollWithTerrain));
+    const outcome =
+      clampedRoll >= terrainRoll.baseHitThreshold ? "HIT" : "MISS";
 
     return {
       ...rollState,

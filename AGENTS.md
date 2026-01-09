@@ -45,6 +45,7 @@ If documentation is not written, the task is INCOMPLETE.
 - `npm run build`: create a production build.
 - `npm run start`: run the production server from `.next/` after `build`.
 - `npm run lint`: run ESLint with Next.js core web vitals + TypeScript rules.
+- `npm run test`: run unit tests with Vitest.
 
 ---
 

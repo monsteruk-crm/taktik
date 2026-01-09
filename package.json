@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "gen:assets": "node scripts/gen_placeholders.mjs",
     "gen:tiles": "node scripts/gen_terrain_tiles.mjs"
   },
@@ -14,6 +15,7 @@
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.6",
     "@mui/material-nextjs": "^7.3.6",
     "@prisma/client": "^7.1.0",
@@ -34,6 +36,7 @@
     "pngjs": "^7.0.0",
     "prisma": "^7.1.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }

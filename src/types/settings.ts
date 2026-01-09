@@ -34,6 +34,14 @@ export type UnitAttackConfig = {
   [unitType in UnitType]: number;
 };
 
+export type UnitCapability = {
+  tags: string[];
+};
+
+export type UnitCapabilitiesConfig = {
+  [unitType in UnitType]: UnitCapability;
+};
+
 export type MoveHighlightSweepConfig = {
   msPerRing: number;
   holdMs: number;

@@ -253,11 +253,19 @@ export default function ObliqueKey({
         </Box>
       ) : null}
       <Box className="ObliqueKey-content">
-        {startIcon ? <Box sx={{ display: "inline-flex" }}>{startIcon}</Box> : null}
+        {startIcon ? (
+          <Box sx={{ display: "inline-flex", transform: `skewX(${COUNTER_SKEW})` }}>
+            {startIcon}
+          </Box>
+        ) : null}
         <Box component="span" sx={{ transform: `skewX(${COUNTER_SKEW})` }}>
           {children ?? label}
         </Box>
-        {endIcon ? <Box sx={{ display: "inline-flex" }}>{endIcon}</Box> : null}
+        {endIcon ? (
+          <Box sx={{ display: "inline-flex", transform: `skewX(${COUNTER_SKEW})` }}>
+            {endIcon}
+          </Box>
+        ) : null}
       </Box>
     </ButtonBase>
   );
