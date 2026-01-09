@@ -334,6 +334,8 @@ export function createInitialGameState(seed: number): GameState {
     roadDensity: initialTerrainParams.roadDensity,
     riverDensity: initialTerrainParams.riverDensity,
     maxBridges: initialTerrainParams.maxBridges,
+    extraBridgeEvery: initialTerrainParams.extraBridgeEvery,
+    extraBridgeMinSpacing: initialTerrainParams.extraBridgeMinSpacing,
     penalties: initialTerrainSquarePenalties,
   });
   const biomes = generateTerrainBiomes({

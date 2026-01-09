@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import type { GameState } from "@/lib/engine/gameState";
 import { gridToScreen } from "@/lib/ui/iso";
+import { attackFxConfig } from "@/lib/settings";
 import { DUR } from "@/lib/ui/motion";
 import { semanticColors } from "@/lib/ui/semanticColors";
 
@@ -62,12 +63,12 @@ type FxItem =
     };
 
 const FX_Z = {
-  aim: 1100,
-  pulse: 1140,
-  tracer: 1200,
-  muzzle: 1210,
-  impact: 1220,
-  resolve: 1230,
+  aim: 900,
+  pulse: 940,
+  tracer: 950,
+  muzzle: 960,
+  impact: 970,
+  resolve: 980,
 } as const;
 
 function lineGeometry(start: Anchor, end: Anchor) {
@@ -99,17 +100,25 @@ export default function BoardFxLayer({
   const unitById = useMemo(() => {
     return new Map(state.units.map((unit) => [unit.id, unit]));
   }, [state.units]);
+  const lineOffset = useMemo(
+    () => ({
+      x: attackFxConfig.lineOffsetX,
+      y: attackFxConfig.lineOffsetY,
+    }),
+    []
+  );
+  const targetScaleY = attackFxConfig.targetScaleY;
 
   const sizes = useMemo(() => {
     return {
       aimThickness: Math.max(3, Math.round(tileW * 0.03)),
       tracerThickness: Math.max(2, Math.round(tileW * 0.02)),
-      bracketSize: Math.max(16, Math.round(tileW * 0.22)),
       muzzleSize: Math.max(8, Math.round(tileW * 0.1)),
       impactSize: Math.max(16, Math.round(tileW * 0.22)),
       resolveSize: Math.max(18, Math.round(tileW * 0.24)),
       missWidth: Math.max(34, Math.round(tileW * 0.32)),
       missHeight: Math.max(14, Math.round(tileW * 0.12)),
+      targetSize: tileW,
     };
   }, [tileW]);
 
@@ -280,7 +289,7 @@ export default function BoardFxLayer({
       };
     }
     return null;
-  }, [originX, originY, state.pendingAttack, unitById, unitOffsetY]);
+  }, [originX, originY, state.pendingAttack, unitById]);
 
   return (
     <Box
@@ -293,10 +302,15 @@ export default function BoardFxLayer({
       {aimSnapshot && (
         <>
           {(() => {
-            const { length, angle } = lineGeometry(
-              aimSnapshot.attackerAnchor,
-              aimSnapshot.targetAnchor
-            );
+            const start = {
+              x: aimSnapshot.attackerAnchor.x + lineOffset.x,
+              y: aimSnapshot.attackerAnchor.y + lineOffset.y,
+            };
+            const end = {
+              x: aimSnapshot.targetAnchor.x + lineOffset.x,
+              y: aimSnapshot.targetAnchor.y + lineOffset.y,
+            };
+            const { length, angle } = lineGeometry(start, end);
             if (!length) {
               return null;
             }
@@ -305,8 +319,8 @@ export default function BoardFxLayer({
                 sx={{
                   "--fx-rot": `${angle}rad`,
                   position: "absolute",
-                  left: aimSnapshot.attackerAnchor.x,
-                  top: aimSnapshot.attackerAnchor.y - sizes.aimThickness / 2,
+                  left: start.x,
+                  top: start.y - sizes.aimThickness / 2,
                   width: length,
                   height: sizes.aimThickness,
                   backgroundColor: semanticColors.attack,
@@ -321,22 +335,22 @@ export default function BoardFxLayer({
           <Box
             sx={{
               position: "absolute",
-              left: aimSnapshot.targetAnchor.x - tileW / 2,
+              left: aimSnapshot.targetAnchor.x - sizes.targetSize / 2,
               top: aimSnapshot.targetAnchor.y - tileH / 2,
-              width: tileW,
-              height: tileH,
+              width: sizes.targetSize,
+              height: sizes.targetSize * targetScaleY,
               zIndex: FX_Z.aim,
             }}
           >
             <Box
               component="svg"
-              width={tileW}
-              height={tileH}
-              viewBox={`0 0 ${tileW} ${tileH}`}
+              width={sizes.targetSize}
+              height={sizes.targetSize * targetScaleY}
+              viewBox={`0 0 ${sizes.targetSize} ${sizes.targetSize * targetScaleY}`}
               sx={{ display: "block" }}
             >
               <polygon
-                points={`${tileW / 2},0 ${tileW},${tileH / 2} ${tileW / 2},${tileH} 0,${tileH / 2}`}
+                points={`${sizes.targetSize / 2},0 ${sizes.targetSize},${(sizes.targetSize * targetScaleY) / 2} ${sizes.targetSize / 2},${sizes.targetSize * targetScaleY} 0,${(sizes.targetSize * targetScaleY) / 2}`}
                 fill="none"
                 stroke={semanticColors.attack}
                 strokeWidth={2}
@@ -348,7 +362,15 @@ export default function BoardFxLayer({
 
       {fxItems.map((fx) => {
         if (fx.kind === "tracer") {
-          const { length, angle } = lineGeometry(fx.start, fx.end);
+          const start = {
+            x: fx.start.x + lineOffset.x,
+            y: fx.start.y + lineOffset.y,
+          };
+          const end = {
+            x: fx.end.x + lineOffset.x,
+            y: fx.end.y + lineOffset.y,
+          };
+          const { length, angle } = lineGeometry(start, end);
           if (!length) {
             return null;
           }
@@ -358,8 +380,8 @@ export default function BoardFxLayer({
               sx={{
                 "--fx-rot": `${angle}rad`,
                 position: "absolute",
-                left: fx.start.x,
-                top: fx.start.y - sizes.tracerThickness / 2,
+                left: start.x,
+                top: start.y - sizes.tracerThickness / 2,
                 width: length,
                 height: sizes.tracerThickness,
                 backgroundColor: semanticColors.attack,

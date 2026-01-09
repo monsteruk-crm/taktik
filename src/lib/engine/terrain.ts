@@ -705,6 +705,8 @@ function generateRoadCells(args: {
   density: number;
   river: Set<string>;
   maxBridges?: number;
+  extraBridgeEvery?: number;
+  extraBridgeMinSpacing?: number;
   penalties: RoadSquarePenalties;
 }): Set<string> {
   const { rng, width, height, river, penalties } = args;
@@ -725,8 +727,8 @@ function generateRoadCells(args: {
   let primaryBridge: string | null = null;
 
   const want = args.maxBridges;
-    if (want !== undefined) {
-      const budget = Math.max(0, Math.floor(want));
+  if (want !== undefined) {
+    const budget = Math.max(0, Math.floor(want));
       if (budget > 0) {
         const attempts = Math.max(8, budget * 12);
         for (let t = 0; t < attempts && bridges.size < budget; t++) {
@@ -749,8 +751,8 @@ function generateRoadCells(args: {
       if (bridgeKey && density > 0.38 && rng.float() < 0.55) {
         const bridgeKey2 = pickBridgeThatConnectsComponents({ rng, river, width, height });
         if (bridgeKey2 && bridgeKey2 !== bridgeKey) bridges.add(bridgeKey2);
-      }
     }
+  }
 
   const isRiverPassableForRoad = (k: string) => !riverHardBlocked.has(k) || bridges.has(k);
 
@@ -943,6 +945,55 @@ function generateRoadCells(args: {
     addPath(road, path);
   }
 
+  const extraEvery = args.extraBridgeEvery ?? 0;
+  if (extraEvery > 0 && river.size > 0) {
+    const deg = computeDegrees(river, width, height);
+    const candidates: string[] = [];
+    for (const rk of river) {
+      const { x, y } = parseKey(rk);
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) continue;
+      const d = deg.get(rk) ?? 0;
+      if (d === 2 && isStraightCell(rk, river)) {
+        candidates.push(rk);
+      }
+    }
+    if (candidates.length === 0) {
+      for (const rk of river) {
+        const { x, y } = parseKey(rk);
+        if (x === 0 || y === 0 || x === width - 1 || y === height - 1) continue;
+        candidates.push(rk);
+      }
+    }
+    const extraBudget = Math.max(0, Math.floor(river.size / extraEvery));
+    const minSpacing =
+      args.extraBridgeMinSpacing ?? Math.max(3, Math.floor(extraEvery / 2));
+    if (extraBudget > 0 && candidates.length > 0) {
+      const attempts = Math.max(12, extraBudget * 18);
+      const baseCount = bridges.size;
+      for (let t = 0; t < attempts && bridges.size < baseCount + extraBudget; t += 1) {
+        const k = candidates[rng.int(0, candidates.length - 1)]!;
+        if (bridges.has(k)) continue;
+        if (minSpacing > 0) {
+          let tooClose = false;
+          for (const existing of bridges) {
+            const a = parseKey(existing);
+            const b = parseKey(k);
+            if (manhattan(a, b) < minSpacing) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (tooClose) continue;
+        }
+        bridges.add(k);
+      }
+    }
+  }
+
+  for (const k of bridges) {
+    road.add(k);
+  }
+
   // Final cleanup: remove illegal overlaps (river but not bridge)
   for (const k of Array.from(road)) {
     if (riverHardBlocked.has(k) && !bridges.has(k)) road.delete(k);
@@ -1114,6 +1165,8 @@ export function generateTerrainNetworks(args: {
   roadDensity: number;
   riverDensity: number;
   maxBridges?: number;
+  extraBridgeEvery?: number;
+  extraBridgeMinSpacing?: number;
   penalties: RoadSquarePenalties;
 }): { road: BoardCell[]; river: BoardCell[]; nextSeed: number } {
   const rng = makeRng(args.seed);
@@ -1134,6 +1187,8 @@ export function generateTerrainNetworks(args: {
     density: args.roadDensity,
     river: riverSet,
     maxBridges: args.maxBridges,
+    extraBridgeEvery: args.extraBridgeEvery,
+    extraBridgeMinSpacing: args.extraBridgeMinSpacing,
     penalties: args.penalties,
   });
 

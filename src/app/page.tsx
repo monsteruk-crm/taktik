@@ -227,6 +227,8 @@ export default function Home() {
             roadDensity: initialTerrainParams.roadDensity,
             riverDensity: initialTerrainParams.riverDensity,
             maxBridges: initialTerrainParams.maxBridges,
+            extraBridgeEvery: initialTerrainParams.extraBridgeEvery,
+            extraBridgeMinSpacing: initialTerrainParams.extraBridgeMinSpacing,
             penalties: initialTerrainSquarePenalties,
           });
           const biomes = generateTerrainBiomes({
@@ -305,6 +307,8 @@ export default function Home() {
         roadDensity: initialTerrainParams.roadDensity,
         riverDensity: initialTerrainParams.riverDensity,
         maxBridges: initialTerrainParams.maxBridges,
+        extraBridgeEvery: initialTerrainParams.extraBridgeEvery,
+        extraBridgeMinSpacing: initialTerrainParams.extraBridgeMinSpacing,
         penalties: initialTerrainSquarePenalties,
         debugTerrain: SHOW_TERRAIN_DEBUG,
       });

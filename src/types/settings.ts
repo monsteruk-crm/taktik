@@ -4,6 +4,8 @@ export type TerrainParams = {
   roadDensity: number;
   riverDensity: number;
   maxBridges?: number;
+  extraBridgeEvery?: number;
+  extraBridgeMinSpacing?: number;
 };
 
 export type UnitComposition = {
@@ -58,4 +60,10 @@ export type CardDrawOverlayTiming = {
   holdMs: number;
   tweenMs: number;
   exitBufferMs: number;
+};
+
+export type AttackFxConfig = {
+  lineOffsetX: number;
+  lineOffsetY: number;
+  targetScaleY: number;
 };

@@ -14,7 +14,7 @@ If a document is not indexed here, it is NOT authoritative.
 
 ## Tier 1 — Core game system (single source of truth)
 - docs/engine.md  
-  Phases, determinism, RNG, invariants
+  Phases, determinism, RNG, invariants (terrain params include extra bridge spacing)
 
 - docs/cards-system.md  
   Common deck, bonus/malus rules, storage limits
@@ -39,7 +39,7 @@ If a document is not indexed here, it is NOT authoritative.
 ---
 
 ## Tier 3 — QA & checklists
-- docs/manual-e2e-test.md (manual QA checklist, includes FX alignment + runtime fixes)
+- docs/manual-e2e-test.md (manual QA checklist, includes FX alignment + target anchoring)
 
 ---
 

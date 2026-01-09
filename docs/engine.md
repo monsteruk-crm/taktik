@@ -58,7 +58,7 @@ Defined in `lib/engine/gameState.ts`:
   - `terrain.biomes`: `TerrainType[][]` grid (PLAIN/ROUGH/FOREST/URBAN/INDUSTRIAL/HILL/WATER), generated deterministically from the terrain seed plus river/road inputs; road/river cells are forced back to `PLAIN` to keep overlays legible.
     - Guard: biome generation enforces minimum counts for `FOREST`, `ROUGH`, and `HILL` by deterministically assigning high-scoring interior `PLAIN` cells (moisture/elevation) if thresholds/smoothing would otherwise make them vanish.
   - `terrain.stats`: counts + region totals per terrain type for debug tuning (dev-only visibility).
-  - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus an optional `maxBridges` cap that limits how many river crossings/bridges are allowed; this comes from `initialTerrainParams`.
+  - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus bridge controls (`maxBridges`, `extraBridgeEvery`, `extraBridgeMinSpacing`) to allow irregular river crossings beyond road intersections; this comes from `initialTerrainParams`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
 - Initial unit placement is driven by the global `initialUnitComposition` map (`src/lib/settings.ts`); the reducer instantiates each player’s configured number of `INFANTRY`, `VEHICLE`, and `SPECIAL` units as IDs `A*`/`B*` and starts them on the two anchor rows separated by `bootstrapUnitPlacement.enemyDistance`.
 - Before snapping into the final spot, each anchor column and row is jittered by the seeded scatter radii (`bootstrapUnitPlacement.columnScatter` / `.rowScatter`), which draws from the same LCG seed stream used throughout the engine so placement remains reproducible.

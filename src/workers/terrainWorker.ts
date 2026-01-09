@@ -15,6 +15,8 @@ type TerrainWorkerRequest = {
   roadDensity: number;
   riverDensity: number;
   maxBridges?: number;
+  extraBridgeEvery?: number;
+  extraBridgeMinSpacing?: number;
   penalties: TerrainSquarePenalties;
   debugTerrain?: boolean;
 };
@@ -32,8 +34,18 @@ type TerrainWorkerResponse = {
 const ctx: DedicatedWorkerGlobalScope = self as DedicatedWorkerGlobalScope;
 
 ctx.onmessage = (event: MessageEvent<TerrainWorkerRequest>) => {
-  const { width, height, seed, roadDensity, riverDensity, maxBridges, penalties, debugTerrain } =
-    event.data;
+  const {
+    width,
+    height,
+    seed,
+    roadDensity,
+    riverDensity,
+    maxBridges,
+    extraBridgeEvery,
+    extraBridgeMinSpacing,
+    penalties,
+    debugTerrain,
+  } = event.data;
   const networks = generateTerrainNetworks({
     width,
     height,
@@ -41,6 +53,8 @@ ctx.onmessage = (event: MessageEvent<TerrainWorkerRequest>) => {
     roadDensity,
     riverDensity,
     maxBridges,
+    extraBridgeEvery,
+    extraBridgeMinSpacing,
     penalties,
   });
   const biomes = generateTerrainBiomes({

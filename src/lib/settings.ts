@@ -1,6 +1,7 @@
 import type {
   BootstrapUnitPlacementConfig,
   CardDrawOverlayTiming,
+  AttackFxConfig,
   MoveHighlightSweepConfig,
   TerrainParams,
   TerrainSquarePenalties,
@@ -15,6 +16,7 @@ import type {
 export type {
   BootstrapUnitPlacementConfig,
   CardDrawOverlayTiming,
+  AttackFxConfig,
   MoveHighlightSweepConfig,
   TerrainParams,
   TerrainSquarePenalties,
@@ -30,6 +32,8 @@ export const initialTerrainParams: TerrainParams = {
   roadDensity: 0.2,
   riverDensity: 0.1,
   maxBridges: 10,
+  extraBridgeEvery: 14,
+  extraBridgeMinSpacing: 6,
 };
 
 export const initialUnitComposition: UnitComposition = {
@@ -114,4 +118,10 @@ export const cardDrawOverlayTiming: CardDrawOverlayTiming = {
   holdMs: 3000,
   tweenMs: 600,
   exitBufferMs: 300,
+};
+
+export const attackFxConfig: AttackFxConfig = {
+  lineOffsetX: 0,
+  lineOffsetY: -5,
+  targetScaleY: 0.5,
 };

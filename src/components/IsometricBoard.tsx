@@ -458,7 +458,6 @@ export default function IsometricBoard({
       {targetHighlights}
       {attackHighlights}
       {hoverHighlight}
-      {units}
       <BoardFxLayer
         state={state}
         originX={originX}
@@ -467,6 +466,7 @@ export default function IsometricBoard({
         tileH={TILE_H}
         reducedMotion={prefersReducedMotion}
       />
+      {units}
     </Box>
   );
 }

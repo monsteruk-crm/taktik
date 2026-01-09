@@ -4446,7 +4446,7 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - Runtime crash in `BoardFxLayer` due to a leftover `unitOffsetY` reference after switching to tile-center anchors.
 
 ### NOW
-- Removed the stale dependency so the FX layer renders without runtime errors.
+- Removed the remaining stale dependency so the FX layer renders without runtime errors.
 
 ### NEXT
 - Re-run a quick attack selection to confirm FX renders and no console errors appear.
@@ -4457,3 +4457,97 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/components/BoardFxLayer.tsx`
 - Docs: `docs/progress.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`
+
+---
+
+## 2026-01-09 — Attack FX layering + tunable offsets
+
+### BEFORE
+- Attack FX rendered above units and could not be tuned for line offsets or target diamond scaling.
+- Target diamond height could not be adjusted to better match tile perspective.
+
+### NOW
+- Attack FX renders between tile highlights and units (line below sprites).
+- Added settings for attack line offsets and target diamond Y-scale in `attackFxConfig`.
+- Manual E2E now checks that attack line stays under units.
+
+### NEXT
+- Tune `attackFxConfig` values to align perfectly with unit/tile centers across zoom levels.
+
+### Known limitations / TODOs
+- Offsets are global; per-zoom scaling may be needed if alignment drifts at extreme zoom.
+
+### Files touched
+- UI: `src/components/BoardFxLayer.tsx`, `src/components/IsometricBoard.tsx`, `src/lib/settings.ts`, `src/types/settings.ts`
+- Docs: `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Target diamond top-anchored square
+
+### BEFORE
+- Target indicator scaling was centered, so scaling distorted the marker away from the top anchor.
+- The target diamond was tied to tile proportions, not a square-first marker.
+
+### NOW
+- Target indicator is a square rotated 45° with its **top point anchored** to the tile center.
+- Vertical scaling now stretches downward from the top anchor using `attackFxConfig.targetScaleY`.
+- Manual E2E wording updated to reflect the new target marker behavior.
+
+### NEXT
+- Adjust `attackFxConfig.targetScaleY` to match the tile diamond precisely.
+
+### Known limitations / TODOs
+- None noted.
+
+### Files touched
+- UI: `src/components/BoardFxLayer.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Target marker anchored to tile top
+
+### BEFORE
+- The target marker was anchored at the tile center, causing the square to drift away from the tile’s top corner.
+- The marker’s size used a derived square that exceeded the tile footprint.
+
+### NOW
+- The rotated square’s **top point anchors to the tile’s top corner** (tile center minus `tileH / 2`).
+- The square’s base size matches the tile width; vertical scaling uses `attackFxConfig.targetScaleY`.
+- Manual E2E now calls out the top-corner anchor explicitly.
+
+### NEXT
+- Set `attackFxConfig.targetScaleY` to match the tile diamond height (approx `tileH / tileW`).
+
+### Known limitations / TODOs
+- None noted.
+
+### Files touched
+- UI: `src/components/BoardFxLayer.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Extra river bridges via terrain params
+
+### BEFORE
+- Bridge placement was driven by road generation, so long rivers could block mechanized units when no road intersection existed.
+- The only bridge control was `maxBridges`, which capped crossings but did not add irregular bridges along rivers.
+
+### NOW
+- Added `extraBridgeEvery` and `extraBridgeMinSpacing` to terrain params to place additional bridge cells at irregular intervals along rivers.
+- Extra bridges are injected into the road overlay on river tiles so the bridge connector can neutralize river blocking for movement.
+- Engine docs updated to list the new bridge controls.
+
+### NEXT
+- Tune `extraBridgeEvery` / `extraBridgeMinSpacing` to balance river traversal and map readability.
+
+### Known limitations / TODOs
+- Extra bridges are global (not per-river segment); we may want per-river tuning later.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`, `src/workers/terrainWorker.ts`
+- UI: `src/app/page.tsx`
+- Config: `src/lib/settings.ts`, `src/types/settings.ts`
+- Docs: `docs/engine.md`, `docs/progress.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`

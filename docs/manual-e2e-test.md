@@ -107,7 +107,8 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
    - Verify the log includes `Attack selected: A? -> B?`.
    - Verify `Pending Attack` shows `A? -> B?`.
    - Verify the red aim line starts and ends at the **center of each tile**.
-   - Verify the target indicator is a **red border around the full tile diamond**, not a small rotated square.
+   - Verify the target indicator is a **square at 45°**, with its **top point anchored to the tile’s top corner** (scale should stretch downward from the top).
+   - Verify the aim line renders **under units** (unit sprites stay visually on top).
 4. Negative checks:
    - Clicking an enemy unit cannot select it as the attacker.
    - Clicking a friendly unit cannot be used as the target.
