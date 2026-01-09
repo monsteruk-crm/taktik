@@ -1154,17 +1154,8 @@ export default function Home() {
           overflow: "hidden",
         }}
       >
-        <Frame
-          sx={{ flex: 1, minWidth: 0, minHeight: 0 }}
-          contentSx={{
-            flex: 1,
-            minHeight: 0,
-            backgroundColor: "var(--board-surface)",
-          }}
-          titleLeft="PLAY SURFACE"
-          accentColor="#1B1B1B"
-        >
-          <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
+
+          <Box sx={{ flex: 1, padding:"8px", minWidth: 0, minHeight: 0, position: "relative" }}>
             <BoardSurface
               state={state}
               mode={mode}
@@ -1354,7 +1345,7 @@ export default function Home() {
               </Box>
             ) : null}
           </Box>
-        </Frame>
+
         <Box
           sx={{
             width: 420,

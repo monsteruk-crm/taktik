@@ -30,7 +30,7 @@ type SegmentPath = {
 export default function PhaseRuler({ phase, compact, hideTopBorder }: PhaseRulerProps) {
   const reducedMotion = useReducedMotion();
   const activeIndex = getPhaseIndex(phase);
-  const height = compact ? 10 : 12; // spec: 8–10 mobile, 10–12 desktop
+  const height = compact ? 16 : 18; // spec: 8–10 mobile, 10–12 desktop
   const ref = useRef<SVGSVGElement | null>(null);
   const [width, setWidth] = useState(600);
 
