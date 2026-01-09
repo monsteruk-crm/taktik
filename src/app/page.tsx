@@ -564,6 +564,11 @@ export default function Home() {
   }, [state.log]);
 
   useEffect(() => {
+    setSelectedUnitId(null);
+    setSelectedAttackerId(null);
+  }, [state.activePlayer]);
+
+  useEffect(() => {
     if (consoleOpen && logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
@@ -672,12 +677,24 @@ export default function Home() {
     }
     if (!selectedAttackerId) {
       if (unitId) {
+        const unit = state.units.find((item) => item.id === unitId);
+        if (!unit || unit.owner !== state.activePlayer) {
+          return;
+        }
         setSelectedAttackerId(unitId);
       }
       return;
     }
 
     if (unitId) {
+      if (unitId === selectedAttackerId) {
+        setSelectedAttackerId(null);
+        return;
+      }
+      const target = state.units.find((item) => item.id === unitId);
+      if (!target || target.owner === state.activePlayer) {
+        return;
+      }
       dispatch({ type: "ATTACK_SELECT", attackerId: selectedAttackerId, targetId: unitId });
       setSelectedAttackerId(null);
     }

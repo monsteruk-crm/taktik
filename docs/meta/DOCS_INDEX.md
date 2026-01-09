@@ -39,7 +39,7 @@ If a document is not indexed here, it is NOT authoritative.
 ---
 
 ## Tier 3 — QA & checklists
-- docs/manual-e2e-test.md
+- docs/manual-e2e-test.md (manual QA checklist, includes FX alignment + runtime fixes)
 
 ---
 

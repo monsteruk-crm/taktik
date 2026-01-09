@@ -13,7 +13,6 @@ type BoardFxLayerProps = {
   originY: number;
   tileW: number;
   tileH: number;
-  unitOffsetY: number;
   reducedMotion: boolean;
 };
 
@@ -86,7 +85,6 @@ export default function BoardFxLayer({
   originY,
   tileW,
   tileH,
-  unitOffsetY,
   reducedMotion,
 }: BoardFxLayerProps) {
   const [fxItems, setFxItems] = useState<FxItem[]>([]);
@@ -155,11 +153,11 @@ export default function BoardFxLayer({
           targetId: target.id,
           attackerAnchor: {
             x: originX + attackerScreen.sx,
-            y: originY + attackerScreen.sy + unitOffsetY,
+            y: originY + attackerScreen.sy,
           },
           targetAnchor: {
             x: originX + targetScreen.sx,
-            y: originY + targetScreen.sy + unitOffsetY,
+            y: originY + targetScreen.sy,
           },
         };
       }
@@ -215,7 +213,7 @@ export default function BoardFxLayer({
 
     pendingAttackRef.current = nextPending;
     lastRollRef.current = nextRoll;
-  }, [originX, originY, reducedMotion, state.lastRoll, state.pendingAttack, unitById, unitOffsetY]);
+  }, [originX, originY, reducedMotion, state.lastRoll, state.pendingAttack, unitById]);
 
   useEffect(() => {
     if (!effectsInitializedRef.current) {
@@ -267,11 +265,11 @@ export default function BoardFxLayer({
       return {
         attackerAnchor: {
           x: originX + attackerScreen.sx,
-          y: originY + attackerScreen.sy + unitOffsetY,
+          y: originY + attackerScreen.sy,
         },
         targetAnchor: {
           x: originX + targetScreen.sx,
-          y: originY + targetScreen.sy + unitOffsetY,
+          y: originY + targetScreen.sy,
         },
       };
     }
@@ -323,15 +321,28 @@ export default function BoardFxLayer({
           <Box
             sx={{
               position: "absolute",
-              left: aimSnapshot.targetAnchor.x,
-              top: aimSnapshot.targetAnchor.y,
-              width: sizes.bracketSize,
-              height: sizes.bracketSize,
-              border: `2px solid ${semanticColors.attack}`,
-              transform: "translate(-50%, -50%) rotate(45deg)",
+              left: aimSnapshot.targetAnchor.x - tileW / 2,
+              top: aimSnapshot.targetAnchor.y - tileH / 2,
+              width: tileW,
+              height: tileH,
               zIndex: FX_Z.aim,
             }}
-          />
+          >
+            <Box
+              component="svg"
+              width={tileW}
+              height={tileH}
+              viewBox={`0 0 ${tileW} ${tileH}`}
+              sx={{ display: "block" }}
+            >
+              <polygon
+                points={`${tileW / 2},0 ${tileW},${tileH / 2} ${tileW / 2},${tileH} 0,${tileH / 2}`}
+                fill="none"
+                stroke={semanticColors.attack}
+                strokeWidth={2}
+              />
+            </Box>
+          </Box>
         </>
       )}
 

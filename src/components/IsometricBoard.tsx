@@ -465,7 +465,6 @@ export default function IsometricBoard({
         originY={originY}
         tileW={TILE_W}
         tileH={TILE_H}
-        unitOffsetY={UNIT_OFFSET_Y}
         reducedMotion={prefersReducedMotion}
       />
     </Box>

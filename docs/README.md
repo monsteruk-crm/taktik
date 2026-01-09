@@ -14,5 +14,5 @@
 ## Supporting docs
 - MVP overview: `docs/GAME_OVERVIEW.md`
 - Milestones: `docs/milestones.md`
-- Manual E2E checklist (includes board FX checks): `docs/manual-e2e-test.md`
+- Manual E2E checklist (current UI + board FX alignment + runtime fixes): `docs/manual-e2e-test.md`
 - MUI component index: `docs/mui_index.md`

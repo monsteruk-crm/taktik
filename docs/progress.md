@@ -4370,3 +4370,90 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 ### Files touched
 - UI: `src/components/BoardFxLayer.tsx`, `src/components/IsometricBoard.tsx`
 - Docs: `docs/progress.md`, `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`
+
+---
+
+## 2026-01-09 — Manual E2E aligned to board FX + terrain gating
+
+### BEFORE
+- The manual E2E checklist did not mention the terrain-ready gating for UI visibility.
+- Board FX expectations (aim/tracer/pulse/resolve) and movement slide checks were incomplete or missing.
+
+### NOW
+- Updated the E2E checklist to reflect the terrain overlay gating, board FX alignment, movement slide behavior, and reduced-motion expectations.
+- Added explicit FX checks in attack, cards, and tactics flows so QA matches current visual behavior.
+
+### NEXT
+- Run the updated manual checklist once on desktop and mobile to validate copy accuracy.
+
+### Known limitations / TODOs
+- None noted; this is a documentation-only alignment.
+
+### Files touched
+- Docs: `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Attack selection ownership guard
+
+### BEFORE
+- In ATTACK mode, the UI allowed selecting any unit as the attacker and any unit as the target, enabling the wrong player to initiate attacks.
+- Attack selection could persist across active player changes, creating confusing cross-turn targeting.
+
+### NOW
+- ATTACK selection is restricted to the active player’s units as attackers and only enemy units as targets.
+- Selections clear automatically when the active player changes to prevent cross-turn targeting.
+- Manual E2E now includes negative checks for attacker/target ownership in ATTACK.
+
+### NEXT
+- Re-run attack flow on both players to confirm selection, FX, and resolve markers all clear correctly.
+
+### Known limitations / TODOs
+- None noted.
+
+### Files touched
+- UI: `src/app/page.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Attack FX alignment to tile centers
+
+### BEFORE
+- Attack aim/tracer anchors were offset toward the south edge of tiles because FX used unit offsets.
+- Target bracket appeared as a small rotated square instead of a full tile border.
+
+### NOW
+- Aim/tracer anchors snap to the **center of each tile** for both attacker and target.
+- Target indicator uses a full-diamond border that matches the tile footprint.
+- Manual E2E now explicitly checks tile-center alignment and full-tile targeting border.
+
+### NEXT
+- Confirm alignment at multiple zoom levels and when panning the board.
+
+### Known limitations / TODOs
+- None noted.
+
+### Files touched
+- UI: `src/components/BoardFxLayer.tsx`, `src/components/IsometricBoard.tsx`
+- Docs: `docs/manual-e2e-test.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Fix BoardFxLayer unitOffsetY reference
+
+### BEFORE
+- Runtime crash in `BoardFxLayer` due to a leftover `unitOffsetY` reference after switching to tile-center anchors.
+
+### NOW
+- Removed the stale dependency so the FX layer renders without runtime errors.
+
+### NEXT
+- Re-run a quick attack selection to confirm FX renders and no console errors appear.
+
+### Known limitations / TODOs
+- None noted.
+
+### Files touched
+- UI: `src/components/BoardFxLayer.tsx`
+- Docs: `docs/progress.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`

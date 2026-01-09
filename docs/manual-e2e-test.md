@@ -6,10 +6,11 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 
 1. Run `npm run dev`.
 2. Open `http://localhost:3000`.
+3. Wait for the terrain render overlay to clear; header + console UI should only appear once terrain is ready.
 
 ## Quick Smoke Test (Includes Tactics)
 
-1. From `TURN_START`, click `Next Phase` until `MOVEMENT`.
+1. From `TURN_START`, click `Next Phase` until `MOVEMENT` (ensure the terrain overlay is gone).
 2. Open the Ops Console `TACTICS` tab (right dock on desktop or `CONSOLE` button on mobile).
 3. Arm a `beforeMove` tactic (e.g., `Suppressive Fire`):
    - Click `Select Targets`, select an enemy unit, then `Confirm`.
@@ -47,8 +48,9 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
    - Targeting overlay: opaque focus panel with a single clear outer frame (no double borders)
 2. Verify the isometric board renders with ground tiles and units.
 3. Verify the board can be panned (drag) and zoomed (wheel).
-4. Verify the log area auto-scrolls to show newest entries in the `LOG` tab.
-5. Verify the pending card module reads as a directive (not a centered modal blob).
+4. Verify board FX (aim/tracer/pulses) stay aligned while panning/zooming; no layout shift.
+5. Verify the log area auto-scrolls to show newest entries in the `LOG` tab.
+6. Verify the pending card module reads as a directive (not a centered modal blob).
 
 ## Cards — Draw / Pending / Targeting / Play
 
@@ -90,6 +92,7 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
    - Verify reachable empty tiles are highlighted.
 4. Click a highlighted tile:
    - Verify the unit moves.
+   - Verify the unit slides between tiles (no teleport) when reduced motion is off.
    - Verify the log includes `Unit A? moved to (x,y)`.
 5. Attempt an illegal move (outside the highlight range):
    - Verify the log includes `Illegal move for A? to (x,y)`.
@@ -103,14 +106,18 @@ This checklist verifies the MVP game loop, cards, and tactic reaction windows in
 3. Click a friendly unit as attacker, then click an enemy unit in range:
    - Verify the log includes `Attack selected: A? -> B?`.
    - Verify `Pending Attack` shows `A? -> B?`.
-   - Verify a red aim/lock line connects attacker → target with a hard-edged target bracket.
-4. Click `Next Phase` until `Phase: DICE_RESOLUTION`.
-5. Verify `Roll Dice` is enabled and `Resolve Attack` is disabled.
-6. Click `Roll Dice`:
+   - Verify the red aim line starts and ends at the **center of each tile**.
+   - Verify the target indicator is a **red border around the full tile diamond**, not a small rotated square.
+4. Negative checks:
+   - Clicking an enemy unit cannot select it as the attacker.
+   - Clicking a friendly unit cannot be used as the target.
+5. Click `Next Phase` until `Phase: DICE_RESOLUTION`.
+6. Verify `Roll Dice` is enabled and `Resolve Attack` is disabled.
+7. Click `Roll Dice`:
    - Verify `Last Roll` shows a number 1–6 and `HIT`/`MISS`.
    - Verify the log includes `Rolled <n> -> <clamped> (HIT/MISS) (A? vs B?)`.
    - Verify a tracer line, muzzle flash, and impact flash play on the board.
-7. Verify `Resolve Attack` is now enabled and click it:
+8. Verify `Resolve Attack` is now enabled and click it:
    - Verify the log includes `Attack resolved: A? -> B? (<value> HIT/MISS)`.
    - If `HIT`, the target unit disappears from the board.
    - Verify a resolve marker appears at the target location (red X on HIT, MISS capsule on MISS).
