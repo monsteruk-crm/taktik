@@ -115,21 +115,12 @@ Rounding-based tile picking is acceptable; no pixel-perfect hit testing required
 
 ## Highlight magic
 
-Highlights must remain bitmap-only. Use `highlight_move.png` plus CSS:
+Highlights must remain bitmap-only. Use `highlight_move.png` and drive visibility with a radial sweep:
 
-```css
-.moveHighlight {
-  pointer-events: none;
-  animation: pulse 1.1s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px rgba(0, 255, 255, 0.6));
-}
-
-@keyframes pulse {
-  0%   { transform: translateY(0) scale(1); }
-  50%  { transform: translateY(-2px) scale(1.03); }
-  100% { transform: translateY(0) scale(1); }
-}
-```
+- Compute Manhattan distance from the selected unit to each highlight tile.
+- Animate a sweep radius that expands and contracts from 0 → max distance → 0, with a short hold at the outer edge.
+- Fade tiles in by distance: opacity ramps from 0 to 1 as the sweep passes their ring.
+- No per-tile scale, glow, blur, or drop-shadow effects.
 
 You may optionally render a glow variant `highlight_move_glow.png` behind the main highlight (`opacity: 0.6` glow layer, `opacity: 0.9` base layer). Both remain PNGs.
 
@@ -152,7 +143,7 @@ In `app/page.tsx` (or a small store):
 - Board renders as an isometric 20×30 grid using PNG tiles.
 - Units render as PNGs aligned to tile centers.
 - Tapping/clicking a unit selects it.
-- Move highlights appear as pulsing PNG diamonds.
+- Move highlights appear as a radial sweep of PNG diamonds (tiles fade in from 0 opacity by ring).
 - Tapping/clicking a highlighted tile moves the unit.
 - Tapping/clicking an empty tile clears selection.
 - Pan/zoom works via transforming one container.

@@ -1,22 +1,24 @@
 import type {
   BootstrapUnitPlacementConfig,
   CardDrawOverlayTiming,
-  MoveHighlightPulseConfig,
+  MoveHighlightSweepConfig,
   TerrainParams,
   TerrainSquarePenalties,
   UnitComposition,
   UnitDisplayConfig,
+  UnitMovementConfig,
   UnitDisplayTweak,
 } from "@/types/settings";
 
 export type {
   BootstrapUnitPlacementConfig,
   CardDrawOverlayTiming,
-  MoveHighlightPulseConfig,
+  MoveHighlightSweepConfig,
   TerrainParams,
   TerrainSquarePenalties,
   UnitComposition,
   UnitDisplayConfig,
+  UnitMovementConfig,
   UnitDisplayTweak,
 } from "@/types/settings";
 
@@ -63,13 +65,17 @@ export const initialUnitDisplayConfig: UnitDisplayConfig = {
   },
 };
 
-export const moveHighlightPulse: MoveHighlightPulseConfig = {
-  durationMs: 1000,
-  easing: "steps(2, end)",
-  scaleMin: 0.9,
-  scaleMax: 1.05,
-  opacityMin: 0.35,
-  opacityMax: 0.85,
+export const initialUnitMovementByType: UnitMovementConfig = {
+  INFANTRY: 3,
+  VEHICLE: 2,
+  SPECIAL: 2,
+};
+
+export const moveHighlightSweep: MoveHighlightSweepConfig = {
+  msPerRing: 250,
+  holdMs: 400,
+  fadeWidth: 1,
+  maxOpacity: 0.95,
 };
 
 export function getInitialRngSeed(): number {

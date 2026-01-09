@@ -26,13 +26,15 @@ export type UnitDisplayConfig = {
   [unitType in UnitType]: UnitDisplayTweak;
 };
 
-export type MoveHighlightPulseConfig = {
-  durationMs: number;
-  easing: string;
-  scaleMin: number;
-  scaleMax: number;
-  opacityMin: number;
-  opacityMax: number;
+export type UnitMovementConfig = {
+  [unitType in UnitType]: number;
+};
+
+export type MoveHighlightSweepConfig = {
+  msPerRing: number;
+  holdMs: number;
+  fadeWidth: number;
+  maxOpacity: number;
 };
 
 export type TerrainSquarePenalties = {

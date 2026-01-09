@@ -4051,3 +4051,47 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - UI: `src/components/BoardSurface.tsx`, `src/app/globals.css`
 - Settings: `src/lib/settings.ts`
 - Docs: `docs/progress.md`
+
+---
+
+## 2026-01-09 — Radial move sweep (no per-tile scale pulse)
+
+### BEFORE
+- Move highlights used a per-tile scale pulse driven by CSS, so the animation read as a single tile breathing instead of a ring expanding around the unit.
+
+### NOW
+- Move highlights fade in from 0 opacity by Manhattan-distance ring, driven by a sweep radius that expands and contracts across the reachable tiles.
+- Removed the CSS scale/opacity pulse so highlights no longer shrink/expand per tile; reduced-motion locks the sweep to the full range.
+- Added a short hold at max sweep distance so the outer ring reads before contracting.
+
+### NEXT
+- Tune sweep timing and max opacity once we test on larger move ranges and dense terrain.
+
+### Known limitations / TODOs
+- The sweep is based on Manhattan distance, not exact path cost; blocked tiles inside the range will still appear if they are already included in `moveRange`.
+
+### Files touched
+- UI: `src/components/IsometricBoard.tsx`, `src/app/globals.css`, `src/components/BoardSurface.tsx`
+- Settings: `src/lib/settings.ts`, `src/types/settings.ts`
+- Docs: `docs/isometric.md`, `docs/progress.md`
+
+---
+
+## 2026-01-09 — Configurable base movement by unit type
+
+### BEFORE
+- Base movement values lived inside the reducer and could not be tuned without editing engine code.
+
+### NOW
+- Base movement per unit type is defined in settings (`initialUnitMovementByType`) and consumed by the reducer for unit stats.
+
+### NEXT
+- Replace placeholder values with the manual-aligned movement stats once the unit taxonomy is finalized.
+
+### Known limitations / TODOs
+- Attack values are still hard-coded in the reducer and not configurable via settings yet.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`
+- Settings: `src/lib/settings.ts`, `src/types/settings.ts`
+- Docs: `docs/engine.md`, `docs/progress.md`

@@ -136,6 +136,7 @@ From `GameAction` in `lib/engine/reducer.ts`:
 
 Manual mismatch:
 - Manual movement stats (Infantry=1, Mechanized=3, Heavy Artillery=2) are not reflected in current unit stats (placeholders).
+- Base movement is configured via `initialUnitMovementByType` in settings; update these when manual-derived values are implemented.
 
 ### Attacks
 - Attack selection:

@@ -28,6 +28,7 @@ import {
   initialTerrainParams,
   initialTerrainSquarePenalties,
   initialUnitComposition,
+  initialUnitMovementByType,
 } from "@/lib/settings";
 
 export type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
@@ -111,9 +112,9 @@ function findNearestClearCell(args: {
 }
 
 const unitStatsByType: Record<UnitType, { movement: number; attack: number }> = {
-  INFANTRY: { movement: 3, attack: 1 },
-  VEHICLE: { movement: 2, attack: 2 },
-  SPECIAL: { movement: 2, attack: 3 },
+  INFANTRY: { movement: initialUnitMovementByType.INFANTRY, attack: 1 },
+  VEHICLE: { movement: initialUnitMovementByType.VEHICLE, attack: 2 },
+  SPECIAL: { movement: initialUnitMovementByType.SPECIAL, attack: 3 },
 };
 
 function getCenteredColumns(count: number, centerX: number, width: number): number[] {
