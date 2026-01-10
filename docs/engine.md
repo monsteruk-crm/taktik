@@ -59,6 +59,7 @@ Defined in `lib/engine/gameState.ts`:
     - Guard: biome generation enforces minimum counts for `FOREST`, `ROUGH`, and `HILL` by deterministically assigning high-scoring interior `PLAIN` cells (moisture/elevation) if thresholds/smoothing would otherwise make them vanish.
   - `terrain.stats`: counts + region totals per terrain type for debug tuning (dev-only visibility).
   - `terrain.params`: density knobs (`roadDensity`, `riverDensity`) plus bridge controls (`maxBridges`, `extraBridgeEvery`, `extraBridgeMinSpacing`) to allow irregular river crossings beyond road intersections; this comes from `initialTerrainParams`.
+  - `terrainPathfindingConfig`: exported from src/lib/settings.ts, it exposes `roadMaxExpandedPerTile` plus the river trunk/tributary step factors so the worker can tune node budgets without touching terrain.ts; `aStarPath` now defaults to that road multiplier and `riverWalk` uses the trunk/perimeter factors when computing `maxSteps`.
   - `terrain.seed`: the seed value used for terrain generation (derived from the prior `rngSeed`).
 - Initial unit placement is driven by the global `initialUnitComposition` map (`src/lib/settings.ts`); the reducer instantiates each player’s configured number of `INFANTRY`, `VEHICLE`, and `SPECIAL` units as IDs `A*`/`B*` and starts them on the two anchor rows separated by `bootstrapUnitPlacement.enemyDistance`.
 - Before snapping into the final spot, each anchor column and row is jittered by the seeded scatter radii (`bootstrapUnitPlacement.columnScatter` / `.rowScatter`), which draws from the same LCG seed stream used throughout the engine so placement remains reproducible.
@@ -83,7 +84,8 @@ Defined in `lib/engine/gameState.ts`:
   - `storedBonuses`: face-down bonus cards, capped at 6 (engine-enforced).
   - `activeEffects`: instantiated effects currently modifying rules.
 - Combat:
-  - `pendingAttack`: selected attacker/target, resolved via `ROLL_DICE` + `RESOLVE_ATTACK`.
+  - `attackQueue`: queued attacker/target pairs selected during `ATTACK`.
+  - `pendingAttack`: the currently resolving pair pulled from `attackQueue`.
   - `lastRoll`: stores the most recent die result and outcome until `RESOLVE_ATTACK`.
 - End state:
   - `phase === "VICTORY"` freezes the reducer.
@@ -132,11 +134,11 @@ From `GameAction` in `lib/engine/reducer.ts`:
 
 ### Movement
 - Board bounds are fixed at 20×30 and stored in state as `boardWidth` / `boardHeight`.
-- Movement range is computed with a costed, Manhattan (4-direction) step resolver.
+- Movement range is computed with a costed 4-direction step resolver; if a unit is fully blocked in the cardinal directions at a given step, diagonal moves are allowed as an escape valve so units are not hard-locked by local terrain/occupancy.
 - Base step cost comes from the destination terrain’s `movementCost`.
 - Overlay effects (roads/rivers) and connector overrides (bridges) apply via the data-driven rule pipeline in `terrainRules.ts`.
 - A unit may move at most once per turn (`hasMoved`).
-- A player may move at most 5 units per turn (`movesThisTurn`).
+  - A player may move at most `turnSelectionLimits.maxMovesPerTurn` units per turn (`movesThisTurn`).
 - Units cannot move onto occupied tiles.
 - Active effects can:
   - block movement via `canMoveUnit`,
@@ -152,6 +154,7 @@ Manual mismatch:
   - requires `ATTACK` phase,
   - target must be enemy-owned,
   - range is `manhattanDistance(attacker, target) <= attacker.attack` and non-zero.
+  - selections are queued in `attackQueue` (up to `turnSelectionLimits.maxAttacksPerTurn` pairs).
 - Dice resolution (two-step):
   - `ROLL_DICE`:
     - requires `DICE_RESOLUTION` and a `pendingAttack`,
@@ -164,7 +167,7 @@ Manual mismatch:
   - `RESOLVE_ATTACK`:
     - requires a `pendingAttack` and `lastRoll`,
     - applies damage (removes target on HIT),
-    - clears `pendingAttack` and `lastRoll`,
+    - clears `lastRoll` and advances to the next queued attack (if any),
     - checks victory.
 
 Manual mismatch:

@@ -14,7 +14,7 @@ export const precisionShot: CardDefinition = {
     kind: "tactic",
     timing: "reaction",
     reactionWindow: "beforeAttackRoll",
-    targeting: { type: "unit", owner: "self", count: 1 },
+    targeting: { type: "unit", owner: "self", count: 1, maxCount: 1 },
 
     creates: [
         {
@@ -43,7 +43,7 @@ export const tacticalBlock: CardDefinition = {
     kind: "tactic",
     timing: "reaction",
     reactionWindow: "beforeAttackRoll",
-    targeting: { type: "unit", owner: "enemy", count: 1 },
+    targeting: { type: "unit", owner: "enemy", count: 1, maxCount: 1 },
 
     creates: [
         {
@@ -94,7 +94,7 @@ export const suppressiveFire: CardDefinition = {
     kind: "tactic",
     timing: "reaction",
     reactionWindow: "beforeMove",
-    targeting: { type: "unit", owner: "enemy", count: 1 },
+    targeting: { type: "unit", owner: "enemy", count: 1, maxCount: 1 },
 
     creates: [
         {

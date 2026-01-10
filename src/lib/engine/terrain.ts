@@ -1,4 +1,5 @@
 import type { BoardCell, TerrainBiomeStats, TerrainType } from "./gameState";
+import { terrainPathfindingConfig } from "@/lib/settings";
 
 const DIRECTIONS = [
   { key: "N", dx: 0, dy: -1 },
@@ -287,7 +288,9 @@ function aStarPath(args: {
 }): BoardCell[] | null {
   const { width, height, start, goal, blocked } = args;
   const allowGoalOnBlocked = args.allowGoalOnBlocked ?? false;
-  const maxExpanded = args.maxExpanded ?? width * height * 60;
+  const maxExpanded =
+    args.maxExpanded ??
+    Math.floor(width * height * terrainPathfindingConfig.roadMaxExpandedPerTile);
 
   const startKey = `${start.x},${start.y},_,_,0`;
   const maxRunBucket = 4;
@@ -582,7 +585,10 @@ function generateRiverCells(args: {
     existingSquaresWith: new Set<string>(),
     minAxisRun: 2,
     turnProb: 0.4,
-    maxSteps: width * height,
+    maxSteps: Math.max(
+      1,
+      Math.floor(width * height * terrainPathfindingConfig.riverTrunkMaxStepsPerTile)
+    ),
   });
 
   if (!trunk || trunk.length < 3) {
@@ -645,7 +651,12 @@ function generateRiverCells(args: {
       allowSquareAtGoal: true,
       minAxisRun: 2,
       turnProb: 0.45,
-      maxSteps: Math.floor((width + height) * 2.5),
+      maxSteps: Math.max(
+        1,
+        Math.floor(
+          (width + height) * terrainPathfindingConfig.riverTributaryMaxStepsFactor
+        )
+      ),
     });
 
     if (!path || path.length < 4) continue;
@@ -808,7 +819,6 @@ function generateRoadCells(args: {
 
         return 1 + turnPenalty + crossingPenalty + nearRiver + nearRoad + bridgeBonus + squarePenalty;
       },
-      maxExpanded: width * height * 260,
     });
   };
 

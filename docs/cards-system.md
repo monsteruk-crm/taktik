@@ -55,7 +55,7 @@ Defined in `lib/engine/gameState.ts` and implemented in `lib/engine/cards.ts`:
   - `reactionWindow` (required for tactics)
   - `targeting`:
     - `{ type: "none" }`, or
-    - `{ type: "unit", owner: "self|enemy", count: 1|2 }`
+    - `{ type: "unit", owner: "self|enemy", count: number, maxCount?: number }`
   - `creates`: list of `EffectDefinition`s (duration + hooks)
 
 ## Card resolution pipeline (current)
@@ -74,6 +74,7 @@ UI:
 Current UI path (`app/page.tsx`):
 - If `pendingCard.targeting.type === "unit"`, the user enters a targeting mode and clicks units on the board.
 - Target validity is enforced by UI (owner constraint) and also validated again in the reducer on play.
+- `count` is the minimum number of targets; `maxCount` (when set) is the optional cap, so selection is valid when `count <= selected <= maxCount`.
 
 Manual mismatch:
 - “Enemy Disinformation” in the manual says the *opponent* chooses the blocked unit; current UI makes the active player select the target.

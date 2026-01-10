@@ -8,6 +8,12 @@ export type TerrainParams = {
   extraBridgeMinSpacing?: number;
 };
 
+export type TerrainPathfindingConfig = {
+  roadMaxExpandedPerTile: number;
+  riverTrunkMaxStepsPerTile: number;
+  riverTributaryMaxStepsFactor: number;
+};
+
 export type UnitComposition = {
   [player in Player]: Record<UnitType, number>;
 };
@@ -66,4 +72,9 @@ export type AttackFxConfig = {
   lineOffsetX: number;
   lineOffsetY: number;
   targetScaleY: number;
+};
+
+export type TurnSelectionLimits = {
+  maxMovesPerTurn: number;
+  maxAttacksPerTurn: number;
 };

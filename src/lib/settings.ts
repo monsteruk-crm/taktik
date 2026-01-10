@@ -4,6 +4,7 @@ import type {
   AttackFxConfig,
   MoveHighlightSweepConfig,
   TerrainParams,
+  TerrainPathfindingConfig,
   TerrainSquarePenalties,
   UnitComposition,
   UnitCapabilitiesConfig,
@@ -11,6 +12,7 @@ import type {
   UnitAttackConfig,
   UnitMovementConfig,
   UnitDisplayTweak,
+  TurnSelectionLimits,
 } from "@/types/settings";
 
 export type {
@@ -19,6 +21,7 @@ export type {
   AttackFxConfig,
   MoveHighlightSweepConfig,
   TerrainParams,
+  TerrainPathfindingConfig,
   TerrainSquarePenalties,
   UnitComposition,
   UnitCapabilitiesConfig,
@@ -26,14 +29,21 @@ export type {
   UnitAttackConfig,
   UnitMovementConfig,
   UnitDisplayTweak,
+  TurnSelectionLimits,
 } from "@/types/settings";
 
 export const initialTerrainParams: TerrainParams = {
-  roadDensity: 0.2,
-  riverDensity: 0.1,
-  maxBridges: 10,
+  roadDensity: 0.3,
+  riverDensity: 0.2,
+  maxBridges:20,
   extraBridgeEvery: 14,
   extraBridgeMinSpacing: 6,
+};
+
+export const terrainPathfindingConfig: TerrainPathfindingConfig = {
+  roadMaxExpandedPerTile: 520,
+  riverTrunkMaxStepsPerTile: 4,
+  riverTributaryMaxStepsFactor: 5,
 };
 
 export const initialUnitComposition: UnitComposition = {
@@ -50,9 +60,9 @@ export const initialUnitComposition: UnitComposition = {
 };
 
 export const bootstrapUnitPlacement: BootstrapUnitPlacementConfig = {
-  enemyDistance: 4,
-  columnScatter: 3,
-  rowScatter: 1,
+  enemyDistance: 1,
+  columnScatter: 0,
+  rowScatter:0,
 };
 
 export const initialUnitDisplayConfig: UnitDisplayConfig = {
@@ -76,13 +86,18 @@ export const initialUnitDisplayConfig: UnitDisplayConfig = {
 export const initialUnitMovementByType: UnitMovementConfig = {
   INFANTRY: 3,
   VEHICLE: 2,
-  SPECIAL: 2,
+  SPECIAL: 3,
 };
 
 export const initialUnitAttackByType: UnitAttackConfig = {
   INFANTRY: 1,
   VEHICLE: 2,
   SPECIAL: 3,
+};
+
+export const turnSelectionLimits: TurnSelectionLimits = {
+  maxMovesPerTurn: 5,
+  maxAttacksPerTurn: 5,
 };
 
 export const initialUnitCapabilitiesByType: UnitCapabilitiesConfig = {

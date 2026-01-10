@@ -34,7 +34,8 @@ export type TargetingSpec =
   | {
       type: "unit";
       owner: "self" | "enemy";
-      count: 1 | 2;
+      count: number;
+      maxCount?: number;
     }
   | {
       type: "none";
@@ -120,6 +121,7 @@ export type GameState = {
   selectedTacticalDeck: CardDefinition[];
   pendingCard: CardDefinition | null;
   pendingAttack: { attackerId: string; targetId: string } | null;
+  attackQueue: AttackMeta[];
   storedBonuses: CardDefinition[];
   activeEffects: Effect[];
   nextEffectId: number;

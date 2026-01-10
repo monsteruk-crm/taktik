@@ -35,6 +35,7 @@ function makeBaseState(): GameState {
     selectedTacticalDeck: [],
     pendingCard: null,
     pendingAttack: null,
+    attackQueue: [],
     storedBonuses: [],
     activeEffects: [],
     nextEffectId: 1,

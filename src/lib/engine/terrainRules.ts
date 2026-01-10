@@ -82,11 +82,18 @@ export type TerrainRulesConfig = {
   baseHitThreshold: number;
 };
 
-const DIRECTIONS: Array<{ id: Direction; dx: number; dy: number }> = [
+const CARDINAL_DIRECTIONS: Array<{ id: Direction; dx: number; dy: number }> = [
   { id: "N", dx: 0, dy: -1 },
   { id: "E", dx: 1, dy: 0 },
   { id: "S", dx: 0, dy: 1 },
   { id: "W", dx: -1, dy: 0 },
+];
+
+const DIAGONAL_DIRECTIONS: Array<{ id: "NE" | "NW" | "SE" | "SW"; dx: number; dy: number }> = [
+  { id: "NE", dx: 1, dy: -1 },
+  { id: "NW", dx: -1, dy: -1 },
+  { id: "SE", dx: 1, dy: 1 },
+  { id: "SW", dx: -1, dy: 1 },
 ];
 
 export const terrainRulesConfig: TerrainRulesConfig = {
@@ -482,6 +489,7 @@ export function getReachableTiles(args: {
   bestCost.set(startKey, 0);
   const open: Array<{ cell: BoardCell; cost: number }> = [{ cell: start, cost: 0 }];
   const reachable: BoardCell[] = [];
+  const occupied = new Set(state.units.map((candidate) => posKey(candidate.position)));
 
   while (open.length > 0) {
     let bestIndex = 0;
@@ -491,23 +499,34 @@ export function getReachableTiles(args: {
       }
     }
     const current = open.splice(bestIndex, 1)[0];
-    for (const dir of DIRECTIONS) {
+    const canStep = (dir: { dx: number; dy: number }) => {
       const next = { x: current.cell.x + dir.dx, y: current.cell.y + dir.dy };
       if (next.x < 0 || next.x >= width || next.y < 0 || next.y >= height) {
-        continue;
+        return { next: null, step: null, nextCost: 0 };
       }
       if (next.x === start.x && next.y === start.y) {
-        continue;
+        return { next: null, step: null, nextCost: 0 };
       }
-      if (state.units.some((candidate) => candidate.position.x === next.x && candidate.position.y === next.y)) {
-        continue;
+      if (occupied.has(posKey(next))) {
+        return { next: null, step: null, nextCost: 0 };
       }
       const step = resolveMovementStepCost({ state, unit, from: current.cell, to: next, config });
       if (step.blocked) {
-        continue;
+        return { next: null, step: null, nextCost: 0 };
       }
       const nextCost = current.cost + step.cost;
       if (nextCost > movementPoints) {
+        return { next: null, step: null, nextCost: 0 };
+      }
+      return { next, step, nextCost };
+    };
+
+    const hasCardinalMove = CARDINAL_DIRECTIONS.some((dir) => Boolean(canStep(dir).next));
+    const dirs = hasCardinalMove ? CARDINAL_DIRECTIONS : DIAGONAL_DIRECTIONS;
+
+    for (const dir of dirs) {
+      const { next, nextCost } = canStep(dir);
+      if (!next) {
         continue;
       }
       const nextKey = posKey(next);

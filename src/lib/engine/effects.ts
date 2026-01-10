@@ -60,7 +60,9 @@ export function validateTargets(
   if (!targets?.unitIds) {
     return "Targets required";
   }
-  if (targets.unitIds.length !== card.targeting.count) {
+  const minCount = card.targeting.count;
+  const maxCount = card.targeting.maxCount ?? minCount;
+  if (targets.unitIds.length < minCount || targets.unitIds.length > maxCount) {
     return "Invalid target count";
   }
   for (const unitId of targets.unitIds) {

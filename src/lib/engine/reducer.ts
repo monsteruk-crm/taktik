@@ -30,6 +30,7 @@ import {
   initialTerrainSquarePenalties,
   initialUnitComposition,
   initialUnitMovementByType,
+  turnSelectionLimits,
 } from "@/lib/settings";
 
 export type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
@@ -59,7 +60,8 @@ const phaseOrder: GamePhase[] = [
 
 const boardWidth = 20;
 const boardHeight = 30;
-const maxMovesPerTurn = 5;
+const maxMovesPerTurn = Math.max(1, Math.floor(turnSelectionLimits.maxMovesPerTurn));
+const maxAttacksPerTurn = Math.max(1, Math.floor(turnSelectionLimits.maxAttacksPerTurn));
 
 function buildTerrainBlockSet(terrain: { road: { x: number; y: number }[]; river: { x: number; y: number }[] }) {
   const blocked = new Set<string>();
@@ -190,6 +192,7 @@ export function createLoadingGameState(bootstrap: GameBootstrap): GameState {
     selectedTacticalDeck: bootstrap.tacticalDeck,
     pendingCard: null,
     pendingAttack: null,
+    attackQueue: [],
     storedBonuses: [],
     activeEffects: [],
     nextEffectId: 1,
@@ -315,6 +318,7 @@ export function createInitialGameStateFromBootstrap(args: {
     selectedTacticalDeck: bootstrap.tacticalDeck,
     pendingCard: null,
     pendingAttack: null,
+    attackQueue: [],
     storedBonuses: [],
     activeEffects: [],
     nextEffectId: 1,
@@ -504,10 +508,27 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     const nextPhase = phaseOrder[(index + 1) % phaseOrder.length];
     const isNewTurn = nextPhase === "TURN_START";
     const { expired, remaining } = expireEffectsAtPhase(state, nextPhase);
+    let pendingAttack = state.pendingAttack;
+    let attackQueue = state.attackQueue;
+    let lastRoll = state.lastRoll;
+    if (nextPhase === "ATTACK") {
+      pendingAttack = null;
+      attackQueue = [];
+      lastRoll = null;
+    }
+    if (nextPhase === "DICE_RESOLUTION") {
+      const [nextAttack, ...remainingQueue] = state.attackQueue;
+      pendingAttack = nextAttack ?? null;
+      attackQueue = remainingQueue;
+      lastRoll = null;
+    }
     return {
       ...state,
       phase: nextPhase,
       movesThisTurn: isNewTurn ? 0 : state.movesThisTurn,
+      pendingAttack,
+      attackQueue,
+      lastRoll,
       units: isNewTurn
         ? state.units.map((unit) => ({ ...unit, hasMoved: false }))
         : state.units,
@@ -525,6 +546,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       ...state,
       phase: "TURN_START",
       movesThisTurn: 0,
+      pendingAttack: null,
+      attackQueue: [],
+      lastRoll: null,
       units: state.units.map((unit) => ({ ...unit, hasMoved: false })),
       activeEffects: remaining,
       log: [
@@ -543,6 +567,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       phase: "END_TURN",
       activePlayer: nextPlayer,
       turn: state.turn + 1,
+      pendingAttack: null,
+      attackQueue: [],
+      lastRoll: null,
       activeEffects: remaining,
       log: [
         ...state.log,
@@ -749,6 +776,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, "Cannot select attacks outside the ATTACK phase"],
       };
     }
+    if (state.attackQueue.length >= maxAttacksPerTurn) {
+      return {
+        ...state,
+        log: [
+          ...state.log,
+          `Attack selection limit reached (${maxAttacksPerTurn} pairs per turn)`,
+        ],
+      };
+    }
     const attacker = state.units.find((unit) => unit.id === action.attackerId);
     const target = state.units.find((unit) => unit.id === action.targetId);
 
@@ -784,8 +820,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     return {
       ...state,
-      pendingAttack: { attackerId: attacker.id, targetId: target.id },
-      log: [...state.log, `Attack selected: ${attacker.id} -> ${target.id}`],
+      attackQueue: [
+        ...state.attackQueue,
+        { attackerId: attacker.id, targetId: target.id },
+      ],
+      log: [...state.log, `Attack queued: ${attacker.id} -> ${target.id}`],
     };
   }
 
@@ -928,11 +967,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     const winner = hasVictory
       ? (remainingOwners.values().next().value ?? null)
       : null;
+    const [nextAttack, ...remainingQueue] = resolveState.attackQueue;
+    const hasNextAttack = !hasVictory && !!nextAttack;
 
     return {
       ...resolveState,
       phase: hasVictory ? "VICTORY" : resolveState.phase,
-      pendingAttack: null,
+      pendingAttack: hasNextAttack ? nextAttack : null,
+      attackQueue: hasNextAttack ? remainingQueue : [],
       lastRoll: null,
       units: nextUnits,
       winner,

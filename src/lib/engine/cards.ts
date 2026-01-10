@@ -45,7 +45,7 @@ export const advancedRecon: CardDefinition = {
 
   kind: "bonus",
   timing: "stored",
-  targeting: { type: "unit", owner: "self", count: 1 },
+  targeting: { type: "unit", owner: "self", count: 1, maxCount: 1 },
   creates: [
     {
       duration: { type: "untilEndOfTurn" },
@@ -73,7 +73,7 @@ export const artillerySupport: CardDefinition = {
 
   kind: "bonus",
   timing: "stored",
-  targeting: { type: "unit", owner: "self", count: 1 },
+  targeting: { type: "unit", owner: "self", count: 1, maxCount: 1 },
   creates: [
     {
       duration: { type: "untilEndOfTurn" },
@@ -151,7 +151,7 @@ export const enemyDisinformation: CardDefinition = {
 
   kind: "malus",
   timing: "immediate",
-  targeting: { type: "unit", owner: "enemy", count: 1 },
+  targeting: { type: "unit", owner: "enemy", count: 1, maxCount: 1 },
   creates: [
     {
       duration: { type: "untilEndOfTurn" },
@@ -203,7 +203,7 @@ export const mechanicalFailure: CardDefinition = {
 
   kind: "malus",
   timing: "immediate",
-  targeting: { type: "unit", owner: "enemy", count: 1 },
+  targeting: { type: "unit", owner: "enemy", count: 1, maxCount: 1 },
   creates: [
     {
       duration: { type: "untilEndOfTurn" },

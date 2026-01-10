@@ -4551,3 +4551,77 @@ Missing (vs `docs/Taktik_Manual_EN.md`):
 - UI: `src/app/page.tsx`
 - Config: `src/lib/settings.ts`, `src/types/settings.ts`
 - Docs: `docs/engine.md`, `docs/progress.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`
+
+---
+
+## 2026-01-10 — Terrain path iteration knobs in settings
+
+### BEFORE
+- River walker steps and the road A* expansion budget were hard-coded inside `terrain.ts`, so adjusting the worker’s processing power required touching generator logic directly.
+- `routeRoad` forced its own `maxExpanded` override, so there was no shared config for the road pathfinding budget.
+
+### NOW
+- Added `terrainPathfindingConfig` in `src/lib/settings.ts` and wired `aStarPath` / `riverWalk` to use its budget multipliers; `routeRoad` now trusts the shared default while river trunks/tributaries consume the trunk/perimeter factors to compute their `maxSteps`.
+- Documented the knobs in `docs/engine.md` and noted the updates in `docs/README.md` plus `docs/meta/DOCS_INDEX.md` so the canonical index mentions the pathfinding budgets.
+
+### NEXT
+- Consider exposing these settings via a dev UI or scenario presets so designers can tune the budgets without editing files.
+
+### Known limitations / TODOs
+- The multipliers are still global for all road paths and river types, so per-bridge or per-tributary tuning still requires code changes, and there is no runtime UI for tweaking them yet.
+
+### Files touched
+- Engine: `src/lib/engine/terrain.ts`
+- Config: `src/lib/settings.ts`, `src/types/settings.ts`
+- Docs: `docs/engine.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-10 — Diagonal escape moves when boxed in
+
+### BEFORE
+- Movement range used only 4-direction steps, so a unit fully blocked on N/E/S/W could end up with zero valid moves even if a diagonal tile was open.
+- The diagonal-escape behavior appeared inconsistent because the resolver never explicitly enabled diagonals in blocked cases.
+
+### NOW
+- Updated the movement resolver to allow diagonal steps only when a unit has no viable cardinal moves from a given cell, ensuring blocked units can still escape diagonally.
+- Documented the diagonal-escape rule in `docs/engine.md` and updated the doc index references in `docs/README.md` and `docs/meta/DOCS_INDEX.md`.
+
+### NEXT
+- Verify movement highlights in a few boxed-in scenarios to ensure diagonal options only appear when cardinal movement is impossible.
+
+### Known limitations / TODOs
+- Diagonal steps are still treated as a standard terrain-cost move (no extra diagonal penalty), so balance tuning may be needed if diagonal escapes feel too permissive.
+
+### Files touched
+- Engine: `src/lib/engine/terrainRules.ts`
+- Docs: `docs/engine.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
+---
+
+## 2026-01-10 — Queue attack selections + target max caps
+
+### BEFORE
+- Only a single attack could be selected at a time because `pendingAttack` held the lone attacker/target pair.
+- Per-turn move cap was hard-coded in the reducer instead of coming from settings.
+- Card targeting required an exact target count, so any multi-target card would stall if fewer units remained.
+
+### NOW
+- Added `turnSelectionLimits` in `src/lib/settings.ts` for per-turn move and attack selection caps, and the reducer consumes these limits.
+- `ATTACK_SELECT` now queues attacker/target pairs in `attackQueue`, and `DICE_RESOLUTION` processes them one-by-one via `pendingAttack` + `lastRoll`.
+- Card targeting accepts a minimum (`count`) and optional maximum (`maxCount`) so cards can allow fewer than the cap when units are scarce; UI reflects the new limits.
+
+### NEXT
+- Add a UI affordance to review or clear queued attack pairs before entering dice resolution.
+
+### Known limitations / TODOs
+- The UI only shows the queued attack count, not the specific attacker/target pairs.
+- The engine does not prevent the same unit from being queued multiple times in a turn.
+
+### Files touched
+- Engine: `src/lib/engine/reducer.ts`, `src/lib/engine/effects.ts`
+- Cards: `src/lib/engine/cards.ts`, `src/lib/engine/cards/tactics.ts`
+- Settings/Types: `src/lib/settings.ts`, `src/types/engine.ts`, `src/types/settings.ts`
+- UI: `src/app/page.tsx`
+- Tests: `src/lib/engine/__tests__/terrainRules.test.ts`
+- Docs: `docs/engine.md`, `docs/cards-system.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`

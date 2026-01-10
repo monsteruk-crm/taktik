@@ -152,6 +152,12 @@ export default function Home() {
     return getMoveRange(state, selectedUnitId);
   }, [mode, selectedUnitId, state]);
   const pendingTargetingSpec = state.pendingCard?.targeting ?? null;
+  const pendingTargetingMinCount =
+    pendingTargetingSpec?.type === "unit" ? pendingTargetingSpec.count : 0;
+  const pendingTargetingMaxCount =
+    pendingTargetingSpec?.type === "unit"
+      ? pendingTargetingSpec.maxCount ?? pendingTargetingSpec.count
+      : 0;
   const tacticById = useMemo(() => {
     return new Map(state.selectedTacticalDeck.map((card) => [card.id, card]));
   }, [state.selectedTacticalDeck]);
@@ -205,6 +211,12 @@ export default function Home() {
         ? tacticById.get(resolvedTargetingContext.cardId) ?? null
         : null;
   const targetingSpec = targetingCard?.targeting ?? null;
+  const targetingMinCount =
+    targetingSpec?.type === "unit" ? targetingSpec.count : 0;
+  const targetingMaxCount =
+    targetingSpec?.type === "unit"
+      ? targetingSpec.maxCount ?? targetingSpec.count
+      : 0;
   const isTargeting = !!resolvedTargetingContext;
   const resolvedTargetUnitIds = isTargeting ? selectedTargetUnitIds : [];
   const tacticTargetingCard =
@@ -629,7 +641,8 @@ export default function Home() {
         if (current.includes(unitId)) {
           return current.filter((id) => id !== unitId);
         }
-        if (current.length >= targetingSpec.count) {
+        const maxCount = targetingSpec.maxCount ?? targetingSpec.count;
+        if (current.length >= maxCount) {
           return current;
         }
         return [...current, unitId];
@@ -708,7 +721,9 @@ export default function Home() {
     mode === "MOVE" ? selectedUnitId ?? "None" : selectedAttackerId ?? "None";
   const pendingAttackLabel = state.pendingAttack
     ? `${state.pendingAttack.attackerId} -> ${state.pendingAttack.targetId}`
-    : "None";
+    : state.attackQueue.length > 0
+      ? `${state.attackQueue.length} QUEUED`
+      : "None";
   const lastRollLabel = state.lastRoll
     ? `${state.lastRoll.value} -> ${state.lastRoll.outcome}`
     : "None";
@@ -828,7 +843,7 @@ export default function Home() {
       },
     ];
 
-    if (selectedUnitId || selectedAttackerId || state.pendingAttack) {
+    if (selectedUnitId || selectedAttackerId || state.pendingAttack || state.attackQueue.length > 0) {
       keys.push({
         id: "clear",
         label: dockShort("CLEAR SELECTION"),
@@ -920,6 +935,7 @@ export default function Home() {
     selectionLabel,
     selectedAttackerId,
     selectedUnitId,
+    state.attackQueue.length,
     state.pendingAttack,
   ]);
 
@@ -1081,7 +1097,12 @@ export default function Home() {
             canRollDice={canRollDice}
             canResolveAttack={canResolveAttack}
             isGameOver={isGameOver}
-            hasSelection={Boolean(selectedUnitId || selectedAttackerId || state.pendingAttack)}
+            hasSelection={Boolean(
+              selectedUnitId ||
+              selectedAttackerId ||
+              state.pendingAttack ||
+              state.attackQueue.length > 0
+            )}
             showStatusStrip={showHeaderExtras && !showMobileStatsOverlay}
             showPhaseControls={showHeaderExtras && !showMobileStatsOverlay}
             showCommandPanels={showHeaderExtras}
@@ -1501,7 +1522,7 @@ export default function Home() {
                   ) : null}
                   {targetingSpec?.type === "unit" ? (
                     <Typography variant="caption">
-                      SELECTED {resolvedTargetUnitIds.length}/{targetingSpec.count}
+                      SELECTED {resolvedTargetUnitIds.length}/{targetingMaxCount}
                     </Typography>
                   ) : null}
                 </Stack>
@@ -1512,7 +1533,8 @@ export default function Home() {
                       onClick={handleConfirmPendingTargets}
                       disabled={
                         pendingTargetingSpec?.type !== "unit" ||
-                        resolvedTargetUnitIds.length !== pendingTargetingSpec.count
+                        resolvedTargetUnitIds.length < pendingTargetingMinCount ||
+                        resolvedTargetUnitIds.length > pendingTargetingMaxCount
                       }
                       tone="black"
                       active
@@ -1524,7 +1546,8 @@ export default function Home() {
                       onClick={handleConfirmTacticTargets}
                       disabled={
                         targetingSpec?.type !== "unit" ||
-                        resolvedTargetUnitIds.length !== targetingSpec.count
+                        resolvedTargetUnitIds.length < targetingMinCount ||
+                        resolvedTargetUnitIds.length > targetingMaxCount
                       }
                       tone="black"
                       active
