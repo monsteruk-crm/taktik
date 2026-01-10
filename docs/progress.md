@@ -5,6 +5,30 @@ Each entry captures what the system could do **before**, what it can do **now**,
 
 ---
 
+## 2026-01-10 — Engine abstraction + local runtime
+
+### BEFORE
+- The UI dispatched directly into the engine reducer and relied on bootstrap/loading helpers plus worker-driven terrain setup.
+- Engine public surface exposed multiple helper functions and included platform-like actions (`LOAD_STATE`, `RESET_GAME`).
+- There was no structured event log for replay, and no headless match tests.
+
+### NOW
+- Engine API is reduced to `startMatch` + `applyIntent`, with deterministic events emitted per intent.
+- A LocalRuntime layer owns `engineState` + `eventLog`, enforces turn ownership, and the UI talks to it instead of the engine.
+- Added headless simulation tests for full-match playthrough, replay from event log, and determinism checks.
+
+### NEXT
+- Use the event log for a debug replay viewer (or persistence hook) without touching the engine.
+
+### Known limitations / TODOs
+- Match initialization is synchronous (terrain generation now happens in-process instead of via a worker).
+
+### Files touched
+- Engine: `src/lib/engine/api.ts`, `src/lib/engine/reducer.ts`, `src/lib/engine/config.ts`, `src/lib/engine/events.ts`, `src/lib/engine/gameState.ts`, `src/lib/engine/index.ts`, `src/lib/engine/terrain.ts`, `src/lib/engine/terrainRules.ts`, `src/lib/settings.ts`, `src/types/engine.ts`, `src/types/reducer.ts`
+- Runtime/UI: `src/lib/runtime/localRuntime.ts`, `src/lib/runtime/index.ts`, `src/app/page.tsx`
+- Tests: `src/lib/engine/__tests__/engineRuntime.test.ts`, `src/lib/engine/__tests__/terrainRules.test.ts`, `vitest.config.ts`
+- Docs: `docs/engine.md`, `docs/architecture.md`, `docs/README.md`, `docs/meta/DOCS_INDEX.md`, `docs/progress.md`
+
 ## 2025-12-25 — Repository audit + initial documentation baseline
 
 ### BEFORE

@@ -1,12 +1,20 @@
 # Engine (Rules System)
 
 ## Purpose
-The rules engine is a deterministic, UI-agnostic state machine implemented as a pure reducer (`lib/engine/reducer.ts`) operating on a serializable `GameState` (`lib/engine/gameState.ts`).
+The rules engine is a deterministic, UI-agnostic state machine with a minimal API (`startMatch` + `applyIntent` in `src/lib/engine/api.ts`) operating on a serializable `GameState` (`src/lib/engine/gameState.ts`).
 
 This document describes:
 - what the manual specifies (`docs/Taktik_Manual_EN.md`),
 - what the current implementation actually does,
 - and where they differ (with explicit alignment TODOs).
+
+## Engine API (current)
+Source: `src/lib/engine/api.ts`
+- `startMatch({ seed, config?, terrain? }) → GameState`
+- `applyIntent(state, intent) → { nextState, events[] }`
+
+Intent type: `EngineIntent` in `src/types/reducer.ts`.
+Event type: `EngineEvent` in `src/lib/engine/events.ts`.
 
 ## Core Rules (manual summary)
 From `docs/Taktik_Manual_EN.md`:
@@ -35,12 +43,14 @@ The manual does not define RNG mechanics, but the project contract requires repr
 - `generateRoads` now seeds the road set with fallback cells before the collector/local loop, so `parseKey` never receives `undefined` from an empty `Set` (the crash triggered by destructuring `roadSet` with zero entries is gone while the deterministic RNG flow remains the same).
 - Reducer is deterministic given `(state, action)`; no `Date.now()`, no side effects, no UI coupling.
 - `Commander's Luck` rerolls reuse `rngSeed` and log the reroll result deterministically.
+- `applyIntent` returns `EngineEvent[]` (intent + randomness markers); the local runtime appends these to its event log for replay.
 
 ### Invariant
 - Every randomness consumer must take the current `rngSeed` and write back the returned `nextSeed` into state.
 
 ## Data Model (types + invariants)
-Defined in `lib/engine/gameState.ts`:
+Defined in `src/lib/engine/gameState.ts`:
+Engine defaults and overrideable config live in `src/lib/engine/config.ts` (re-exported from `src/lib/settings.ts` for UI).
 
 ### `GameState` (selected invariants)
 - `phase`: explicit engine phase (`GamePhase`).
@@ -53,6 +63,7 @@ Defined in `lib/engine/gameState.ts`:
   - `movement`, `attack` (currently placeholder numeric stats),
   - `hasMoved` (reset at start of a new turn).
 - `movesThisTurn`: capped by the engine at 5 (see `maxMovesPerTurn`).
+- `selectionLimits`: per-turn caps (`maxMovesPerTurn`, `maxAttacksPerTurn`) injected at match start from `src/lib/engine/config.ts`.
 - Terrain:
   - `terrain.road` / `terrain.river`: arrays of `{x,y}` cells generated at game start.
   - `terrain.biomes`: `TerrainType[][]` grid (PLAIN/ROUGH/FOREST/URBAN/INDUSTRIAL/HILL/WATER), generated deterministically from the terrain seed plus river/road inputs; road/river cells are forced back to `PLAIN` to keep overlays legible.
@@ -124,7 +135,7 @@ Planned alignment (TODO):
 - Gate `DRAW_CARD`/`PLAY_CARD`/`STORE_BONUS` to the card phases so the engine itself enforces the manual’s turn structure.
 
 ## Actions / Intents Supported
-From `GameAction` in `lib/engine/reducer.ts`:
+From `EngineIntent` in `src/types/reducer.ts`:
 - Phase control: `NEXT_PHASE`, `TURN_START`, `END_TURN`
 - Cards: `DRAW_CARD`, `STORE_BONUS`, `PLAY_CARD`
 - Movement: `MOVE_UNIT`
@@ -219,7 +230,7 @@ Planned alignment (TODO):
 - Align “Enemy Disinformation” targeting with the manual (opponent chooses the blocked unit).
 
 ## RNG & Dice Usage
-- The initial `rngSeed` comes from `getInitialRngSeed()` in `src/lib/settings.ts` (uses `NEXT_PUBLIC_RNG_SEED` if provided, otherwise `1` for a deterministic SSR-safe default).
+- The initial `rngSeed` comes from the seed passed into `startMatch`; the local runtime defaults to `getInitialRngSeed()` in `src/lib/settings.ts` when no seed is provided.
 - Terrain generation consumes `rngSeed` once at game start for networks, then once more for biome placement, and stores the returned `nextSeed`.
 - `DRAW_CARD` consumes `rngSeed` only when refilling/shuffling an empty deck (current).
 - `ROLL_DICE` consumes `rngSeed` every time it is called.

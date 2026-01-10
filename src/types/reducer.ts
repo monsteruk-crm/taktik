@@ -1,5 +1,5 @@
 import type { BoardCell, TerrainBiomeStats, TerrainType } from "@/types/core";
-import type { CardDefinition, GameState } from "@/types/engine";
+import type { CardDefinition } from "@/types/engine";
 import type { ReactionPlay } from "@/types/reactions";
 
 export type TerrainResult = {
@@ -17,12 +17,10 @@ export type GameBootstrap = {
   terrainSeed: number;
 };
 
-export type GameAction =
+export type EngineIntent =
   | { type: "NEXT_PHASE" }
   | { type: "TURN_START" }
   | { type: "END_TURN" }
-  | { type: "RESET_GAME"; seed?: number }
-  | { type: "LOAD_STATE"; state: GameState }
   | { type: "DRAW_CARD" }
   | { type: "STORE_BONUS" }
   | { type: "PLAY_CARD"; cardId: string; targets?: { unitIds?: string[] } }

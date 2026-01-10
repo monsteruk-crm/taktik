@@ -1,69 +1,25 @@
 import type {
-  BootstrapUnitPlacementConfig,
   CardDrawOverlayTiming,
   AttackFxConfig,
   MoveHighlightSweepConfig,
-  TerrainParams,
-  TerrainPathfindingConfig,
-  TerrainSquarePenalties,
-  UnitComposition,
-  UnitCapabilitiesConfig,
   UnitDisplayConfig,
-  UnitAttackConfig,
-  UnitMovementConfig,
   UnitDisplayTweak,
-  TurnSelectionLimits,
 } from "@/types/settings";
+import { defaultEngineConfig } from "@/lib/engine/config";
 
 export type {
-  BootstrapUnitPlacementConfig,
   CardDrawOverlayTiming,
   AttackFxConfig,
   MoveHighlightSweepConfig,
-  TerrainParams,
-  TerrainPathfindingConfig,
-  TerrainSquarePenalties,
-  UnitComposition,
-  UnitCapabilitiesConfig,
   UnitDisplayConfig,
-  UnitAttackConfig,
-  UnitMovementConfig,
   UnitDisplayTweak,
-  TurnSelectionLimits,
 } from "@/types/settings";
+export type { EngineConfig } from "@/lib/engine/config";
 
-export const initialTerrainParams: TerrainParams = {
-  roadDensity: 0.3,
-  riverDensity: 0.2,
-  maxBridges:20,
-  extraBridgeEvery: 14,
-  extraBridgeMinSpacing: 6,
-};
-
-export const terrainPathfindingConfig: TerrainPathfindingConfig = {
-  roadMaxExpandedPerTile: 520,
-  riverTrunkMaxStepsPerTile: 4,
-  riverTributaryMaxStepsFactor: 5,
-};
-
-export const initialUnitComposition: UnitComposition = {
-  PLAYER_A: {
-    INFANTRY: 5,
-    VEHICLE: 3,
-    SPECIAL: 2,
-  },
-  PLAYER_B: {
-    INFANTRY: 5,
-    VEHICLE: 3,
-    SPECIAL: 2,
-  },
-};
-
-export const bootstrapUnitPlacement: BootstrapUnitPlacementConfig = {
-  enemyDistance: 1,
-  columnScatter: 0,
-  rowScatter:0,
-};
+export const initialTerrainParams = defaultEngineConfig.terrainParams;
+export const terrainPathfindingConfig = defaultEngineConfig.terrainPathfindingConfig;
+export const initialUnitComposition = defaultEngineConfig.unitComposition;
+export const bootstrapUnitPlacement = defaultEngineConfig.bootstrapUnitPlacement;
 
 export const initialUnitDisplayConfig: UnitDisplayConfig = {
   INFANTRY: {
@@ -83,28 +39,10 @@ export const initialUnitDisplayConfig: UnitDisplayConfig = {
   },
 };
 
-export const initialUnitMovementByType: UnitMovementConfig = {
-  INFANTRY: 3,
-  VEHICLE: 2,
-  SPECIAL: 3,
-};
-
-export const initialUnitAttackByType: UnitAttackConfig = {
-  INFANTRY: 1,
-  VEHICLE: 2,
-  SPECIAL: 3,
-};
-
-export const turnSelectionLimits: TurnSelectionLimits = {
-  maxMovesPerTurn: 5,
-  maxAttacksPerTurn: 5,
-};
-
-export const initialUnitCapabilitiesByType: UnitCapabilitiesConfig = {
-  INFANTRY: { tags: ["infantry"] },
-  VEHICLE: { tags: ["vehicle"] },
-  SPECIAL: { tags: ["special"] },
-};
+export const initialUnitMovementByType = defaultEngineConfig.unitMovementByType;
+export const initialUnitAttackByType = defaultEngineConfig.unitAttackByType;
+export const turnSelectionLimits = defaultEngineConfig.turnSelectionLimits;
+export const initialUnitCapabilitiesByType = defaultEngineConfig.unitCapabilitiesByType;
 
 export const moveHighlightSweep: MoveHighlightSweepConfig = {
   msPerRing: 250,
@@ -124,10 +62,7 @@ export function getInitialRngSeed(): number {
   return 1;
 }
 
-export const initialTerrainSquarePenalties: TerrainSquarePenalties = {
-  roadSquarePenaltyNew: 3.5,
-  roadSquarePenaltyExisting: 8.5,
-};
+export const initialTerrainSquarePenalties = defaultEngineConfig.terrainSquarePenalties;
 
 export const cardDrawOverlayTiming: CardDrawOverlayTiming = {
   holdMs: 3000,

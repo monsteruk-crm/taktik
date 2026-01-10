@@ -12,13 +12,8 @@ export type {
   UnitType,
 } from "./gameState";
 
-export type { GameAction, GameBootstrap, TerrainResult } from "./reducer";
-export {
-  createInitialGameStateFromBootstrap,
-  createLoadingGameState,
-  gameReducer,
-  getUnitMovementWithEffects,
-  initialGameState,
-  prepareGameBootstrap,
-} from "./reducer";
-export { canPlayTacticInWindow, getOpenReactionWindows } from "./reactions";
+export type { EngineIntent, TerrainResult } from "@/types/reducer";
+export type { EngineEvent } from "./events";
+export type { EngineConfig } from "./config";
+export type { StartMatchConfig } from "./api";
+export { applyIntent, startMatch } from "./api";

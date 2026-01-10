@@ -1,7 +1,7 @@
 import type { BoardCell, TerrainType, UnitType } from "@/types/core";
 import type { GameState, Unit } from "./gameState";
 import type { UnitCapabilitiesConfig } from "@/types/settings";
-import { initialUnitCapabilitiesByType } from "../settings";
+import { initialUnitCapabilitiesByType } from "./config";
 import { posKey } from "./selectors";
 
 export type Direction = "N" | "E" | "S" | "W";

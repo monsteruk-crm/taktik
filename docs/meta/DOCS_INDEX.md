@@ -14,7 +14,7 @@ If a document is not indexed here, it is NOT authoritative.
 
 ## Tier 1 — Core game system (single source of truth)
 - docs/engine.md  
-  Phases, determinism, RNG, invariants (terrain params include extra bridge spacing, pathfinding iteration budgets, diagonal-escape movement rule, plus attack queue + per-turn selection limits)
+  Phases, determinism, RNG, invariants, engine API (`startMatch`/`applyIntent`) + event log (terrain params include extra bridge spacing, pathfinding iteration budgets, diagonal-escape movement rule, plus attack queue + per-turn selection limits)
 
 - docs/cards-system.md  
   Common deck, bonus/malus rules, storage limits, targeting min/max selection rules

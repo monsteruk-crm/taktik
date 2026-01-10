@@ -22,6 +22,10 @@ function makeBaseState(): GameState {
     boardHeight: 3,
     units: [],
     movesThisTurn: 0,
+    selectionLimits: {
+      maxMovesPerTurn: 5,
+      maxAttacksPerTurn: 5,
+    },
     terrain: {
       road: [],
       river: [],

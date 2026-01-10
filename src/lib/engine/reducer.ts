@@ -10,7 +10,7 @@ import type {
   Unit,
   UnitType,
 } from "./gameState";
-import type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
+import type { EngineIntent, GameBootstrap, TerrainResult } from "@/types/reducer";
 import { cardById, commonDeckCards, tacticalDeckCards } from "./cards";
 import { buildContext, instantiateEffect, validateTargets } from "./effects";
 import {
@@ -22,18 +22,9 @@ import { rollDie } from "./rng";
 import { generateTerrainBiomes, generateTerrainNetworks } from "./terrain";
 import { resolveCombatRollModifiers } from "./terrainRules";
 import { getMoveRange } from "./movement";
-import {
-  bootstrapUnitPlacement,
-  getInitialRngSeed,
-  initialUnitAttackByType,
-  initialTerrainParams,
-  initialTerrainSquarePenalties,
-  initialUnitComposition,
-  initialUnitMovementByType,
-  turnSelectionLimits,
-} from "@/lib/settings";
+import { resolveEngineConfig, type EngineConfig } from "./config";
 
-export type { GameAction, GameBootstrap, TerrainResult } from "@/types/reducer";
+export type { EngineIntent, GameBootstrap, TerrainResult } from "@/types/reducer";
 
 function shuffleWithSeed<T>(items: T[], seed: number): { shuffled: T[]; nextSeed: number } {
   const shuffled = [...items];
@@ -58,10 +49,7 @@ const phaseOrder: GamePhase[] = [
   "END_TURN",
 ];
 
-const boardWidth = 20;
-const boardHeight = 30;
-const maxMovesPerTurn = Math.max(1, Math.floor(turnSelectionLimits.maxMovesPerTurn));
-const maxAttacksPerTurn = Math.max(1, Math.floor(turnSelectionLimits.maxAttacksPerTurn));
+const defaultConfig = resolveEngineConfig();
 
 function buildTerrainBlockSet(terrain: { road: { x: number; y: number }[]; river: { x: number; y: number }[] }) {
   const blocked = new Set<string>();
@@ -114,20 +102,22 @@ function findNearestClearCell(args: {
   return start;
 }
 
-const unitStatsByType: Record<UnitType, { movement: number; attack: number }> = {
-  INFANTRY: {
-    movement: initialUnitMovementByType.INFANTRY,
-    attack: initialUnitAttackByType.INFANTRY,
-  },
-  VEHICLE: {
-    movement: initialUnitMovementByType.VEHICLE,
-    attack: initialUnitAttackByType.VEHICLE,
-  },
-  SPECIAL: {
-    movement: initialUnitMovementByType.SPECIAL,
-    attack: initialUnitAttackByType.SPECIAL,
-  },
-};
+function getUnitStatsByType(config: EngineConfig): Record<UnitType, { movement: number; attack: number }> {
+  return {
+    INFANTRY: {
+      movement: config.unitMovementByType.INFANTRY,
+      attack: config.unitAttackByType.INFANTRY,
+    },
+    VEHICLE: {
+      movement: config.unitMovementByType.VEHICLE,
+      attack: config.unitAttackByType.VEHICLE,
+    },
+    SPECIAL: {
+      movement: config.unitMovementByType.SPECIAL,
+      attack: config.unitAttackByType.SPECIAL,
+    },
+  };
+}
 
 function getCenteredColumns(count: number, centerX: number, width: number): number[] {
   if (count <= 0) return [];
@@ -167,24 +157,31 @@ export function prepareGameBootstrap(seed: number): GameBootstrap {
   };
 }
 
-export function createLoadingGameState(bootstrap: GameBootstrap): GameState {
-  const biomes = Array.from({ length: boardHeight }, () =>
-    Array.from({ length: boardWidth }, () => "PLAIN" as TerrainType)
+export function createLoadingGameState(
+  bootstrap: GameBootstrap,
+  config: EngineConfig = defaultConfig
+): GameState {
+  const biomes = Array.from({ length: config.boardHeight }, () =>
+    Array.from({ length: config.boardWidth }, () => "PLAIN" as TerrainType)
   );
   return {
     phase: "TURN_START",
     activePlayer: "PLAYER_A",
     turn: 1,
-    boardWidth,
-    boardHeight,
+    boardWidth: config.boardWidth,
+    boardHeight: config.boardHeight,
     units: [],
     movesThisTurn: 0,
+    selectionLimits: {
+      maxMovesPerTurn: Math.max(1, Math.floor(config.turnSelectionLimits.maxMovesPerTurn)),
+      maxAttacksPerTurn: Math.max(1, Math.floor(config.turnSelectionLimits.maxAttacksPerTurn)),
+    },
     terrain: {
       road: [],
       river: [],
       biomes,
       stats: null,
-      params: initialTerrainParams,
+      params: config.terrainParams,
       seed: bootstrap.terrainSeed,
     },
     commonDeck: bootstrap.commonDeck,
@@ -206,31 +203,32 @@ export function createLoadingGameState(bootstrap: GameBootstrap): GameState {
 export function createInitialGameStateFromBootstrap(args: {
   bootstrap: GameBootstrap;
   terrain: TerrainResult;
+  config?: EngineConfig;
 }): GameState {
-  const { bootstrap, terrain } = args;
+  const { bootstrap, terrain, config = defaultConfig } = args;
   const terrainBlocked = buildTerrainBlockSet(terrain);
   const occupied = new Set<string>();
-  const centerX = Math.floor(boardWidth / 2);
-  const centerY = Math.floor(boardHeight / 2);
+  const centerX = Math.floor(config.boardWidth / 2);
+  const centerY = Math.floor(config.boardHeight / 2);
   const {
     enemyDistance: rawEnemyDistance,
     columnScatter: rawColumnScatter,
     rowScatter: rawRowScatter,
-  } = bootstrapUnitPlacement;
+  } = config.bootstrapUnitPlacement;
   const enemyDistance = Math.max(1, rawEnemyDistance);
   const columnScatter = Math.max(0, Math.floor(rawColumnScatter));
   const rowScatter = Math.max(0, Math.floor(rawRowScatter));
-  const clampRow = (value: number) => Math.max(0, Math.min(boardHeight - 1, value));
-  const clampColumn = (value: number) => Math.max(0, Math.min(boardWidth - 1, value));
+  const clampRow = (value: number) => Math.max(0, Math.min(config.boardHeight - 1, value));
+  const clampColumn = (value: number) => Math.max(0, Math.min(config.boardWidth - 1, value));
   const halfDistance = Math.floor(enemyDistance / 2);
   let rowA = clampRow(centerY - halfDistance);
   let rowB = clampRow(centerY + (enemyDistance - halfDistance));
   if (rowA >= rowB) {
-    rowB = Math.min(boardHeight - 1, rowA + enemyDistance);
+    rowB = Math.min(config.boardHeight - 1, rowA + enemyDistance);
     rowA = Math.max(0, rowB - enemyDistance);
   }
   if (rowA >= rowB) {
-    rowB = Math.min(boardHeight - 1, rowA + 1);
+    rowB = Math.min(config.boardHeight - 1, rowA + 1);
     rowA = Math.max(0, rowB - 1);
   }
   const rowForPlayer: Record<Player, number> = {
@@ -242,6 +240,7 @@ export function createInitialGameStateFromBootstrap(args: {
   const units: Unit[] = [];
   const biomesGrid = terrain.biomes;
   const isPlainTile = ({ x, y }: BoardCell) => biomesGrid[y][x] === "PLAIN";
+  const unitStatsByType = getUnitStatsByType(config);
   let placementSeed = terrain.nextSeed;
   const advancePlacementSeed = () => {
     placementSeed = (placementSeed * 1664525 + 1013904223) >>> 0;
@@ -257,7 +256,7 @@ export function createInitialGameStateFromBootstrap(args: {
     const prefix = player === "PLAYER_A" ? "A" : "B";
     const specs: { id: string; type: UnitType }[] = [];
     let serial = 1;
-    const counts = initialUnitComposition[player];
+    const counts = config.unitComposition[player];
     for (const type of unitTypeOrder) {
       const quantity = counts[type] ?? 0;
       for (let index = 0; index < quantity; index += 1) {
@@ -266,7 +265,7 @@ export function createInitialGameStateFromBootstrap(args: {
       }
     }
     if (specs.length === 0) continue;
-    const columns = getCenteredColumns(specs.length, centerX, boardWidth);
+    const columns = getCenteredColumns(specs.length, centerX, config.boardWidth);
     const row = rowForPlayer[player];
     specs.forEach((spec, specIndex) => {
       const baseColumn = columns[specIndex] ?? centerX;
@@ -278,8 +277,8 @@ export function createInitialGameStateFromBootstrap(args: {
       const start = { x: startColumn, y: startRow };
       const position = findNearestClearCell({
         start,
-        width: boardWidth,
-        height: boardHeight,
+        width: config.boardWidth,
+        height: config.boardHeight,
         blocked: terrainBlocked,
         occupied,
         isAllowedCell: isPlainTile,
@@ -301,16 +300,20 @@ export function createInitialGameStateFromBootstrap(args: {
     phase: "TURN_START",
     activePlayer: "PLAYER_A",
     turn: 1,
-    boardWidth,
-    boardHeight,
+    boardWidth: config.boardWidth,
+    boardHeight: config.boardHeight,
     units,
     movesThisTurn: 0,
+    selectionLimits: {
+      maxMovesPerTurn: Math.max(1, Math.floor(config.turnSelectionLimits.maxMovesPerTurn)),
+      maxAttacksPerTurn: Math.max(1, Math.floor(config.turnSelectionLimits.maxAttacksPerTurn)),
+    },
     terrain: {
       road: terrain.road,
       river: terrain.river,
       biomes: terrain.biomes,
       stats: terrain.stats,
-      params: initialTerrainParams,
+      params: config.terrainParams,
       seed: bootstrap.terrainSeed,
     },
     commonDeck: bootstrap.commonDeck,
@@ -329,22 +332,22 @@ export function createInitialGameStateFromBootstrap(args: {
   };
 }
 
-export function createInitialGameState(seed: number): GameState {
+export function createInitialGameState(seed: number, config: EngineConfig = defaultConfig): GameState {
   const bootstrap = prepareGameBootstrap(seed);
   const networks = generateTerrainNetworks({
-    width: boardWidth,
-    height: boardHeight,
+    width: config.boardWidth,
+    height: config.boardHeight,
     seed: bootstrap.terrainSeed,
-    roadDensity: initialTerrainParams.roadDensity,
-    riverDensity: initialTerrainParams.riverDensity,
-    maxBridges: initialTerrainParams.maxBridges,
-    extraBridgeEvery: initialTerrainParams.extraBridgeEvery,
-    extraBridgeMinSpacing: initialTerrainParams.extraBridgeMinSpacing,
-    penalties: initialTerrainSquarePenalties,
+    roadDensity: config.terrainParams.roadDensity,
+    riverDensity: config.terrainParams.riverDensity,
+    maxBridges: config.terrainParams.maxBridges,
+    extraBridgeEvery: config.terrainParams.extraBridgeEvery,
+    extraBridgeMinSpacing: config.terrainParams.extraBridgeMinSpacing,
+    penalties: config.terrainSquarePenalties,
   });
   const biomes = generateTerrainBiomes({
-    width: boardWidth,
-    height: boardHeight,
+    width: config.boardWidth,
+    height: config.boardHeight,
     seed: networks.nextSeed,
     rivers: networks.river,
     roads: networks.road,
@@ -358,11 +361,9 @@ export function createInitialGameState(seed: number): GameState {
       stats: biomes.stats,
       nextSeed: biomes.nextSeed,
     },
+    config,
   });
 }
-
-const initialSeed = getInitialRngSeed();
-const initialGameState = createLoadingGameState(prepareGameBootstrap(initialSeed));
 
 function manhattanDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -486,18 +487,9 @@ export function getUnitMovementWithEffects(state: GameState, unitId: string) {
   return getEffectiveMovement(state, unitId, unit.movement);
 }
 
-export function gameReducer(state: GameState, action: GameAction): GameState {
-  if (action.type === "LOAD_STATE") {
-    return action.state;
-  }
-
+export function gameReducer(state: GameState, action: EngineIntent): GameState {
   if (state.phase === "VICTORY") {
     return state;
-  }
-
-  if (action.type === "RESET_GAME") {
-    const seed = typeof action.seed === "number" ? action.seed : state.rngSeed;
-    return createLoadingGameState(prepareGameBootstrap(seed >>> 0));
   }
 
   if (action.type === "NEXT_PHASE") {
@@ -705,10 +697,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, `Unit ${unit.id} already moved this turn`],
       };
     }
-    if (state.movesThisTurn >= maxMovesPerTurn) {
+    if (state.movesThisTurn >= state.selectionLimits.maxMovesPerTurn) {
       return {
         ...state,
-        log: [...state.log, "Move limit reached (5 units per turn)"],
+        log: [
+          ...state.log,
+          `Move limit reached (${state.selectionLimits.maxMovesPerTurn} units per turn)`,
+        ],
       };
     }
     if (
@@ -776,12 +771,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, "Cannot select attacks outside the ATTACK phase"],
       };
     }
-    if (state.attackQueue.length >= maxAttacksPerTurn) {
+    if (state.attackQueue.length >= state.selectionLimits.maxAttacksPerTurn) {
       return {
         ...state,
         log: [
           ...state.log,
-          `Attack selection limit reached (${maxAttacksPerTurn} pairs per turn)`,
+          `Attack selection limit reached (${state.selectionLimits.maxAttacksPerTurn} pairs per turn)`,
         ],
       };
     }
@@ -988,5 +983,3 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
   return state;
 }
-
-export { initialGameState };

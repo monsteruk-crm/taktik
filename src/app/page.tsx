@@ -17,25 +17,17 @@ import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type {
   CardDefinition,
-  GameBootstrap,
+  EngineIntent,
   Player,
   ReactionWindow,
-  TerrainResult,
 } from "@/lib/engine";
+import { getInitialRngSeed } from "@/lib/settings";
 import {
-  createInitialGameStateFromBootstrap,
-  createLoadingGameState,
-  gameReducer,
+  createLocalRuntimeState,
+  getMoveRange,
   getOpenReactionWindows,
-  prepareGameBootstrap,
-} from "@/lib/engine";
-import { formatTerrainStats, generateTerrainBiomes, generateTerrainNetworks } from "@/lib/engine/terrain";
-import {
-  getInitialRngSeed,
-  initialTerrainParams,
-  initialTerrainSquarePenalties,
-} from "@/lib/settings";
-import { getMoveRange } from "@/lib/engine/movement";
+  localRuntimeReducer,
+} from "@/lib/runtime";
 import BoardSurface from "@/components/BoardSurface";
 import CommandHeader from "@/components/CommandHeader";
 import EdgeCommandDock from "@/components/EdgeCommandDock";
@@ -73,19 +65,17 @@ export default function Home() {
   };
 
   const initialSeed = useMemo(() => getInitialRngSeed(), []);
-  const initialBootstrap = useMemo(() => prepareGameBootstrap(initialSeed), [initialSeed]);
-  const [state, dispatch] = useReducer(
-    gameReducer,
-    initialBootstrap,
-    createLoadingGameState
+  const [runtimeState, runtimeDispatch] = useReducer(
+    localRuntimeReducer,
+    { seed: initialSeed },
+    createLocalRuntimeState
   );
+  const state = runtimeState.engineState;
   const [mode, setMode] = useState<"MOVE" | "ATTACK">("MOVE");
   const [terrainStatus, setTerrainStatus] = useState<
     "loading" | "ready" | "error" | "cancelled"
   >("loading");
-  const terrainWorkerRef = useRef<Worker | null>(null);
   const lastSeedRef = useRef<number>(initialSeed);
-  const terrainStartDelayRef = useRef<number | null>(null);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
   const [targetingContext, setTargetingContext] = useState<TargetingContext | null>(null);
@@ -223,133 +213,29 @@ export default function Home() {
     resolvedTargetingContext?.source === "tactic"
       ? tacticById.get(resolvedTargetingContext.cardId) ?? null
       : null;
-
-  const startTerrainWorker = useCallback(
-    (bootstrap: GameBootstrap) => {
-      if (typeof window === "undefined") {
-        return;
-      }
-      setTerrainStatus("loading");
-      const fallbackToMainThread = () => {
-        try {
-          const networks = generateTerrainNetworks({
-            width: state.boardWidth,
-            height: state.boardHeight,
-            seed: bootstrap.terrainSeed,
-            roadDensity: initialTerrainParams.roadDensity,
-            riverDensity: initialTerrainParams.riverDensity,
-            maxBridges: initialTerrainParams.maxBridges,
-            extraBridgeEvery: initialTerrainParams.extraBridgeEvery,
-            extraBridgeMinSpacing: initialTerrainParams.extraBridgeMinSpacing,
-            penalties: initialTerrainSquarePenalties,
-          });
-          const biomes = generateTerrainBiomes({
-            width: state.boardWidth,
-            height: state.boardHeight,
-            seed: networks.nextSeed,
-            rivers: networks.river,
-            roads: networks.road,
-          });
-          if (SHOW_TERRAIN_DEBUG) {
-            console.info("Terrain biome stats\n" + formatTerrainStats(biomes.stats));
-          }
-          const terrain = {
-            road: networks.road,
-            river: networks.river,
-            biomes: biomes.biomes,
-            stats: biomes.stats,
-            nextSeed: biomes.nextSeed,
-          };
-          const nextState = createInitialGameStateFromBootstrap({
-            bootstrap,
-            terrain,
-          });
-          dispatch({ type: "LOAD_STATE", state: nextState });
-          setTerrainStatus("ready");
-          return true;
-        } catch (error) {
-          return false;
-        }
-      };
-
-      // Dev-only: when terrain debug is enabled, always run on the main thread.
-      // Next dev server does not reliably hot-reload worker bundles, which can make
-      // biome counts appear "stuck" even after code changes.
-      if (SHOW_TERRAIN_DEBUG) {
-        const recovered = fallbackToMainThread();
-        if (!recovered) {
-          setTerrainStatus("error");
-        }
-        return;
-      }
-
-      if (terrainWorkerRef.current) {
-        terrainWorkerRef.current.terminate();
-      }
-      const worker = new Worker(
-        new URL("../workers/terrainWorker.ts", import.meta.url)
-      );
-      terrainWorkerRef.current = worker;
-      worker.onmessage = (event: MessageEvent<{ terrain: TerrainResult }>) => {
-        const nextState = createInitialGameStateFromBootstrap({
-          bootstrap,
-          terrain: event.data.terrain,
-        });
-        dispatch({ type: "LOAD_STATE", state: nextState });
-        setTerrainStatus("ready");
-        worker.terminate();
-        if (terrainWorkerRef.current === worker) {
-          terrainWorkerRef.current = null;
-        }
-      };
-      worker.onerror = () => {
-        const recovered = fallbackToMainThread();
-        if (!recovered) {
-          setTerrainStatus("error");
-        }
-        worker.terminate();
-        if (terrainWorkerRef.current === worker) {
-          terrainWorkerRef.current = null;
-        }
-      };
-      worker.postMessage({
-        width: state.boardWidth,
-        height: state.boardHeight,
-        seed: bootstrap.terrainSeed,
-        roadDensity: initialTerrainParams.roadDensity,
-        riverDensity: initialTerrainParams.riverDensity,
-        maxBridges: initialTerrainParams.maxBridges,
-        extraBridgeEvery: initialTerrainParams.extraBridgeEvery,
-        extraBridgeMinSpacing: initialTerrainParams.extraBridgeMinSpacing,
-        penalties: initialTerrainSquarePenalties,
-        debugTerrain: SHOW_TERRAIN_DEBUG,
+  const dispatchIntent = useCallback(
+    (intent: EngineIntent, actorId?: string) => {
+      runtimeDispatch({
+        type: "APPLY_INTENT",
+        intent,
+        actorId: actorId ?? runtimeState.activePlayerId,
       });
     },
-    [SHOW_TERRAIN_DEBUG, state.boardHeight, state.boardWidth]
+    [runtimeDispatch, runtimeState.activePlayerId]
   );
-
 
   const requestNewGame = useCallback(
     (seed: number) => {
-      const bootstrap = prepareGameBootstrap(seed >>> 0);
-      lastSeedRef.current = seed >>> 0;
-      dispatch({ type: "LOAD_STATE", state: createLoadingGameState(bootstrap) });
-      if (terrainStartDelayRef.current) {
-        window.clearTimeout(terrainStartDelayRef.current);
-      }
-      terrainStartDelayRef.current = window.setTimeout(() => {
-        startTerrainWorker(bootstrap);
-        terrainStartDelayRef.current = null;
-      }, 1000);
+      const resolvedSeed = seed >>> 0;
+      lastSeedRef.current = resolvedSeed;
+      setTerrainStatus("loading");
+      runtimeDispatch({ type: "START_MATCH", seed: resolvedSeed });
+      setTerrainStatus("ready");
     },
-    [startTerrainWorker]
+    [runtimeDispatch]
   );
 
   const cancelTerrainWorker = useCallback(() => {
-    if (terrainWorkerRef.current) {
-      terrainWorkerRef.current.terminate();
-      terrainWorkerRef.current = null;
-    }
     setTerrainStatus("cancelled");
   }, []);
 
@@ -362,23 +248,12 @@ export default function Home() {
       return;
     }
     if (process.env.NEXT_PUBLIC_RNG_SEED) {
-      requestNewGame(initialSeed);
+      setTerrainStatus("ready");
       return;
     }
     const randomSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
     requestNewGame(randomSeed);
   }, [initialSeed, requestNewGame]);
-
-  useEffect(() => {
-    return () => {
-      if (terrainWorkerRef.current) {
-        terrainWorkerRef.current.terminate();
-      }
-      if (terrainStartDelayRef.current) {
-        window.clearTimeout(terrainStartDelayRef.current);
-      }
-    };
-  }, []);
   const targetableTiles = useMemo(() => {
     if (!isTargeting || targetingSpec?.type !== "unit") {
       return [];
@@ -674,7 +549,7 @@ export default function Home() {
                   ...(resolvedQueuedTactic.targets ? { targets: resolvedQueuedTactic.targets } : {}),
                 }
               : undefined;
-          dispatch({
+          dispatchIntent({
             type: "MOVE_UNIT",
             unitId: selectedUnitId,
             to: position,
@@ -712,7 +587,7 @@ export default function Home() {
       if (!target || target.owner === state.activePlayer) {
         return;
       }
-      dispatch({ type: "ATTACK_SELECT", attackerId: selectedAttackerId, targetId: unitId });
+      dispatchIntent({ type: "ATTACK_SELECT", attackerId: selectedAttackerId, targetId: unitId });
       setSelectedAttackerId(null);
     }
   }
@@ -773,7 +648,7 @@ export default function Home() {
       {
         id: "end",
         label: dockShort("END TURN"),
-        onClick: () => dispatch({ type: "END_TURN" }),
+        onClick: () => dispatchIntent({ type: "END_TURN" }),
         disabled: isGameOver,
         tone: "black" as const,
         accentColor: semanticColors.attack,
@@ -783,14 +658,14 @@ export default function Home() {
       {
         id: "draw",
         label: dockShort("DRAW CARD"),
-        onClick: () => dispatch({ type: "DRAW_CARD" }),
+        onClick: () => dispatchIntent({ type: "DRAW_CARD" }),
         disabled: !canDrawCard,
         tone: "neutral" as const,
       },
       {
         id: "next",
         label: dockShort("NEXT PHASE"),
-        onClick: () => dispatch({ type: "NEXT_PHASE" }),
+        onClick: () => dispatchIntent({ type: "NEXT_PHASE" }),
         disabled: isGameOver,
         tone: "neutral" as const,
         startIcon: <PlayCircleOutlineIcon fontSize="small" />,
@@ -809,7 +684,7 @@ export default function Home() {
                     : {}),
                 }
               : undefined;
-          dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+          dispatchIntent({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
           if (reaction) {
             setQueuedTactic(null);
           }
@@ -833,7 +708,7 @@ export default function Home() {
                     : {}),
                 }
               : undefined;
-          dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+          dispatchIntent({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
           if (reaction) {
             setQueuedTactic(null);
           }
@@ -962,7 +837,7 @@ export default function Home() {
       state.pendingCard.targeting.type === "unit"
         ? { unitIds: resolvedTargetUnitIds }
         : undefined;
-    dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id, targets });
+    dispatchIntent({ type: "PLAY_CARD", cardId: state.pendingCard.id, targets });
     handleCancelTargeting();
   }
 
@@ -1030,15 +905,15 @@ export default function Home() {
       logRowHeight={logRowHeight}
       fillHeight={fillHeight}
       {...options}
-      onStoreBonus={() => dispatch({ type: "STORE_BONUS" })}
-      onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
+      onStoreBonus={() => dispatchIntent({ type: "STORE_BONUS" })}
+      onDrawCard={() => dispatchIntent({ type: "DRAW_CARD" })}
       onStartPendingTargeting={handleStartPendingTargeting}
       onConfirmPendingTargets={handleConfirmPendingTargets}
       onPlayPendingCard={() => {
         if (!state.pendingCard) {
           return;
         }
-        dispatch({ type: "PLAY_CARD", cardId: state.pendingCard.id });
+        dispatchIntent({ type: "PLAY_CARD", cardId: state.pendingCard.id });
         handleCancelTargeting();
       }}
       onStartTacticTargeting={handleStartTacticTargeting}
@@ -1110,7 +985,7 @@ export default function Home() {
             onToggleConsole={() => setIsConsoleOpen((prev) => !prev)}
             onOpenDockCmd={openDockCmd}
             onOpenDockConsole={openDockConsole}
-            onDrawCard={() => dispatch({ type: "DRAW_CARD" })}
+            onDrawCard={() => dispatchIntent({ type: "DRAW_CARD" })}
             onMove={() => {
               setMode("MOVE");
               setSelectedAttackerId(null);
@@ -1119,8 +994,8 @@ export default function Home() {
               setMode("ATTACK");
               setSelectedUnitId(null);
             }}
-            onNextPhase={() => dispatch({ type: "NEXT_PHASE" })}
-            onEndTurn={() => dispatch({ type: "END_TURN" })}
+            onNextPhase={() => dispatchIntent({ type: "NEXT_PHASE" })}
+            onEndTurn={() => dispatchIntent({ type: "END_TURN" })}
             onRollDice={() => {
               const reaction =
                 resolvedQueuedTactic?.window === "beforeAttackRoll"
@@ -1132,7 +1007,7 @@ export default function Home() {
                         : {}),
                     }
                   : undefined;
-              dispatch({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
+              dispatchIntent({ type: "ROLL_DICE", ...(reaction ? { reaction } : {}) });
               if (reaction) {
                 setQueuedTactic(null);
               }
@@ -1150,7 +1025,7 @@ export default function Home() {
                         : {}),
                     }
                   : undefined;
-              dispatch({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
+              dispatchIntent({ type: "RESOLVE_ATTACK", ...(reaction ? { reaction } : {}) });
               if (reaction) {
                 setQueuedTactic(null);
               }
@@ -1279,7 +1154,7 @@ export default function Home() {
               >
                 <ObliqueKey
                   label={shortKey("NEXT PHASE")}
-                  onClick={() => dispatch({ type: "NEXT_PHASE" })}
+                  onClick={() => dispatchIntent({ type: "NEXT_PHASE" })}
                   disabled={isGameOver}
                   tone="neutral"
                   size="sm"
@@ -1287,7 +1162,7 @@ export default function Home() {
                 />
                 <ObliqueKey
                   label={shortKey("END TURN")}
-                  onClick={() => dispatch({ type: "END_TURN" })}
+                  onClick={() => dispatchIntent({ type: "END_TURN" })}
                   disabled={isGameOver}
                   tone="black"
                   active={!isGameOver}

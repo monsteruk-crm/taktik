@@ -1,5 +1,5 @@
 import type { BoardCell, TerrainBiomeStats, TerrainType } from "./gameState";
-import { terrainPathfindingConfig } from "@/lib/settings";
+import { terrainPathfindingConfig } from "./config";
 
 const DIRECTIONS = [
   { key: "N", dx: 0, dy: -1 },
